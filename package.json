@@ -1,8 +1,0 @@
-{
-  "name": "carmen113-tour",
-  "version": "1.0.0",
-  "description": "App de seguiment de la gira Mañanas de Euforia de Carmen 113",
-  "dependencies": {
-    "googleapis": "^144.0.0"
-  }
-}
