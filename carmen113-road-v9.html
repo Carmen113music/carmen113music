@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Carmen 113 — Road</title>
+<link rel="manifest" id="pwa-manifest">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="C113 Road">
+<link rel="apple-touch-icon" id="apple-touch-icon-link">
+<link rel="icon" type="image/png" sizes="32x32" id="favicon-link">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #000000;
+    --white: #ffffff;
+    --accent: #ff66ff;
+    --grey-dark: #111111;
+    --grey-mid: #333333;
+    --grey-text: #888888;
+    --border: #222222;
+    --nav-h: 64px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Geologica', sans-serif;
+    background: var(--black);
+    color: var(--white);
+    min-height: 100vh;
+    padding-bottom: calc(var(--nav-h) + 16px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === HEADER === */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--black);
+    z-index: 100;
+  }
+
+  .app-logo {
+    height: 22px;
+    filter: invert(1);
+  }
+
+  .lang-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--grey-mid);
+    border-radius: 6px;
+    padding: 3px;
+  }
+
+  .lang-btn {
+    background: none;
+    border: none;
+    color: var(--grey-text);
+    font-family: 'Geologica', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .lang-btn.active {
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  /* === VIEWS === */
+  .view { display: none; padding: 0 0 8px; }
+  .view.active { display: block; }
+
+  /* === HOME === */
+  .next-concert {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .next-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .next-title {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+
+  .next-subtitle {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--grey-text);
+    margin-bottom: 20px;
+  }
+
+  .countdown-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .countdown-unit {
+    text-align: center;
+  }
+
+  .countdown-num {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .countdown-unit-label {
+    font-size: 10px;
+    color: var(--grey-text);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  .countdown-sep {
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--grey-mid);
+    line-height: 1;
+    padding-top: 2px;
+  }
+
+  .next-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .info-cell {
+    background: var(--grey-dark);
+    padding: 14px 16px;
+  }
+
+  .info-cell-label {
+    font-size: 10px;
+    color: var(--grey-text);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .info-cell-value {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .info-cell-value.yellow { color: var(--accent); }
+
+  .btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    margin-bottom: 8px;
+  }
+
+  .btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px;
+    background: none;
+    color: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  /* Quick schedule */
+  .home-section {
+    padding: 20px 20px 0;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .schedule-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .schedule-row:last-child { border-bottom: none; }
+
+  .schedule-time {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    min-width: 52px;
+  }
+
+  .schedule-event {
+    flex: 1;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .schedule-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--grey-text);
+  }
+
+  .schedule-badge.key {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+
+  /* === CONCERT LIST === */
+  .concerts-list { padding: 16px 20px; }
+
+  .concert-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .concert-card:active { border-color: var(--accent); }
+
+  .concert-card-top {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .concert-date-block {
+    background: var(--grey-dark);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    border-right: 1px solid var(--border);
+  }
+
+  .concert-date-day {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .concert-date-month {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .concert-info {
+    flex: 1;
+    padding: 14px 16px;
+  }
+
+  .concert-city {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .concert-venue {
+    font-size: 13px;
+    color: var(--grey-text);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .concert-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--grey-text);
+  }
+
+  .tag.next {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+
+  .concert-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    color: var(--grey-text);
+    font-size: 18px;
+  }
+
+  /* === CONCERT DETAIL === */
+  .detail-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--grey-text);
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 16px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--grey-text);
+    font-family: 'Geologica', sans-serif;
+  }
+
+  .detail-date-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .detail-title {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .detail-venue {
+    font-size: 16px;
+    color: var(--grey-text);
+    font-weight: 500;
+  }
+
+  .detail-section {
+    padding: 20px 20px 0;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+
+  /* Horaris */
+  .horari-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .horari-row:last-child { border-bottom: none; }
+
+  .horari-time {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 48px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .horari-label {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+  }
+
+  .horari-sub {
+    font-size: 12px;
+    color: var(--grey-text);
+    margin-top: 2px;
+  }
+
+  /* Calculadora sortida */
+  .calc-box {
+    background: var(--grey-dark);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 14px;
+  }
+
+  .calc-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--grey-text);
+    margin-bottom: 12px;
+  }
+
+  .calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calc-row:last-child { border-bottom: none; }
+
+  .calc-row label { color: var(--grey-text); }
+
+  .calc-row input, .calc-row select {
+    background: var(--grey-mid);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--white);
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 10px;
+    width: 90px;
+    text-align: right;
+  }
+
+  .calc-result {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .calc-result-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .calc-result-time {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Localitzacions */
+  .loc-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .loc-img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+    background: var(--grey-mid);
+  }
+
+  .loc-img-placeholder {
+    width: 100%;
+    height: 80px;
+    background: var(--grey-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .loc-body {
+    padding: 12px 14px;
+  }
+
+  .loc-type {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--grey-text);
+    margin-bottom: 4px;
+  }
+
+  .loc-name {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .loc-addr {
+    font-size: 12px;
+    color: var(--grey-text);
+    margin-bottom: 10px;
+  }
+
+  .btn-maps {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--accent);
+    border-radius: 6px;
+    padding: 6px 12px;
+    text-decoration: none;
+  }
+
+  /* Despeses */
+  .despesa-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .despesa-row:last-child { border-bottom: none; }
+
+  .despesa-icon {
+    font-size: 18px;
+    width: 32px;
+    text-align: center;
+  }
+
+  .despesa-info { flex: 1; }
+
+  .despesa-desc {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .despesa-who {
+    font-size: 11px;
+    color: var(--grey-text);
+    margin-top: 1px;
+  }
+
+  .despesa-amount {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .despesa-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0 0;
+    font-weight: 700;
+  }
+
+  .despesa-total-label {
+    font-size: 13px;
+    color: var(--grey-text);
+  }
+
+  .despesa-total-amount {
+    font-size: 22px;
+    color: var(--accent); /* magenta */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Add despesa form */
+  .add-form {
+    background: var(--grey-dark);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 14px;
+    display: none;
+  }
+
+  .add-form.open { display: block; }
+
+  .form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .form-input {
+    flex: 1;
+    background: var(--grey-mid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--white);
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .form-input::placeholder { color: var(--grey-text); }
+
+  .form-input:focus {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .form-submit {
+    width: 100%;
+    padding: 11px;
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  .btn-add {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--grey-text);
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+
+  /* === NAV === */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--nav-h);
+    background: var(--black);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 200;
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 0;
+    color: var(--grey-text);
+    font-family: 'Geologica', sans-serif;
+    transition: color 0.15s;
+  }
+
+  .nav-item.active { color: var(--accent); }
+
+  .nav-icon { font-size: 20px; line-height: 1; }
+
+  .nav-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* === CALENDAR VIEW === */
+  .cal-month { padding: 16px 20px 0; }
+
+  .cal-month-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .cal-concert-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .cal-concert-row:last-child { border-bottom: none; }
+
+  .cal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .cal-date {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+    color: var(--grey-text);
+  }
+
+  .cal-info { flex: 1; }
+
+  .cal-city {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .cal-venue {
+    font-size: 12px;
+    color: var(--grey-text);
+  }
+
+  /* === DOCS VIEW === */
+  .docs-section { padding: 16px 20px 0; }
+
+  .doc-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .doc-row:last-child { border-bottom: none; }
+
+  .doc-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--grey-dark);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .doc-info { flex: 1; }
+
+  .doc-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .doc-meta {
+    font-size: 11px;
+    color: var(--grey-text);
+    margin-top: 2px;
+  }
+
+  .doc-type {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: var(--grey-mid);
+    color: var(--grey-text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* === UTILS === */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--grey-text);
+    font-size: 14px;
+  }
+
+  .empty-icon { font-size: 32px; margin-bottom: 10px; }
+
+  /* Category pills */
+  .pills-row {
+    display: flex;
+    gap: 8px;
+    padding: 14px 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pills-row::-webkit-scrollbar { display: none; }
+
+  .pill {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    background: none;
+    color: var(--grey-text);
+    cursor: pointer;
+    font-family: 'Geologica', sans-serif;
+    transition: all 0.15s;
+  }
+
+  .pill.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+
+  /* Concerts filter per mes */
+  .month-header {
+    padding: 16px 20px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--grey-text);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* emoji selector despeses */
+  .emoji-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .emoji-opt {
+    font-size: 20px;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: none;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .emoji-opt.selected {
+    background: var(--grey-mid);
+    border-color: var(--accent);
+  }
+
+  /* === HOME BANNER === */
+  .home-banner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    padding: 20px 20px 0;
+  }
+
+  .home-banner-left { flex: 1; }
+
+  .home-banner-city {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 2px;
+  }
+
+  .home-banner-venue {
+    font-size: 14px;
+    color: var(--grey-text);
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+
+  .home-banner-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .home-banner-meta span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .home-banner-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .home-banner-date {
+    background: var(--accent);
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 64px;
+  }
+
+  .home-banner-day {
+    font-size: 28px;
+    font-weight: 800;
+    color: #000;
+    line-height: 1;
+  }
+
+  .home-banner-month {
+    font-size: 11px;
+    font-weight: 700;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .home-cd {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--grey-text);
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .cd-num {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--white);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cd-sep {
+    font-size: 11px;
+    color: var(--grey-text);
+    margin: 0 2px;
+  }
+
+  .home-list-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    padding: 20px 20px 0;
+    margin-bottom: 4px;
+  }
+
+  /* === MODE PÚBLIC === */
+  .public-view {
+    padding: 0 20px;
+  }
+
+  .public-header {
+    text-align: center;
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .public-logo {
+    height: 28px;
+    filter: invert(1);
+    margin-bottom: 16px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .public-tour-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .public-concert-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .public-concert-row:last-child { border-bottom: none; }
+
+  .public-date-block {
+    flex-shrink: 0;
+    width: 48px;
+    text-align: center;
+  }
+
+  .public-date-day {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .public-date-month {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--grey-text);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  .public-divider {
+    width: 1px;
+    height: 36px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .public-city {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .public-venue {
+    font-size: 12px;
+    color: var(--grey-text);
+    font-weight: 400;
+    margin-top: 3px;
+  }
+
+  .public-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .public-dot.past { background: var(--grey-mid); }
+
+  .crew-mode-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #000000;
+    border-top: 1px solid var(--border);
+    padding: 12px 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 9999;
+    font-size: 12px;
+    color: var(--grey-text);
+  }
+
+  .crew-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: none;
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: 'Geologica', sans-serif;
+  }
+
+  /* Separator */
+  hr.sep {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+  }
+
+  /* Totals strip */
+  .strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .strip-label { font-size: 12px; color: var(--grey-text); font-weight: 500; }
+  .strip-val { font-size: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <img src="/mnt/user-data/uploads/LOGO_C113_2.png" class="app-logo" alt="Carmen 113">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('ca')" id="btn-ca">CA</button>
+    <button class="lang-btn" onclick="setLang('es')" id="btn-es">ES</button>
+  </div>
+</header>
+
+<!-- === VIEW: HOME === -->
+<div class="view active" id="view-home">
+  <div class="next-concert" id="home-next">
+    <!-- omplert per JS -->
+  </div>
+  <div id="home-schedule">
+    <!-- llistat concerts omplert per JS -->
+  </div>
+</div>
+
+<!-- === VIEW: CONCERTS === -->
+<div class="view" id="view-concerts">
+  <div class="concerts-list" id="concerts-list">
+    <!-- omplert per JS -->
+  </div>
+</div>
+
+<!-- === VIEW: CONCERT DETAIL === -->
+<div class="view" id="view-detail">
+  <!-- omplert per JS -->
+</div>
+
+<!-- === VIEW: CALENDAR === -->
+<div class="view" id="view-calendar">
+  <div id="calendar-content">
+    <!-- omplert per JS -->
+  </div>
+</div>
+
+<!-- === VIEW: DOCS === -->
+<div class="view" id="view-docs">
+  <div class="pills-row">
+    <button class="pill active" onclick="filterDocs('all')" data-ca="Tots" data-es="Todos">Tots</button>
+    <button class="pill" onclick="filterDocs('dni')" data-ca="DNIs" data-es="DNIs">DNIs</button>
+    <button class="pill" onclick="filterDocs('rider')" data-ca="Riders" data-es="Riders">Riders</button>
+    <button class="pill" onclick="filterDocs('contracte')" data-ca="Contractes" data-es="Contratos">Contractes</button>
+    <button class="pill" onclick="filterDocs('altres')" data-ca="Altres" data-es="Otros">Altres</button>
+  </div>
+  <div class="docs-section" id="docs-list">
+    <!-- omplert per JS -->
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="showView('home')" id="nav-home">
+    <span class="nav-icon">🎤</span>
+    <span class="nav-label" data-ca="Gira" data-es="Gira">Gira</span>
+  </button>
+  <button class="nav-item" onclick="showView('concerts')" id="nav-concerts" style="display:none">
+    <span class="nav-icon">🎤</span>
+    <span class="nav-label" data-ca="Concerts" data-es="Conciertos">Concerts</span>
+  </button>
+  <button class="nav-item" onclick="showView('calendar')" id="nav-calendar">
+    <span class="nav-icon">📅</span>
+    <span class="nav-label" data-ca="Calendari" data-es="Calendario">Calendari</span>
+  </button>
+  <button class="nav-item" onclick="showView('docs')" id="nav-docs">
+    <span class="nav-icon">📁</span>
+    <span class="nav-label" data-ca="Docs" data-es="Docs">Docs</span>
+  </button>
+</nav>
+
+<script>
+// ============================================================
+// DADES — concerts reals "Mañanas de Euforia"
+// ============================================================
+const CONCERTS = [
+  {
+    id: 1,
+    data: new Date(2026, 9, 16), // 16 oct 2026
+    ciutat: 'León',
+    sala: 'El Gran Café',
+    adreca: 'C/ Cervantes 9, 24003 León',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 830,
+    horaSortida: null,
+    localitzacions: [
+      { tipus: 'venue', nom: 'El Gran Café', adreca: 'C/ Cervantes 9, 24003 León', emoji: '🎸', mapsQ: 'El+Gran+Cafe+Leon+Cervantes+9' },
+      { tipus: 'allotjament', nom: 'Hotel París León', adreca: 'C/ Ancha 18, 24003 León', emoji: '🏨', mapsQ: 'Hotel+Paris+Leon' },
+      { tipus: 'restaurant', nom: 'La Competencia', adreca: 'C/ Cervantes 7, León', emoji: '🍽️', mapsQ: 'La+Competencia+Leon' },
+      { tipus: 'parking', nom: 'Parking El Gran Café', adreca: 'C/ Paso 2, León', emoji: '🅿️', mapsQ: 'Parking+Gran+Cafe+Leon' },
+    ],
+    despeses: [
+      { id: 1, emoji: '⛽', desc: 'Benzina A7', qui: 'Roger', import: 85.40 },
+      { id: 2, emoji: '🍕', desc: 'Dinar autopista', qui: 'Banda', import: 62.00 },
+    ],
+    docs: [
+      { nom: 'Contracte León', tipus: 'contracte', url: '#', mida: '245 KB' },
+      { nom: 'Rider Tècnic', tipus: 'rider', url: '#', mida: '1.2 MB' },
+    ]
+  },
+  {
+    id: 2,
+    data: new Date(2026, 9, 17),
+    ciutat: 'Zamora',
+    sala: 'La Cueva del Jazz',
+    adreca: 'C/ los Herreros 20, 49001 Zamora',
+    setTime: '21:00',
+    loadIn: '17:30',
+    soundcheck: '19:00',
+    doors: '20:30',
+    loadOut: '23:00',
+    distanciaKm: 820,
+    localitzacions: [
+      { tipus: 'venue', nom: 'La Cueva del Jazz', adreca: 'C/ los Herreros 20, Zamora', emoji: '🎸', mapsQ: 'Cueva+Jazz+Zamora+Herreros' },
+      { tipus: 'restaurant', nom: 'Serafín', adreca: 'Plaza Maestro Haedo, Zamora', emoji: '🍽️', mapsQ: 'Restaurante+Serafin+Zamora' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 3,
+    data: new Date(2026, 9, 23),
+    ciutat: 'Huesca',
+    sala: 'El 21',
+    adreca: 'C/ San Lorenzo 21, 22001 Huesca',
+    setTime: '21:00',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '20:30',
+    loadOut: '23:00',
+    distanciaKm: 305,
+    localitzacions: [
+      { tipus: 'venue', nom: 'El 21', adreca: 'C/ San Lorenzo 21, Huesca', emoji: '🎸', mapsQ: 'El+21+Sala+Huesca+San+Lorenzo' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 4,
+    data: new Date(2026, 9, 24),
+    ciutat: 'Valladolid',
+    sala: 'El Desierto Rojo',
+    adreca: 'C/ Calixto Fernández de la Torre 6, 47005 Valladolid',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 750,
+    localitzacions: [
+      { tipus: 'venue', nom: 'El Desierto Rojo', adreca: 'C/ Calixto Fernández de la Torre 6, Valladolid', emoji: '🎸', mapsQ: 'Desierto+Rojo+Valladolid' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 5,
+    data: new Date(2026, 10, 7),
+    ciutat: 'Bilbao',
+    sala: 'Bilbo Rock',
+    adreca: 'Plaza Ensanche 11, 48009 Bilbao',
+    setTime: '22:00',
+    loadIn: '18:30',
+    soundcheck: '20:00',
+    doors: '21:00',
+    loadOut: '00:30',
+    distanciaKm: 570,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala Bilbo Rock', adreca: 'Plaza Ensanche 11, Bilbao', emoji: '🎸', mapsQ: 'Bilbo+Rock+Bilbao' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 6,
+    data: new Date(2026, 10, 20),
+    ciutat: 'Córdoba',
+    sala: 'Sala Impala 2',
+    adreca: 'Av. de América 9, 14008 Córdoba',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 980,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala Impala 2', adreca: 'Av. de América 9, Córdoba', emoji: '🎸', mapsQ: 'Impala+2+Cordoba' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 7,
+    data: new Date(2026, 10, 21),
+    ciutat: 'Almería',
+    sala: 'Berlín Social Club',
+    adreca: 'C/ Trajano 16, 04002 Almería',
+    setTime: '21:00',
+    loadIn: '17:30',
+    soundcheck: '19:00',
+    doors: '20:30',
+    loadOut: '23:00',
+    distanciaKm: 875,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Berlín Social Club', adreca: 'C/ Trajano 16, Almería', emoji: '🎸', mapsQ: 'Berlin+Social+Club+Almeria' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 8,
+    data: new Date(2026, 11, 11),
+    ciutat: 'Murcia',
+    sala: 'Sala REM',
+    adreca: 'C/ Polo de Medina 3, 30001 Murcia',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 660,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala REM', adreca: 'C/ Polo de Medina 3, Murcia', emoji: '🎸', mapsQ: 'Sala+REM+Murcia' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 9,
+    data: new Date(2026, 11, 12),
+    ciutat: 'Sevilla',
+    sala: 'Sala X',
+    adreca: 'C/ Torneo 43, 41002 Sevilla',
+    setTime: '22:00',
+    loadIn: '19:00',
+    soundcheck: '20:30',
+    doors: '21:30',
+    loadOut: '00:30',
+    distanciaKm: 1100,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala X', adreca: 'C/ Torneo 43, Sevilla', emoji: '🎸', mapsQ: 'Sala+X+Sevilla+Torneo' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 10,
+    data: new Date(2026, 11, 18),
+    ciutat: 'València',
+    sala: 'Sala Jerusalem',
+    adreca: 'C/ Jerusalem 9, 46002 Valencia',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 450,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala Jerusalem', adreca: 'C/ Jerusalem 9, Valencia', emoji: '🎸', mapsQ: 'Sala+Jerusalem+Valencia' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 11,
+    data: new Date(2026, 11, 19),
+    ciutat: 'Madrid',
+    sala: 'Sala Copérnico',
+    adreca: 'C/ Copérnico 7, 28004 Madrid',
+    setTime: '22:00',
+    loadIn: '19:00',
+    soundcheck: '20:30',
+    doors: '21:30',
+    loadOut: '00:30',
+    distanciaKm: 695,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala Copérnico', adreca: 'C/ Copérnico 7, Madrid', emoji: '🎸', mapsQ: 'Sala+Copernico+Madrid' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 12,
+    data: new Date(2027, 0, 29),
+    ciutat: 'Lleida',
+    sala: 'Sala Manolita',
+    adreca: 'C/ Manolita 1, 25001 Lleida',
+    setTime: '21:00',
+    loadIn: '17:30',
+    soundcheck: '19:00',
+    doors: '20:30',
+    loadOut: '23:00',
+    distanciaKm: 195,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala Manolita', adreca: 'Lleida', emoji: '🎸', mapsQ: 'Sala+Manolita+Lleida' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 13,
+    data: new Date(2027, 0, 30),
+    ciutat: 'Saragossa',
+    sala: 'Sala López',
+    adreca: 'C/ de las Armas 58, 50003 Zaragoza',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 365,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Sala López', adreca: 'C/ de las Armas 58, Zaragoza', emoji: '🎸', mapsQ: 'Sala+Lopez+Zaragoza' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 14,
+    data: new Date(2027, 1, 12),
+    ciutat: 'Alacant',
+    sala: 'Confetti',
+    adreca: 'C/ San Fernando 40, 03002 Alicante',
+    setTime: '21:00',
+    loadIn: '17:30',
+    soundcheck: '19:00',
+    doors: '20:30',
+    loadOut: '23:00',
+    distanciaKm: 590,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Confetti', adreca: 'C/ San Fernando 40, Alicante', emoji: '🎸', mapsQ: 'Confetti+Sala+Alicante' },
+    ],
+    despeses: [],
+    docs: []
+  },
+  {
+    id: 15,
+    data: new Date(2027, 1, 13),
+    ciutat: 'Granada',
+    sala: 'Planta Baja',
+    adreca: 'C/ Horno de Abad 11, 18001 Granada',
+    setTime: '21:30',
+    loadIn: '18:00',
+    soundcheck: '19:30',
+    doors: '21:00',
+    loadOut: '23:30',
+    distanciaKm: 950,
+    localitzacions: [
+      { tipus: 'venue', nom: 'Planta Baja', adreca: 'C/ Horno de Abad 11, Granada', emoji: '🎸', mapsQ: 'Planta+Baja+Granada' },
+    ],
+    despeses: [],
+    docs: []
+  },
+];
+
+// Documents generals
+const DOCS_GENERALS = [
+  { nom: 'DNI — Roger', tipus: 'dni', url: '#', mida: '1.1 MB' },
+  { nom: 'DNI — Marc', tipus: 'dni', url: '#', mida: '0.9 MB' },
+  { nom: 'DNI — Laura', tipus: 'dni', url: '#', mida: '1.0 MB' },
+  { nom: 'DNI — Pol', tipus: 'dni', url: '#', mida: '0.8 MB' },
+  { nom: 'DNI — Júlia', tipus: 'dni', url: '#', mida: '1.2 MB' },
+  { nom: 'DNI — Sergi', tipus: 'dni', url: '#', mida: '0.9 MB' },
+  { nom: 'Rider Tècnic Genèric', tipus: 'rider', url: '#', mida: '2.1 MB' },
+  { nom: 'Rider Hospitalitat Genèric', tipus: 'rider', url: '#', mida: '1.4 MB' },
+  { nom: 'Bio Carmen 113 (ca)', tipus: 'altres', url: '#', mida: '45 KB' },
+  { nom: 'Bio Carmen 113 (es)', tipus: 'altres', url: '#', mida: '43 KB' },
+  { nom: 'Fotos promo (Google Drive)', tipus: 'altres', url: '#', mida: '—' },
+];
+
+// ============================================================
+// ESTAT
+// ============================================================
+let currentLang = 'ca';
+let currentView = 'home';
+let currentConcertId = null;
+let despesesEmoji = '⛽';
+let docsFilter = 'all';
+
+// ============================================================
+// UTILS
+// ============================================================
+const MESOS_CA = ['gen.','feb.','mar.','abr.','mai.','jun.','jul.','ago.','set.','oct.','nov.','des.'];
+const MESOS_ES = ['ene.','feb.','mar.','abr.','may.','jun.','jul.','ago.','sep.','oct.','nov.','dic.'];
+const DIES_CA = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
+const DIES_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MESOS_FULL_CA = ['Gener','Febrer','Març','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre'];
+const MESOS_FULL_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function formatData(d) {
+  const m = currentLang === 'ca' ? MESOS_CA[d.getMonth()] : MESOS_ES[d.getMonth()];
+  const dia = currentLang === 'ca' ? DIES_CA[d.getDay()] : DIES_ES[d.getDay()];
+  return `${dia}, ${d.getDate()} ${m} ${d.getFullYear()}`;
+}
+
+function formatDataCurta(d) {
+  const m = currentLang === 'ca' ? MESOS_CA[d.getMonth()] : MESOS_ES[d.getMonth()];
+  return `${d.getDate()} ${m}`;
+}
+
+function nextConcert() {
+  const now = new Date();
+  return CONCERTS.find(c => c.data >= now) || CONCERTS[CONCERTS.length - 1];
+}
+
+function msToCountdown(ms) {
+  if (ms <= 0) return { d: 0, h: 0, m: 0, s: 0 };
+  const s = Math.floor(ms / 1000);
+  return {
+    d: Math.floor(s / 86400),
+    h: Math.floor((s % 86400) / 3600),
+    m: Math.floor((s % 3600) / 60),
+    s: s % 60
+  };
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function tipusLabel(t) {
+  const map = {
+    ca: { venue: 'Sala', allotjament: 'Allotjament', restaurant: 'On menjar', parking: 'Pàrquing' },
+    es: { venue: 'Sala', allotjament: 'Alojamiento', restaurant: 'Dónde comer', parking: 'Parking' }
+  };
+  return (map[currentLang][t] || t);
+}
+
+function calcHoraSortida(loadInStr, distanciaKm) {
+  const [h, m] = loadInStr.split(':').map(Number);
+  const loadInMin = h * 60 + m;
+  // temps viatge estimat: 90km/h + 10% + parades cada 2h (20min) + càrrega 30min
+  const tempsViatge = Math.ceil((distanciaKm / 90) * 60 * 1.1);
+  const parades = Math.floor(distanciaKm / 180) * 20;
+  const totalMin = tempsViatge + parades + 30; // +30 marge
+  const sortidaMin = loadInMin - totalMin;
+  const sh = Math.floor(((sortidaMin % 1440) + 1440) % 1440 / 60);
+  const sm = ((sortidaMin % 1440) + 1440) % 1440 % 60;
+  return { hora: `${pad(sh)}:${pad(sm)}`, tempsViatge, parades };
+}
+
+// ============================================================
+// LANG
+// ============================================================
+function setLang(l) {
+  currentLang = l;
+  document.getElementById('btn-ca').classList.toggle('active', l === 'ca');
+  document.getElementById('btn-es').classList.toggle('active', l === 'es');
+  document.querySelectorAll('[data-ca]').forEach(el => {
+    el.textContent = el.dataset[l] || el.textContent;
+  });
+  renderCurrentView();
+}
+
+// ============================================================
+// NAV
+// ============================================================
+function showView(name) {
+  currentView = name;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const views = { home: 'view-home', concerts: 'view-concerts', calendar: 'view-calendar', docs: 'view-docs' };
+  document.getElementById(views[name]).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  renderCurrentView();
+}
+
+function showDetail(id) {
+  currentConcertId = id;
+  currentView = 'detail';
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-detail').classList.add('active');
+  renderDetail(id);
+}
+
+function renderCurrentView() {
+  if (currentView === 'home') renderHome();
+  else if (currentView === 'concerts') renderConcerts();
+  else if (currentView === 'calendar') renderCalendar();
+  else if (currentView === 'docs') renderDocs();
+  else if (currentView === 'detail') renderDetail(currentConcertId);
+}
+
+// ============================================================
+// HOME — capçalera compacta proper concert + llistat complet
+// ============================================================
+let countdownInterval = null;
+
+function renderHome() {
+  const c = nextConcert();
+  const now = new Date();
+
+  // --- Capçalera compacta: proper concert + compte enrere ---
+  function updateCountdown() {
+    const diff = c.data - new Date();
+    const { d, h, m } = msToCountdown(diff);
+    const el = document.getElementById('countdown-display');
+    if (!el) return;
+    if (diff > 0) {
+      const dLabel = currentLang === 'ca' ? 'd' : 'd';
+      el.innerHTML = `<span class="cd-num">${d}</span><span class="cd-sep">${dLabel}</span><span class="cd-num">${pad(h)}</span><span class="cd-sep">h</span><span class="cd-num">${pad(m)}</span><span class="cd-sep">m</span>`;
+    } else {
+      el.innerHTML = `<span style="color:var(--accent);font-weight:700">${currentLang === 'ca' ? 'Avui!' : '¡Hoy!'}</span>`;
+    }
+  }
+
+  const { hora: sortida } = calcHoraSortida(c.loadIn, c.distanciaKm);
+  const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ORIGEN)}&destination=${encodeURIComponent(c.localitzacions[0].adreca)}&travelmode=driving`;
+  const propLabel = currentLang === 'ca' ? 'Proper' : 'Próximo';
+  const navLabel = currentLang === 'ca' ? 'Navegar' : 'Navegar';
+  const sortidaLabel = currentLang === 'ca' ? 'Sortida' : 'Salida';
+  const totsLabel = currentLang === 'ca' ? 'Tots els concerts' : 'Todos los conciertos';
+  const propersLabel = currentLang === 'ca' ? 'Propers' : 'Próximos';
+  const passatsLabel = currentLang === 'ca' ? 'Passats' : 'Pasados';
+
+  document.getElementById('home-next').innerHTML = `
+    <div class="home-banner" onclick="showDetail(${c.id})">
+      <div class="home-banner-left">
+        <div class="next-label">${propLabel}</div>
+        <div class="home-banner-city">${c.ciutat}</div>
+        <div class="home-banner-venue">${c.sala}</div>
+        <div class="home-banner-meta">
+          <span>🎸 ${c.setTime}</span>
+          <span>📍 ${c.distanciaKm} km</span>
+          <span>🚗 ${sortidaLabel} ${sortida}</span>
+        </div>
+      </div>
+      <div class="home-banner-right">
+        <div class="home-banner-date">
+          <div class="home-banner-day">${c.data.getDate()}</div>
+          <div class="home-banner-month">${(currentLang === 'ca' ? MESOS_CA : MESOS_ES)[c.data.getMonth()].replace('.','')}</div>
+        </div>
+        <div id="countdown-display" class="home-cd"></div>
+      </div>
+    </div>
+    <a href="${mapUrl}" target="_blank" class="btn-primary" style="margin-top:10px" onclick="event.stopPropagation()">📍 ${navLabel} — ${c.sala}</a>
+  `;
+
+  updateCountdown();
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(updateCountdown, 1000);
+
+  // --- Llistat complet de concerts ---
+  const upcoming = CONCERTS.filter(x => x.data >= now);
+  const past = CONCERTS.filter(x => x.data < now);
+
+  let listHTML = `<div class="home-list-title">${totsLabel}</div>`;
+
+  if (upcoming.length) {
+    listHTML += `<div class="month-header">${propersLabel}</div>`;
+    listHTML += upcoming.map((x, i) => concertCard(x, i === 0)).join('');
+  }
+  if (past.length) {
+    listHTML += `<div class="month-header" style="margin-top:4px">${passatsLabel}</div>`;
+    listHTML += past.map(x => concertCard(x, false, true)).join('');
+  }
+
+  document.getElementById('home-schedule').innerHTML = listHTML;
+}
+
+// ============================================================
+// CONCERTS
+// ============================================================
+function renderConcerts() {
+  const now = new Date();
+  const upcoming = CONCERTS.filter(c => c.data >= now);
+  const past = CONCERTS.filter(c => c.data < now);
+
+  let html = '';
+  if (upcoming.length) {
+    const propLabel = currentLang === 'ca' ? 'Propers concerts' : 'Próximos conciertos';
+    html += `<div class="month-header">${propLabel}</div>`;
+    html += upcoming.map((c, i) => concertCard(c, i === 0)).join('');
+  }
+  if (past.length) {
+    const passLabel = currentLang === 'ca' ? 'Concerts passats' : 'Conciertos pasados';
+    html += `<div class="month-header" style="margin-top:8px">${passLabel}</div>`;
+    html += past.map(c => concertCard(c, false, true)).join('');
+  }
+
+  document.getElementById('concerts-list').innerHTML = html;
+}
+
+function concertCard(c, isNext = false, isPast = false) {
+  const nextTag = currentLang === 'ca' ? 'Proper' : 'Próximo';
+  const pastStyle = isPast ? 'opacity:0.5' : '';
+  return `
+    <div class="concert-card" onclick="showDetail(${c.id})" style="${pastStyle}">
+      <div class="concert-card-top">
+        <div class="concert-date-block">
+          <div class="concert-date-day">${c.data.getDate()}</div>
+          <div class="concert-date-month">${(currentLang === 'ca' ? MESOS_CA : MESOS_ES)[c.data.getMonth()]}</div>
+        </div>
+        <div class="concert-info">
+          <div class="concert-city">${c.ciutat}</div>
+          <div class="concert-venue">${c.sala}</div>
+          <div class="concert-tags">
+            ${isNext ? `<span class="tag next">${nextTag}</span>` : ''}
+            <span class="tag">🎸 ${c.setTime}</span>
+            <span class="tag">📍 ${c.distanciaKm} km</span>
+          </div>
+        </div>
+        <div class="concert-arrow">›</div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// DETAIL
+// ============================================================
+function renderDetail(id) {
+  const c = CONCERTS.find(x => x.id === id);
+  if (!c) return;
+
+  const backLabel = currentLang === 'ca' ? 'Concerts' : 'Conciertos';
+  const { hora: sortida, tempsViatge, parades } = calcHoraSortida(c.loadIn, c.distanciaKm);
+
+  const seccions = {
+    horaris: currentLang === 'ca' ? 'Horaris' : 'Horarios',
+    localit: currentLang === 'ca' ? 'Localitzacions' : 'Localizaciones',
+    despeses: currentLang === 'ca' ? 'Despeses' : 'Gastos',
+    docs: currentLang === 'ca' ? 'Documents' : 'Documentos',
+  };
+
+  const totalDespeses = c.despeses.reduce((s, d) => s + d.import, 0);
+
+  let html = `
+    <div class="detail-header">
+      <button class="detail-back" onclick="showView('concerts')">‹ ${backLabel}</button>
+      <div class="detail-date-badge">${formatData(c.data)}</div>
+      <div class="detail-title">${c.ciutat}</div>
+      <div class="detail-venue">${c.sala}</div>
+    </div>
+
+    <!-- HORARIS -->
+    <div class="detail-section">
+      <div class="section-title">${seccions.horaris}</div>
+      <div class="horari-row">
+        <div class="horari-time">${c.loadIn}</div>
+        <div class="horari-label">Load-in</div>
+      </div>
+      <div class="horari-row">
+        <div class="horari-time">${c.soundcheck}</div>
+        <div class="horari-label">Soundcheck</div>
+      </div>
+      <div class="horari-row">
+        <div class="horari-time">${c.doors}</div>
+        <div class="horari-label">${currentLang === 'ca' ? 'Portes' : 'Puertas'}</div>
+      </div>
+      <div class="horari-row">
+        <div class="horari-time" style="color:var(--accent)">${c.setTime}</div>
+        <div class="horari-label" style="font-weight:700">Set</div>
+        <span class="schedule-badge key">🎸</span>
+      </div>
+      <div class="horari-row">
+        <div class="horari-time">${c.loadOut}</div>
+        <div class="horari-label">Load-out</div>
+      </div>
+
+      <!-- Calculadora sortida -->
+      <div class="calc-box">
+        <div class="calc-title">${currentLang === 'ca' ? 'Calculadora d\'hora de sortida' : 'Calculadora de hora de salida'}</div>
+        <div class="calc-row">
+          <label>${currentLang === 'ca' ? 'Load-in' : 'Load-in'}</label>
+          <input type="time" id="calc-loadin-${id}" value="${c.loadIn}" onchange="recalcSortida(${id})">
+        </div>
+        <div class="calc-row">
+          <label>${currentLang === 'ca' ? 'Distància (km)' : 'Distancia (km)'}</label>
+          <input type="number" id="calc-km-${id}" value="${c.distanciaKm}" min="0" max="2000" onchange="recalcSortida(${id})">
+        </div>
+        <div class="calc-row">
+          <label>${currentLang === 'ca' ? 'Marge extra (min)' : 'Margen extra (min)'}</label>
+          <input type="number" id="calc-extra-${id}" value="30" min="0" max="120" onchange="recalcSortida(${id})">
+        </div>
+        <div class="calc-result" id="calc-result-${id}">
+          <span class="calc-result-label">${currentLang === 'ca' ? 'Hora de sortida' : 'Hora de salida'}</span>
+          <span class="calc-result-time">${sortida}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOCALITZACIONS -->
+    <div class="detail-section">
+      <div class="section-title">${seccions.localit}</div>
+      ${c.localitzacions.map(l => `
+        <div class="loc-card">
+          <div class="loc-img-placeholder">${l.emoji}</div>
+          <div class="loc-body">
+            <div class="loc-type">${tipusLabel(l.tipus)}</div>
+            <div class="loc-name">${l.nom}</div>
+            <div class="loc-addr">${l.adreca}</div>
+            <a href="https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ORIGEN)}&destination=${encodeURIComponent(l.adreca)}&travelmode=driving" target="_blank" class="btn-maps">
+              📍 ${currentLang === 'ca' ? 'Obrir Maps' : 'Abrir Maps'}
+            </a>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- DESPESES -->
+    <div class="detail-section">
+      <div class="section-title">${seccions.despeses}</div>
+      <div id="despeses-list-${id}">
+        ${renderDespesesList(c)}
+      </div>
+      ${c.despeses.length > 0 ? `
+        <div class="despesa-total">
+          <span class="despesa-total-label">${currentLang === 'ca' ? 'Total' : 'Total'}</span>
+          <span class="despesa-total-amount">${totalDespeses.toFixed(2)} €</span>
+        </div>` : ''}
+      <button class="btn-add" onclick="toggleAddDespesa(${id})">+ ${currentLang === 'ca' ? 'Afegir despesa' : 'Añadir gasto'}</button>
+      <div class="add-form" id="add-despesa-form-${id}">
+        <div class="emoji-grid">
+          ${['⛽','🍕','🏨','🅿️','☕','🎸','💊','🛒','🚗','💶'].map(e =>
+            `<button class="emoji-opt${e === despesesEmoji ? ' selected' : ''}" onclick="selectEmoji('${e}', ${id})">${e}</button>`
+          ).join('')}
+        </div>
+        <div class="form-row">
+          <input class="form-input" type="text" id="despesa-desc-${id}" placeholder="${currentLang === 'ca' ? 'Descripció...' : 'Descripción...'}">
+          <input class="form-input" type="text" id="despesa-qui-${id}" placeholder="${currentLang === 'ca' ? 'Qui?' : '¿Quién?'}" style="max-width:90px">
+        </div>
+        <div class="form-row">
+          <input class="form-input" type="number" id="despesa-import-${id}" placeholder="0.00 €" step="0.01" min="0">
+        </div>
+        <button class="form-submit" onclick="addDespesa(${id})">${currentLang === 'ca' ? 'Afegir' : 'Añadir'}</button>
+      </div>
+    </div>
+
+    <!-- DOCUMENTS -->
+    <div class="detail-section">
+      <div class="section-title">${seccions.docs}</div>
+      ${c.docs.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          ${currentLang === 'ca' ? 'Encara no hi ha documents per aquesta data.' : 'Todavía no hay documentos para esta fecha.'}
+        </div>` :
+        c.docs.map(d => `
+          <div class="doc-row">
+            <div class="doc-icon">${docIcon(d.tipus)}</div>
+            <div class="doc-info">
+              <div class="doc-name">${d.nom}</div>
+              <div class="doc-meta">${d.mida}</div>
+            </div>
+            <span class="doc-type">${d.tipus}</span>
+          </div>`).join('')
+      }
+    </div>
+  `;
+
+  document.getElementById('view-detail').innerHTML = html;
+}
+
+function renderDespesesList(c) {
+  if (c.despeses.length === 0) {
+    return `<div style="color:var(--grey-text);font-size:13px;padding:8px 0">${currentLang === 'ca' ? 'Sense despeses registrades.' : 'Sin gastos registrados.'}</div>`;
+  }
+  return c.despeses.map(d => `
+    <div class="despesa-row">
+      <div class="despesa-icon">${d.emoji}</div>
+      <div class="despesa-info">
+        <div class="despesa-desc">${d.desc}</div>
+        <div class="despesa-who">${d.qui}</div>
+      </div>
+      <div class="despesa-amount">${d.import.toFixed(2)} €</div>
+    </div>
+  `).join('');
+}
+
+function docIcon(t) {
+  return { contracte: '📋', rider: '🎛️', dni: '🪪', altres: '📄' }[t] || '📄';
+}
+
+function recalcSortida(id) {
+  const loadIn = document.getElementById(`calc-loadin-${id}`).value;
+  const km = parseInt(document.getElementById(`calc-km-${id}`).value) || 0;
+  const extra = parseInt(document.getElementById(`calc-extra-${id}`).value) || 0;
+
+  const [h, m] = loadIn.split(':').map(Number);
+  const loadInMin = h * 60 + m;
+  const tempsViatge = Math.ceil((km / 90) * 60 * 1.1);
+  const parades = Math.floor(km / 180) * 20;
+  const totalMin = tempsViatge + parades + extra;
+  const sortidaMin = loadInMin - totalMin;
+  const sh = Math.floor(((sortidaMin % 1440) + 1440) % 1440 / 60);
+  const sm = ((sortidaMin % 1440) + 1440) % 1440 % 60;
+  const sortida = `${pad(sh)}:${pad(sm)}`;
+
+  document.getElementById(`calc-result-${id}`).innerHTML = `
+    <span class="calc-result-label">${currentLang === 'ca' ? 'Hora de sortida' : 'Hora de salida'}</span>
+    <span class="calc-result-time">${sortida}</span>
+  `;
+}
+
+function toggleAddDespesa(id) {
+  const form = document.getElementById(`add-despesa-form-${id}`);
+  form.classList.toggle('open');
+}
+
+function selectEmoji(e, id) {
+  despesesEmoji = e;
+  document.querySelectorAll('.emoji-opt').forEach(b => {
+    b.classList.toggle('selected', b.textContent === e);
+  });
+}
+
+function addDespesa(id) {
+  const c = CONCERTS.find(x => x.id === id);
+  const desc = document.getElementById(`despesa-desc-${id}`).value.trim();
+  const qui = document.getElementById(`despesa-qui-${id}`).value.trim();
+  const imp = parseFloat(document.getElementById(`despesa-import-${id}`).value);
+  if (!desc || isNaN(imp)) return;
+
+  c.despeses.push({
+    id: Date.now(),
+    emoji: despesesEmoji,
+    desc,
+    qui: qui || '—',
+    import: imp
+  });
+
+  renderDetail(id);
+}
+
+// ============================================================
+// CALENDAR
+// ============================================================
+function renderCalendar() {
+  // Agrupa per mes/any
+  const groups = {};
+  CONCERTS.forEach(c => {
+    const key = `${c.data.getFullYear()}-${c.data.getMonth()}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  });
+
+  const now = new Date();
+  let html = '';
+  Object.keys(groups).sort().forEach(key => {
+    const [y, mo] = key.split('-').map(Number);
+    const mesLabel = (currentLang === 'ca' ? MESOS_FULL_CA : MESOS_FULL_ES)[mo];
+    html += `<div class="cal-month"><div class="cal-month-title">${mesLabel} ${y}</div>`;
+    groups[key].forEach(c => {
+      const isPast = c.data < now;
+      const isNext = !isPast && !CONCERTS.slice(0, CONCERTS.indexOf(c)).some(x => x.data >= now);
+      html += `
+        <div class="cal-concert-row" onclick="showDetail(${c.id})" style="${isPast ? 'opacity:0.45' : ''}">
+          <div class="cal-dot" style="${isPast ? 'background:var(--grey-text)' : ''}"></div>
+          <div class="cal-date">${formatDataCurta(c.data)}</div>
+          <div class="cal-info">
+            <div class="cal-city">${c.ciutat}</div>
+            <div class="cal-venue">${c.sala}</div>
+          </div>
+          ${isNext ? `<span class="tag next" style="flex-shrink:0">${currentLang === 'ca' ? 'Proper' : 'Próximo'}</span>` : ''}
+        </div>`;
+    });
+    html += '</div><hr class="sep">';
+  });
+
+  document.getElementById('calendar-content').innerHTML = html;
+}
+
+// ============================================================
+// DOCS GENERALS
+// ============================================================
+function renderDocs() {
+  const filtered = docsFilter === 'all' ? DOCS_GENERALS : DOCS_GENERALS.filter(d => d.tipus === docsFilter);
+
+  const intro = currentLang === 'ca'
+    ? 'Documents generals de la banda, accessibles en qualsevol moment.'
+    : 'Documentos generales de la banda, accesibles en cualquier momento.';
+
+  document.getElementById('docs-list').innerHTML = `
+    <p style="font-size:13px;color:var(--grey-text);padding:14px 0 6px">${intro}</p>
+    ${filtered.map(d => `
+      <div class="doc-row">
+        <div class="doc-icon">${docIcon(d.tipus)}</div>
+        <div class="doc-info">
+          <div class="doc-name">${d.nom}</div>
+          <div class="doc-meta">${d.mida}</div>
+        </div>
+        <span class="doc-type">${d.tipus}</span>
+      </div>`).join('')}
+  `;
+}
+
+function filterDocs(tipus) {
+  docsFilter = tipus;
+  document.querySelectorAll('.pill').forEach(p => {
+    p.classList.toggle('active',
+      (tipus === 'all' && p.textContent.trim() === (currentLang === 'ca' ? 'Tots' : 'Todos')) ||
+      p.onclick.toString().includes(`'${tipus}'`)
+    );
+  });
+  renderDocs();
+}
+
+// ============================================================
+// MODE PÚBLIC / CREW
+// ============================================================
+const CREW_TOKEN = 'c113road';
+const ORIGEN = 'Vial Camino, 13, 17457 Riudellots de la Selva, Girona';
+const ORIGEN_COORDS = { lat: 41.8972, lon: 2.8089 }; // canvia això per personalitzar
+
+function isCrew() {
+  // Comprova URL param o localStorage
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('crew') === CREW_TOKEN) {
+    localStorage.setItem('c113_crew', CREW_TOKEN);
+    // Neteja la URL sense recarregar
+    window.history.replaceState({}, '', window.location.pathname);
+    return true;
+  }
+  return localStorage.getItem('c113_crew') === CREW_TOKEN;
+}
+
+function renderPublic() {
+  const now = new Date();
+  // Amaga nav i header normals
+  document.querySelector('.bottom-nav').style.display = 'none';
+  document.querySelector('.app-header').style.display = 'none';
+
+  // Amaga totes les views
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+
+  // Renderitza vista pública
+  const upcoming = CONCERTS.filter(c => c.data >= now);
+  const past = CONCERTS.filter(c => c.data < now);
+
+  const div = document.createElement('div');
+  div.className = 'public-view';
+
+  const tourTitle = currentLang === 'ca' ? 'Mañanas de Euforia — Gira 2026/27' : 'Mañanas de Euforia — Gira 2026/27';
+  const propersLabel = currentLang === 'ca' ? 'Propers concerts' : 'Próximos conciertos';
+  const passatsLabel = currentLang === 'ca' ? 'Concerts passats' : 'Conciertos pasados';
+
+  let rows = '';
+  upcoming.forEach(c => {
+    const mes = (currentLang === 'ca' ? MESOS_CA : MESOS_ES)[c.data.getMonth()].replace('.','');
+    rows += `
+      <div class="public-concert-row">
+        <div class="public-dot"></div>
+        <div class="public-date-block">
+          <div class="public-date-day">${c.data.getDate()}</div>
+          <div class="public-date-month">${mes}</div>
+        </div>
+        <div class="public-divider"></div>
+        <div>
+          <div class="public-city">${c.ciutat}</div>
+          <div class="public-venue">${c.sala}</div>
+        </div>
+      </div>`;
+  });
+
+  if (past.length) {
+    past.forEach(c => {
+      const mes = (currentLang === 'ca' ? MESOS_CA : MESOS_ES)[c.data.getMonth()].replace('.','');
+      rows += `
+        <div class="public-concert-row" style="opacity:0.35">
+          <div class="public-dot past"></div>
+          <div class="public-date-block">
+            <div class="public-date-day">${c.data.getDate()}</div>
+            <div class="public-date-month">${mes}</div>
+          </div>
+          <div class="public-divider"></div>
+          <div>
+            <div class="public-city">${c.ciutat}</div>
+            <div class="public-venue">${c.sala}</div>
+          </div>
+        </div>`;
+    });
+  }
+
+  div.innerHTML = `
+    <div class="public-header">
+      <img src="data:image/png;base64,${document.querySelector('.app-logo') ? '' : ''}" class="public-logo" id="public-logo-img" alt="Carmen 113">
+      <div class="public-tour-title">${tourTitle}</div>
+    </div>
+    ${rows}
+    <div style="height:80px"></div>
+  `;
+
+  document.body.insertBefore(div, document.querySelector('.bottom-nav'));
+
+  // Botó per accedir com a crew (discret, a baix)
+  const bar = document.createElement('div');
+  bar.className = 'crew-mode-bar';
+  bar.innerHTML = `
+    <span style="font-size:11px;color:var(--grey-text)">Carmen 113 © 2026</span>
+    <button class="crew-mode-badge" onclick="promptCrewAccess()">● Crew</button>
+  `;
+  document.body.appendChild(bar);
+
+  // Copia el src del logo existent a la versió pública
+  const originalLogo = document.querySelector('.app-logo');
+  if (originalLogo) {
+    document.getElementById('public-logo-img').src = originalLogo.src;
+  }
+}
+
+function promptCrewAccess() {
+  const token = prompt(`Codi d'accés:`);
+  if (token === CREW_TOKEN) {
+    localStorage.setItem('c113_crew', CREW_TOKEN);
+    location.reload();
+  } else if (token !== null) {
+    alert('Codi incorrecte.');
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+if (isCrew()) {
+  renderHome();
+} else {
+  renderPublic();
+}
+
+// ============================================================
+// PWA — Manifest i Service Worker inline
+// ============================================================
+(function() {
+  const ICON_192 = 'data:image/png;base64,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';
+  const ICON_512 = 'data:image/png;base64,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invvvTdWWZRA3333Hc888wxPP/0006dPZ+fOnaEjJY2CggJmzJjBjBkzGDRoED/72c+44oor6N69O1Wrps6QpaT0Vup1AA455BD+8Y9/7L5VS+XDe++9R9++falfvz59+/bl3//+tyf/IuzcuZNp06bxq1/9ivr169OvXz/ef//90LEkqcxKXQDuvvtujj322FhmUZx8//33jBgxghNOOIG2bdvy2GOPsWnTptCxyp3vvvuO0aNHc8opp3DiiScyYsQIvv/++9CxJKlUSlUATjjhBG688cZYZ1GMrVq1iiFDhtCwYUOuu+468vLyQkdKGfPmzeO6666jfv363HjjjXzzzTehI0lSiZS4AGRlZTFmzBjvoU5iixYt4uqrr6Zhw4bcfffdrF27NnSklLVhwwaGDx9O06ZN6du3L5988knoSJJULCUuALfccgsnnXRSPLKojJYuXUr//v1p3rw5f/vb39i2bVvoSGlj69atPPbYYxx33HF0796dTz/9NHQkSSpSiQrAUUcdxV133RWvLCqlL7/8kv79+3PUUUfx6KOPOqkvoIKCAsaPH0+zZs3o3bv3QZcvlqRQil0AIpEIo0aNonLlyvHMoxLYsGEDt9xyy+4Tfzrev5+s8vPzGTt2LMcffzy33norGzduDB1Jkn6k2AXg6quvdsGfJFFQUMCTTz7JMcccw/3338/27dtDR9IBbNu2jT/+8Y80adKEBx980NEZSUmjWAWgZs2aDB06NN5ZVAzTp0+nVatW9OrVi5UrV4aOo2Jau3YtAwcOpE2bNvs8qEiSQihWAbjnnntc6z+wDRs2cOONN3LGGWcwb9680HFUSh988AGnn346vXv3Zt26daHjSEpjBy0Axx9/PP369UtEFh3Ayy+/TPPmzRk+fDgFBQWh46iMCgsLGTt2LM2aNePZZ58NHUdSmjpoARg+fDhZWTF5arBKaOXKlXTr1o2uXbvy9ddfh46jGFuxYgWXXnopl1xyCatWrQodR1KaKbIAXHDBBXTu3DlRWbSH1157jZNOOokXXnghdBTF2YQJE2jRogUvv/xy6CiS0sgBC0B2djbDhg1LZBYRXVDmxhtvpEuXLixfvjx0HCXIqlWrOP/88+nfv7/PF5CUEAcc2x84cCBHH310IrOkvby8PC6//HI++uij0FEUQGFhIY8++iizZs0KHUVSGtjvCEDt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oeOomOrVq8eoUaN45513aNeuXeg4klS8AgDwxBNP8Prrr8czi4opEonQs2dPPv74Y2699VZnjSexSpUqcccdd/Dxxx/Tr18/MjMzQ0eSJKAEBaCwsJCrr76azZs3xzOPSqB69ercd999LF68mIEDB1oEkkiFChXo168fixcv5g9/+APVqlULHUmSfqREM8qWLl3KkCFD4pVFpdSgQQMeeOABPvnkE/r160dWVlboSGmrQoUK9OrVi48++ohRo0Zx2GGHhY4kSftV4inlf/nLX5gzZ048sqiMGjZsyKhRo1i4cCH9+vWjUqVKoSOljcqVK3PNNdfw0Ucf8fe//50jjzwydCRJKlKJC8COHTvo06ePawMksaOOOopRo0bx5ZdfMnToUOrVqxc6UsqqVasWt912G4sXL2bEiBGe+CWVG6W6qTwvL48///nPsc6iGMvNzeW2227js88+Y+TIkZx00kmhI6WMVq1aMXLkyN0ly2WbJZU3pV5VZsiQISxcuDCWWRQnlStXpn///vznP/9h9uzZ9O/f33vQSyEnJ4drr72WOXPmMGfOHPr370/lypVDx5KkUil1AdiyZQs9evRg27ZtscyjOGvdujUjR45k2bJljBkzhrPOOstJg0WoUKECZ599Nn//+99ZtmwZjzzyiAsxSUoJZVpXdu7cudx5552xyqIEqlKlCr/85S+ZPHkyq1atYuzYsXTt2pUKFSqEjhZcZmYmHTt2ZPjw4Xz99de8+uqr9OrVi0MOOSR0NEmKmQhQWJYNZGRkMGXKFDp37hyjSApp9erVTJ48mcmTJ/Paa6+xZs2a0JESIjc3lzPPPJOzzz6bs846K/jDeSKRSEy207p1691/jsfdO4X9yvTrI+lEHo3Ncd/F41M0j09YZR77LSgooHfv3uTl5VGzZs1YZFJAubm59OzZk549e1JQUMD777/P5MmTmT59Ou+9917KLARVtWpV2rZty+mnn06XLl1o3bq1D1qSlFZicvF32bJl9O3bl+eeey4Wm1OSyMjIoG3btrRt2xaI3gL6wQcfMGvWLGbOnMns2bP5/PPPA6c8uEgkQuPGjWndujUdOnSgY8eOnHDCCc59iIEN2zeQk50TOkZMbNy+Mebb9PgUzeMTVsx+Az7//POMHj2avn37xmqTSjJZWVm0adOGNm3aMHDgQAA2btzIggULmD9/PvPm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';
+  const ICON_APPLE = 'data:image/png;base64,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';
+  const ICON_FAV32 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAADbklEQVRYhcWXT0hbWRTGf+8lNunTiBKhxhR1QDBUUAqSpGMLJeqiyAyMXcsIwnThxhlEmboShIJUHAoulCzcCLoaHZHpRhSm0FIJychkMyoIWcSUhCyC8V99dxZJjMlLrNUk88GBe887737fOffe9+6FNCzAb8AucAqIAtsJ4AdeAnfJQgcQLgJpPvsHuH8585KRm41mISEJwAsYAKZLRf78m+dC/UkVb759k/L9rAe+y56PFGRZprGxEYvFgslkIhQKEQgECIfD+V75WvwIORac3W4XbrdbhEIhkQ1VVYXH4xFOp/O2U5BamOmHtbW1YmlpSaiqqiHORn9/vzAYDLeeFn2qFm1tbaysrNDQ0HDt+ul0uq8pd07oAWw2G5ubm1RVVd1okJbqFiyKhfjnOO9D71H0Cs57TiQk/FE/wXhQEyMQCQGVlZWsrq7mJPf5fCwsLODz+YjFYlgsFlwuF319fRlxnl4PBp0BgEfLj3ha95RX9lcAvA285dmfzzQxHz59SAgYHR2lqakpY8CjoyMGBweZn59HCJHxbHl5mfHxcWpqai58qYEBjHojRp0x3U+2s2NS0A8NDWUQnJ2d0dPTw8bGhrbWSUQiESKRCIqi5I25LuTsQSYmJq4kvym8YS/+qF/j11/uxGIxpqamCk4O8OKvF9zR3eHd9+/yC1hfX+fw8LAoAj7+8DGnX77c2d3dLQr5VcgQIEnS/ysgezuWXEBnZyfl5eVFIbL/bufxH4+vFlBRUcHw8HBRBMw+mWX2yaxWQDwez3CMjY3hcrkKLuBhzUNaqlu0AqanpzMcZWVlrK2tMTAwkHdRms1mbDZbQYTJk5OT7OzsZDiNRiNutxuv18vIyAjd3d04HA56e3uZmZlhb28Pp9N5EX98fpxufz7O6J+oJzljLkM0NzeLaDT6xUNI9oFEURQBiAfVD0SXtUt01HYICUkoekW46lyiy9ol6pS6nDGkDyWJRmtrq9jf37+RgNvYxS7Y3t7G4XCwuLio+QXnw/n5+bXivoSTbFXt7e1ibm5OBINBTeaqqoqtrS3hcDgKcVQ/lYC/gdZcymRZpr6+HqvVislk4uDggEAgQCQSKUjmwA7ALwXI5Kb2GsBI4ppUavJPwL1UKe6TuDCWkjz9IUniLvBrUohmYRbAToF/k2W/yPw/y2HjWAQk6N0AAAAASUVORK5CYII=';
+
+  // Favicon i apple touch icon via link tag
+  document.getElementById('apple-touch-icon-link').href = ICON_APPLE;
+  document.getElementById('favicon-link').href = ICON_FAV32;
+
+  // Manifest inline via Blob
+  const manifest = {
+    name: 'Carmen 113 Road',
+    short_name: 'C113 Road',
+    description: 'Gestio interna de gira per a Carmen 113',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#000000',
+    theme_color: '#000000',
+    orientation: 'portrait-primary',
+    lang: 'ca',
+    icons: [
+      { src: ICON_192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: ICON_512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  const manifestURL = URL.createObjectURL(manifestBlob);
+  document.getElementById('pwa-manifest').href = manifestURL;
+
+  // Service Worker inline via Blob
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+const CACHE = 'c113-road-v1';
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => { self.clients.claim(); });
+self.addEventListener('fetch', e => {
+  if (e.request.url.includes('supabase.co') || e.request.url.includes('fonts.googleapis')) return;
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+      const clone = res.clone();
+      caches.open(CACHE).then(c => c.put(e.request, clone));
+      return res;
+    }))
+  );
+});
+`;
+    const swBlob = new Blob([swCode], { type: 'application/javascript' });
+    const swURL = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL, { scope: '/' })
+      .then(r => console.log('SW C113 registrat'))
+      .catch(e => console.log('SW error:', e));
+  }
+})();
+
+</script>
+</body>
+</html>
