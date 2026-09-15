@@ -2200,7 +2200,7 @@
     <span class="nav-icon">📁</span>
     <span class="nav-label">Docs</span>
   </button>
-  <button class="nav-item" onclick="showView('merchan')" id="nav-merchan" style="visibility:hidden;pointer-events:none">
+  <button class="nav-item" onclick="showView('merchan')" id="nav-merchan" style="display:none">
     <span class="nav-icon">🛍️</span>
     <span class="nav-label">Merchan</span>
   </button>
@@ -3897,14 +3897,12 @@ function selectMember(nom) {
 function updateWhoLabel() {
   const nom = localStorage.getItem('c113_nom');
   const navMerchan = document.getElementById('nav-merchan');
-  const visible = ['Roger','Albert','Jordi'].includes(nom);
+
   if (navMerchan) {
-    navMerchan.style.visibility = visible ? 'visible' : 'hidden';
-    navMerchan.style.pointerEvents = visible ? '' : 'none';
-    navMerchan.style.width = visible ? '' : '0';
-    navMerchan.style.padding = visible ? '' : '0';
-    navMerchan.style.overflow = visible ? '' : 'hidden';
+    navMerchan.style.display =
+      ['Roger','Albert','Jordi'].includes(nom) ? '' : 'none';
   }
+
   const badge = document.getElementById('chat-who-badge');
   if (badge) badge.textContent = nom ? `👤 ${nom}` : '👤 —';
 }
