@@ -4200,6 +4200,14 @@ function doLogout() {
     renderHome();
     renderAgendaHome();
     checkWelcome();
+
+    console.log('INIT MERCHAN:', {
+  nom: localStorage.getItem('c113_nom'),
+  nav: document.getElementById('nav-merchan'),
+  display: document.getElementById('nav-merchan')?.style.display,
+  computed: document.getElementById('nav-merchan') ? getComputedStyle(document.getElementById('nav-merchan')).display : null
+});
+    
     updateWhoLabel();
   } else {
     showAuthScreen();
