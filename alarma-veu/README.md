@@ -27,7 +27,7 @@ Per tornar-ho a fer, toca el botó del micròfon. «Veure les alarmes» obre el 
 
 - Si no dius «del matí», «de la tarda» o «del vespre», agafa la propera vegada que arribi aquella hora: a les 10 del matí, «a les 5» vol dir les 17:00.
 - A l'agenda, si no dius matí o tarda: de les 1 a les 6 entén tarda, de les 7 a les 11 entén matí, excepte si parles de sopar, concert, assaig, cine, teatre o festa.
-- El primer cop que s'apunti alguna cosa a l'agenda, l'app demanarà permís de Calendari.
+- El primer cop que s'apunti alguna cosa a l'agenda, l'app demanarà permís de Calendari i, si el mòbil té més d'un calendari, preguntarà en quin s'han d'apuntar les coses. Es pot canviar quan vulguis amb el botó «Agenda: …» de sota.
 - Si algun dels avisos ja ha passat (per exemple, apuntes una cosa per a demà a les 22:00), només es posa el que encara toca. Si no en toca cap, l'avís es posa 1 hora abans.
 - Algunes apps de rellotge (Samsung, per exemple) poden demanar confirmar l'alarma amb «Desa».
 

@@ -110,4 +110,14 @@
         android:textAllCaps="false"
         android:textColor="@color/accent"
         android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/boto_calendari"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/tria_agenda"
+        android:textAllCaps="false"
+        android:textColor="@color/text_suau"
+        android:textSize="14sp" />
 </LinearLayout>

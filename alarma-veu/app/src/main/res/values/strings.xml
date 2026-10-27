@@ -19,6 +19,9 @@
     <string name="apunta_igualment">Apunta-ho igualment</string>
     <string name="compte">Compte!</string>
     <string name="res_apuntat">No tens res apuntat.</string>
+    <string name="on_apunto">On vols apuntar les coses de l\'agenda?</string>
+    <string name="tria_agenda">Tria l\'agenda</string>
+    <string name="agenda_actual">Agenda: %1$s</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>

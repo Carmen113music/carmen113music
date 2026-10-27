@@ -2,10 +2,12 @@ package cat.alarmaveu;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -62,6 +64,10 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.boto_parla).setOnClickListener(v -> escolta());
         findViewById(R.id.boto_alarmes).setOnClickListener(v -> obreAlarmes());
+        findViewById(R.id.boto_calendari).setOnClickListener(v ->
+                ambPermisCalendari(() -> triaCalendari(true, null, c ->
+                        mostra(getString(R.string.agenda_actual, c.nom), getString(R.string.exemple), null, false)), null));
+        actualitzaBotoCalendari();
 
         if (savedInstanceState == null) escolta();
     }
@@ -277,17 +283,16 @@ public class MainActivity extends Activity {
     }
 
     private void desaEsdeveniment(ParserAlarma.Resultat r, String frase) {
+        triaCalendari(false, frase, cal -> inserta(r, frase, cal));
+    }
+
+    private void inserta(ParserAlarma.Resultat r, String frase, Calendari cal) {
         try {
-            long calendari = trobaCalendari();
-            if (calendari < 0) {
-                mostra(getString(R.string.sense_calendari), getString(R.string.sense_calendari_detall), frase, true);
-                return;
-            }
             ZoneId zona = ZoneId.systemDefault();
             long inici = r.quan.atZone(zona).toInstant().toEpochMilli();
 
             ContentValues ev = new ContentValues();
-            ev.put(CalendarContract.Events.CALENDAR_ID, calendari);
+            ev.put(CalendarContract.Events.CALENDAR_ID, cal.id);
             ev.put(CalendarContract.Events.TITLE, r.titol);
             ev.put(CalendarContract.Events.DTSTART, inici);
             ev.put(CalendarContract.Events.DTEND, inici + DURADA_ESDEVENIMENT_MIN * 60_000L);
@@ -309,37 +314,122 @@ public class MainActivity extends Activity {
             }
 
             acaba("📅 " + r.titol + "\n" + r.dataText()
-                    + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan));
+                    + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
+                    + "\nAgenda: " + cal.nom);
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
     }
 
-    /** Tria el calendari principal de Google; si no n'hi ha, qualsevol on es pugui escriure. */
-    private long trobaCalendari() {
+    // ---------------- Triar el calendari ----------------
+
+    private static final String PREFS = "config";
+    private static final String CLAU_CALENDARI = "calendari";
+
+    private static final class Calendari {
+        long id;
+        String nom;
+        String compte;
+        int punts;
+    }
+
+    private interface DespresDeTriar {
+        void fes(Calendari cal);
+    }
+
+    /** Calendaris visibles on es pot escriure, del més probable al menys (el principal de Google primer). */
+    private List<Calendari> calendaris() {
         String[] camps = {
                 CalendarContract.Calendars._ID,
-                CalendarContract.Calendars.IS_PRIMARY,
+                CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                CalendarContract.Calendars.ACCOUNT_NAME,
                 CalendarContract.Calendars.ACCOUNT_TYPE,
+                CalendarContract.Calendars.OWNER_ACCOUNT,
+                CalendarContract.Calendars.IS_PRIMARY,
         };
         String filtre = CalendarContract.Calendars.VISIBLE + " = 1 AND "
                 + CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL + " >= "
                 + CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR;
-        long millor = -1;
-        int millorPunts = -1;
+        List<Calendari> llista = new ArrayList<>();
         try (Cursor c = getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, camps, filtre, null, null)) {
-            if (c == null) return -1;
+            if (c == null) return llista;
             while (c.moveToNext()) {
-                int punts = 0;
-                if ("com.google".equals(c.getString(2))) punts += 2;
-                if (c.getInt(1) == 1) punts += 1;
-                if (punts > millorPunts) {
-                    millorPunts = punts;
-                    millor = c.getLong(0);
-                }
+                Calendari cal = new Calendari();
+                cal.id = c.getLong(0);
+                cal.nom = c.getString(1) != null ? c.getString(1) : "(sense nom)";
+                cal.compte = c.getString(2) != null ? c.getString(2) : "";
+                String tipus = c.getString(3);
+                String propietari = c.getString(4);
+                if ("com.google".equals(tipus)) cal.punts += 4;
+                if (propietari != null && propietari.equalsIgnoreCase(cal.compte)) cal.punts += 2; // el calendari principal del compte
+                if (c.getInt(5) == 1) cal.punts += 1;
+                llista.add(cal);
             }
         }
-        return millor;
+        llista.sort((x, y) -> y.punts - x.punts);
+        return llista;
+    }
+
+    /**
+     * Fa servir el calendari triat l'últim cop. Si no n'hi ha cap de triat i en hi ha més d'un,
+     * pregunta on apuntar les coses (i ho recorda per a la propera vegada).
+     */
+    private void triaCalendari(boolean preguntaSempre, String frase, DespresDeTriar despres) {
+        List<Calendari> llista;
+        try {
+            llista = calendaris();
+        } catch (RuntimeException e) {
+            mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
+            return;
+        }
+        if (llista.isEmpty()) {
+            mostra(getString(R.string.sense_calendari), getString(R.string.sense_calendari_detall), frase, true);
+            return;
+        }
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        long desat = prefs.getLong(CLAU_CALENDARI, -1);
+        if (!preguntaSempre) {
+            for (Calendari c : llista) {
+                if (c.id == desat) {
+                    despres.fes(c);
+                    return;
+                }
+            }
+            if (llista.size() == 1) {
+                prefs.edit().putLong(CLAU_CALENDARI, llista.get(0).id).apply();
+                despres.fes(llista.get(0));
+                return;
+            }
+        }
+        String[] noms = new String[llista.size()];
+        for (int i = 0; i < noms.length; i++) {
+            Calendari c = llista.get(i);
+            noms[i] = c.compte.isEmpty() || c.compte.equals(c.nom) ? c.nom : c.nom + "  ·  " + c.compte;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.on_apunto)
+                .setItems(noms, (d, i) -> {
+                    Calendari c = llista.get(i);
+                    prefs.edit().putLong(CLAU_CALENDARI, c.id).apply();
+                    actualitzaBotoCalendari();
+                    despres.fes(c);
+                })
+                .setOnCancelListener(d -> mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false))
+                .show();
+    }
+
+    private void actualitzaBotoCalendari() {
+        TextView boto = findViewById(R.id.boto_calendari);
+        String nom = null;
+        if (checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
+            long desat = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(CLAU_CALENDARI, -1);
+            try {
+                for (Calendari c : calendaris()) if (c.id == desat) nom = c.nom;
+            } catch (RuntimeException ignorat) {
+                // si no es pot llegir, ensenyem el text genèric
+            }
+        }
+        boto.setText(nom != null ? getString(R.string.agenda_actual, nom) : getString(R.string.tria_agenda));
     }
 
     // ---------------- Pantalla ----------------
