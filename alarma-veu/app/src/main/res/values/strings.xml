@@ -22,6 +22,8 @@
     <string name="on_apunto">On vols apuntar les coses de l\'agenda?</string>
     <string name="tria_agenda">Tria l\'agenda</string>
     <string name="agenda_actual">Agenda: %1$s</string>
+    <string name="sense_permis_notificacions">Cal permís de notificacions</string>
+    <string name="sense_permis_notificacions_detall">El temporitzador avisa amb una notificació. Dona permís de Notificacions a l\'app a Configuració → Aplicacions → Alarma per veu.</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>

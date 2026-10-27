@@ -193,8 +193,8 @@ public final class ParserAlarma {
             Pattern.compile("^(?:amb\\s+(?:el\\s+)?(?:nom|títol|text)(?:\\s+de)?|que\\s+es\\s+digui|que\\s+digui"
                     + "|que\\s+posi|titulada|anomenada|dient)" + R, F),
             Pattern.compile("^(?:tenim|tinc|tenen|té|hi\\s+ha|hi\\s+haurà|hi\\s+ha\\s+un|hi\\s+ha\\s+una)" + R, F),
-            Pattern.compile("^(?:un|una)\\s+(?=temporitzador|compte\\s+enrere|cronòmetre)", F),
-            Pattern.compile("^(?:temporitzador|compte\\s+enrere|cronòmetre)" + R, F),
+            Pattern.compile("^(?:un|una)\\s+(?=temporitzador|temporizador|co(?:mpte|mpta|nta|nte)\\s+enrer[ea]|cronòmetre|cronometre)", F),
+            Pattern.compile("^(?:temporitzador|temporizador|co(?:mpte|mpta|nta|nte)\\s+enrer[ea]|cronòmetre|cronometre)" + R, F),
             Pattern.compile("^(?:per\\s+a|per|pels|pel|que|i|de)" + R, F),
             Pattern.compile("^d'\\s*", F),
     };
@@ -415,7 +415,7 @@ public final class ParserAlarma {
                     + "|(?<mitja>mitja)\\s+hora"
                     + "|(?<q>un|tres)\\s+quarts?(?:\\s+d'hora|(?!\\s+(?:i\\s+|de\\s+|d'))))"; // no "un quart d'onze"
     private static final Pattern PARAULA_TEMPORITZADOR = Pattern.compile(
-            L + "(?:temporitzador|compte\\s+enrere|cronòmetre)" + R, F);
+            L + "(?:temporitzador|temporizador|co(?:mpte|mpta|nta|nte)\\s+enrer[ea]|cronòmetre|cronometre)" + R, F);
     // "posa 15 minuts per bullir l'aigua", "15 minuts per l'arròs"
     private static final Pattern POSA_DURADA = Pattern.compile(
             "^\\s*(?:(?:posa'?m|posa-me|posa|fes-me|fes|programa'?m|programa|activa)\\s+)?(?:uns\\s+)?" + DURADA + R, F);

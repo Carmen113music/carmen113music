@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.AlarmClock;
 import android.provider.CalendarContract;
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
 
     private static final int PETICIO_VEU = 1;
     private static final int PERMIS_CALENDARI = 2;
+    private static final int PERMIS_NOTIFICACIONS = 3;
     private static final long DURADA_ESDEVENIMENT_MIN = 60;
 
     private TextView estat;
@@ -155,19 +157,24 @@ public class MainActivity extends Activity {
     // ---------------- Temporitzador ----------------
 
     private void posaTemporitzador(ParserAlarma.Resultat r, String frase) {
-        Intent t = new Intent(AlarmClock.ACTION_SET_TIMER)
-                .putExtra(AlarmClock.EXTRA_LENGTH, r.segons)
-                .putExtra(AlarmClock.EXTRA_MESSAGE, r.titol)
-                // Obrim el Rellotge perquè es vegi el compte enrere en marxa
-                // (amb la pantalla amagada, alguns mòbils no l'engegaven o no el mostraven)
-                .putExtra(AlarmClock.EXTRA_SKIP_UI, false);
-        try {
-            startActivity(t);
-        } catch (ActivityNotFoundException e) {
-            mostra(getString(R.string.sense_rellotge), getString(R.string.sense_rellotge_detall), frase, true);
+        // Temporitzador propi: no depèn de l'app de Rellotge, que en alguns mòbils no l'engegava.
+        Runnable engega = () -> {
+            try {
+                Temporitzador.programa(this, r.segons, r.titol);
+            } catch (RuntimeException e) {
+                mostra(getString(R.string.no_ho_he_entes), "Error en engegar el temporitzador: " + e.getMessage(), frase, true);
+                return;
+            }
+            acaba("⏱ " + r.duradaText() + " · " + r.titol + "\nEl compte enrere és a les notificacions");
+        };
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            pendent = engega;
+            frasePendent = frase;
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMIS_NOTIFICACIONS);
             return;
         }
-        acaba("⏱ " + r.duradaText() + " · " + r.titol);
+        engega.run();
     }
 
     // ---------------- Agenda ----------------
@@ -191,7 +198,7 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode != PERMIS_CALENDARI || pendent == null) return;
+        if ((requestCode != PERMIS_CALENDARI && requestCode != PERMIS_NOTIFICACIONS) || pendent == null) return;
         boolean ok = grantResults.length > 0;
         for (int g : grantResults) ok &= g == PackageManager.PERMISSION_GRANTED;
         Runnable feina = pendent;
@@ -199,6 +206,8 @@ public class MainActivity extends Activity {
         pendent = null;
         frasePendent = null;
         if (ok) feina.run();
+        else if (requestCode == PERMIS_NOTIFICACIONS)
+            mostra(getString(R.string.sense_permis_notificacions), getString(R.string.sense_permis_notificacions_detall), frase, true);
         else mostra(getString(R.string.sense_permis_calendari), getString(R.string.sense_permis_calendari_detall), frase, true);
     }
 
