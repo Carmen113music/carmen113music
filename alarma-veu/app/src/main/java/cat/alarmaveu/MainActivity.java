@@ -66,7 +66,6 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.boto_parla).setOnClickListener(v -> escolta());
         findViewById(R.id.boto_alarmes).setOnClickListener(v -> obreAlarmes());
-        findViewById(R.id.boto_esborra_vr).setOnClickListener(v -> preguntaEsborrarVR());
         findViewById(R.id.boto_agenda).setOnClickListener(v -> obreAgenda());
         findViewById(R.id.boto_historial).setOnClickListener(v ->
                 startActivity(new Intent(this, HistorialActivity.class)));
@@ -159,7 +158,7 @@ public class MainActivity extends Activity {
         Intent a = new Intent(AlarmClock.ACTION_SET_ALARM)
                 .putExtra(AlarmClock.EXTRA_HOUR, r.hora())
                 .putExtra(AlarmClock.EXTRA_MINUTES, r.minut())
-                .putExtra(AlarmClock.EXTRA_MESSAGE, recordaEtiqueta(PREFIX_ALARMA + r.titol))
+                .putExtra(AlarmClock.EXTRA_MESSAGE, PREFIX_ALARMA + r.titol)
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                 // Tasca pròpia: si no, en tancar la nostra app es perdia l'encàrrec abans que el Rellotge el desés
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -186,7 +185,7 @@ public class MainActivity extends Activity {
         Intent a = new Intent(AlarmClock.ACTION_SET_ALARM)
                 .putExtra(AlarmClock.EXTRA_HOUR, quan.getHour())
                 .putExtra(AlarmClock.EXTRA_MINUTES, quan.getMinute())
-                .putExtra(AlarmClock.EXTRA_MESSAGE, recordaEtiqueta(PREFIX_ALARMA + "⏱ " + r.titol))
+                .putExtra(AlarmClock.EXTRA_MESSAGE, PREFIX_ALARMA + "⏱ " + r.titol)
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                 // Tasca pròpia: si no, en tancar la nostra app es perdia l'encàrrec abans que el Rellotge el desés
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -543,60 +542,6 @@ public class MainActivity extends Activity {
         if (h == 0) return "Sonarà d'aquí a " + m + " min";
         if (m == 0) return "Sonarà d'aquí a " + h + " h";
         return "Sonarà d'aquí a " + h + " h " + m + " min";
-    }
-
-    // ---------------- Esborrar les alarmes «VR-» (prova) ----------------
-
-    private static final String CLAU_ETIQUETES = "etiquetes_vr";
-
-    /** Desa el nom de cada alarma que posa l'app, per poder-les demanar d'esborrar després. */
-    private String recordaEtiqueta(String etiqueta) {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        java.util.Set<String> set = new java.util.HashSet<>(prefs.getStringSet(CLAU_ETIQUETES, new java.util.HashSet<>()));
-        set.add(etiqueta);
-        prefs.edit().putStringSet(CLAU_ETIQUETES, set).apply();
-        return etiqueta;
-    }
-
-    private void preguntaEsborrarVR() {
-        java.util.Set<String> set = getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getStringSet(CLAU_ETIQUETES, new java.util.HashSet<>());
-        if (set.isEmpty()) {
-            mostra(getString(R.string.esborra_vr_cap), getString(R.string.esborra_vr_cap_detall), null, false);
-            return;
-        }
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.esborra_vr_titol)
-                .setMessage(getString(R.string.esborra_vr_missatge, set.size()))
-                .setPositiveButton(R.string.esborra, (d, w) -> esborraVR(new ArrayList<>(set), 0))
-                .setNegativeButton(R.string.cancela, null)
-                .show();
-    }
-
-    /** Demana al Rellotge que descarti, una per una, les alarmes amb aquests noms. */
-    private void esborraVR(List<String> etiquetes, int i) {
-        if (i >= etiquetes.size()) {
-            // Les oblidem: si el Rellotge no les ha esborrades, ara ja es poden trobar a mà pel prefix «VR-».
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(CLAU_ETIQUETES).apply();
-            Historial.afegeix(this, null, "🧹 Demanat esborrar " + etiquetes.size() + " alarmes VR-");
-            mostra(getString(R.string.esborra_vr_fet), getString(R.string.esborra_vr_fet_detall), null, false);
-            estat.postDelayed(this::obreAlarmes, 1200);
-            return;
-        }
-        estat.setText(getString(R.string.esborra_vr_progres, i + 1, etiquetes.size()));
-        Intent d = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
-                .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_LABEL)
-                .putExtra(AlarmClock.EXTRA_MESSAGE, etiquetes.get(i))
-                .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            startActivity(d);
-        } catch (ActivityNotFoundException e) {
-            mostra(getString(R.string.esborra_vr_no_admet), getString(R.string.esborra_vr_no_admet_detall), null, false);
-            return;
-        }
-        // Una mica d'espera entre una i altra perquè el Rellotge les pugui processar totes
-        estat.postDelayed(() -> esborraVR(etiquetes, i + 1), 800);
     }
 
     /** Obre l'app d'agenda del mòbil al dia d'avui. */

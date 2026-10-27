@@ -36,7 +36,7 @@ Per tornar a parlar, toca el micròfon. «Alarmes» obre el Rellotge per comprov
 - Si algun dels avisos ja ha passat (per exemple, apuntes una cosa per a demà a les 22:00), només es posa el que encara toca. Si no en toca cap, l'avís es posa 1 hora abans.
 - «Avisa'm d'aquí a mitja hora» posa un **temporitzador**; «avisa'm a les quatre i mitja» posa una **alarma**.
 - Els avisos de l'agenda també queden escrits a la descripció de l'esdeveniment. Google Calendar els mostra com a temps abans de l'esdeveniment (per exemple, per a un sopar a les 20:00: «1 dia abans» i «13 hores abans»).
-- Totes les alarmes que posa l'app comencen per «VR-» (per exemple, «VR-Portar el cotxe al taller» o «VR-⏱ L'arròs»), perquè sigui fàcil trobar-les i esborrar-les al Rellotge. El botó «Esborra VR-» de sota demana al Rellotge que esborri les que ha posat l'app (és una prova: cada Rellotge ho fa a la seva manera).
+- Totes les alarmes que posa l'app comencen per «VR-» (per exemple, «VR-Portar el cotxe al taller» o «VR-⏱ L'arròs»), perquè sigui fàcil trobar-les i esborrar-les al Rellotge.
 - Algunes apps de rellotge (Samsung, per exemple) poden demanar confirmar l'alarma amb «Desa».
 
 ## Compilar l'APK

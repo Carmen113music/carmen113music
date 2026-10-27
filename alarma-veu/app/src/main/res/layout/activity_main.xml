@@ -161,16 +161,6 @@
             android:textSize="14sp" />
 
         <Button
-            android:id="@+id/boto_esborra_vr"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/esborra_vr"
-            android:textAllCaps="false"
-            android:textColor="@color/text_suau"
-            android:textSize="14sp" />
-
-        <Button
             android:id="@+id/boto_calendari"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"

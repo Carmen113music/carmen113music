@@ -36,16 +36,6 @@
     <string name="agenda_desada">A partir d\'ara s\'apunta a:</string>
     <string name="no_hi_es_el_compte">No hi és el compte que vull…</string>
     <string name="no_hi_es_el_compte_detall">Perquè un compte surti a la llista, ha de tenir el calendari sincronitzat al mòbil: Configuració → Comptes → (el compte de Gmail) → Sincronitza → activa «Calendari». Després torna a tocar el botó «Agenda» de sota.</string>
-    <string name="esborra_vr">Esborra VR-</string>
-    <string name="esborra_vr_titol">Esborrar les alarmes VR-?</string>
-    <string name="esborra_vr_missatge">Es demanarà al Rellotge que esborri les %1$d alarmes que ha posat aquesta app. És una prova: cada Rellotge ho fa a la seva manera. Després s\'obrirà el Rellotge perquè comprovis què ha passat.</string>
-    <string name="esborra_vr_progres">Esborrant %1$d de %2$d…</string>
-    <string name="esborra_vr_fet">Fet</string>
-    <string name="esborra_vr_fet_detall">Ara s\'obre el Rellotge: mira si les alarmes VR- han desaparegut, s\'han desactivat o hi continuen.</string>
-    <string name="esborra_vr_cap">No hi ha alarmes VR- per esborrar</string>
-    <string name="esborra_vr_cap_detall">L\'app només recorda les alarmes que ha posat a partir d\'aquesta versió. Les anteriors s\'han d\'esborrar a mà des del Rellotge.</string>
-    <string name="esborra_vr_no_admet">El Rellotge no ho admet</string>
-    <string name="esborra_vr_no_admet_detall">Aquest Rellotge no accepta que altres apps esborrin alarmes. Les pots esborrar a mà: totes comencen per «VR-».</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>
