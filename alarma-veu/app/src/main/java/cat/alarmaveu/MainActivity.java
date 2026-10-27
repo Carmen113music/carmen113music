@@ -11,7 +11,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.AlarmClock;
 import android.provider.CalendarContract;
@@ -42,7 +41,6 @@ public class MainActivity extends Activity {
 
     private static final int PETICIO_VEU = 1;
     private static final int PERMIS_CALENDARI = 2;
-    private static final int PERMIS_NOTIFICACIONS = 3;
     private static final long DURADA_ESDEVENIMENT_MIN = 60;
 
     private TextView estat;
@@ -68,7 +66,7 @@ public class MainActivity extends Activity {
         findViewById(R.id.boto_alarmes).setOnClickListener(v -> obreAlarmes());
         findViewById(R.id.boto_calendari).setOnClickListener(v ->
                 ambPermisCalendari(() -> triaCalendari(true, null, c ->
-                        mostra(getString(R.string.agenda_actual, c.nom), getString(R.string.exemple), null, false)), null));
+                        mostra(getString(R.string.agenda_desada), c.curt(), null, false)), null));
         actualitzaBotoCalendari();
 
         if (savedInstanceState == null) escolta();
@@ -156,25 +154,27 @@ public class MainActivity extends Activity {
 
     // ---------------- Temporitzador ----------------
 
+    /**
+     * Temporitzador → alarma real al Rellotge a l'hora que toca (ara + durada).
+     * Així sona sempre, també amb el mòbil en silenci, com qualsevol alarma.
+     */
     private void posaTemporitzador(ParserAlarma.Resultat r, String frase) {
-        // Temporitzador propi: no depèn de l'app de Rellotge, que en alguns mòbils no l'engegava.
-        Runnable engega = () -> {
-            try {
-                Temporitzador.programa(this, r.segons, r.titol);
-            } catch (RuntimeException e) {
-                mostra(getString(R.string.no_ho_he_entes), "Error en engegar el temporitzador: " + e.getMessage(), frase, true);
-                return;
-            }
-            acaba("⏱ " + r.duradaText() + " · " + r.titol + "\nEl compte enrere és a les notificacions");
-        };
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            pendent = engega;
-            frasePendent = frase;
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMIS_NOTIFICACIONS);
+        LocalDateTime ara = LocalDateTime.now();
+        LocalDateTime quan = ara.plusSeconds(r.segons).plusSeconds(30).truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        LocalDateTime minim = ara.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).plusMinutes(1);
+        if (quan.isBefore(minim)) quan = minim; // el Rellotge treballa en minuts: com a mínim, el minut següent
+        Intent a = new Intent(AlarmClock.ACTION_SET_ALARM)
+                .putExtra(AlarmClock.EXTRA_HOUR, quan.getHour())
+                .putExtra(AlarmClock.EXTRA_MINUTES, quan.getMinute())
+                .putExtra(AlarmClock.EXTRA_MESSAGE, "⏱ " + r.titol)
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+        try {
+            startActivity(a);
+        } catch (ActivityNotFoundException e) {
+            mostra(getString(R.string.sense_rellotge), getString(R.string.sense_rellotge_detall), frase, true);
             return;
         }
-        engega.run();
+        acaba(String.format(Locale.ROOT, "⏰ %02d:%02d · %s\n(d'aquí %s)", quan.getHour(), quan.getMinute(), r.titol, r.duradaText()));
     }
 
     // ---------------- Agenda ----------------
@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if ((requestCode != PERMIS_CALENDARI && requestCode != PERMIS_NOTIFICACIONS) || pendent == null) return;
+        if (requestCode != PERMIS_CALENDARI || pendent == null) return;
         boolean ok = grantResults.length > 0;
         for (int g : grantResults) ok &= g == PackageManager.PERMISSION_GRANTED;
         Runnable feina = pendent;
@@ -206,8 +206,6 @@ public class MainActivity extends Activity {
         pendent = null;
         frasePendent = null;
         if (ok) feina.run();
-        else if (requestCode == PERMIS_NOTIFICACIONS)
-            mostra(getString(R.string.sense_permis_notificacions), getString(R.string.sense_permis_notificacions_detall), frase, true);
         else mostra(getString(R.string.sense_permis_calendari), getString(R.string.sense_permis_calendari_detall), frase, true);
     }
 
@@ -345,7 +343,7 @@ public class MainActivity extends Activity {
 
             acaba("📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
-                    + "\nAgenda: " + cal.nom);
+                    + "\nAgenda: " + cal.curt());
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
@@ -354,20 +352,58 @@ public class MainActivity extends Activity {
     // ---------------- Triar el calendari ----------------
 
     private static final String PREFS = "config";
-    private static final String CLAU_CALENDARI = "calendari";
+    private static final String CLAU_CALENDARI = "calendari_v2"; // v2: torna a preguntar un cop amb la llista nova
 
     private static final class Calendari {
         long id;
         String nom;
         String compte;
+        String tipus;
+        boolean visible;
+        boolean sincronitza;
+        boolean principal;
         int punts;
+
+        /** Quina app / servei és: «Google Calendar», «Calendari del telèfon»... */
+        String app() {
+            String t = tipus == null ? "" : tipus.toLowerCase(java.util.Locale.ROOT);
+            if (t.equals("com.google")) return "Google Calendar";
+            if (t.contains("samsung")) return "Calendari del telèfon (Samsung)";
+            if (t.equals("local") || t.contains("local")) return "Calendari del telèfon";
+            if (t.contains("exchange") || t.contains("outlook") || t.contains("microsoft")) return "Outlook / Exchange";
+            if (t.contains("caldav") || t.contains("dav")) return "CalDAV";
+            if (t.contains("xiaomi") || t.contains("miui")) return "Calendari Xiaomi";
+            if (t.contains("huawei")) return "Calendari Huawei";
+            return tipus == null || tipus.isEmpty() ? "Calendari" : tipus;
+        }
+
+        /** Text de la llista: nom a la primera línia, app i compte a la segona. */
+        String etiqueta() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(principal ? "★ " : "").append(nom);
+            sb.append("\n").append(app());
+            if (!compte.isEmpty() && !compte.equalsIgnoreCase(nom)) sb.append(" · ").append(compte);
+            if (principal) sb.append(" · principal");
+            if (!sincronitza) sb.append(" · ⚠ no se sincronitza");
+            if (!visible) sb.append(" · ⚠ amagat");
+            return sb.toString();
+        }
+
+        /** Text curt per a la confirmació i el botó: «nom (Google Calendar · compte)». */
+        String curt() {
+            String c = !compte.isEmpty() && !compte.equalsIgnoreCase(nom) ? " · " + compte : "";
+            return nom + " (" + app() + c + ")";
+        }
     }
 
     private interface DespresDeTriar {
         void fes(Calendari cal);
     }
 
-    /** Calendaris visibles on es pot escriure, del més probable al menys (el principal de Google primer). */
+    /**
+     * Tots els calendaris on es pot escriure, de tots els comptes, ordenats per app i compte
+     * (Google primer, i dins de cada compte, el principal primer).
+     */
     private List<Calendari> calendaris() {
         String[] camps = {
                 CalendarContract.Calendars._ID,
@@ -375,10 +411,10 @@ public class MainActivity extends Activity {
                 CalendarContract.Calendars.ACCOUNT_NAME,
                 CalendarContract.Calendars.ACCOUNT_TYPE,
                 CalendarContract.Calendars.OWNER_ACCOUNT,
-                CalendarContract.Calendars.IS_PRIMARY,
+                CalendarContract.Calendars.VISIBLE,
+                CalendarContract.Calendars.SYNC_EVENTS,
         };
-        String filtre = CalendarContract.Calendars.VISIBLE + " = 1 AND "
-                + CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL + " >= "
+        String filtre = CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL + " >= "
                 + CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR;
         List<Calendari> llista = new ArrayList<>();
         try (Cursor c = getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, camps, filtre, null, null)) {
@@ -388,21 +424,30 @@ public class MainActivity extends Activity {
                 cal.id = c.getLong(0);
                 cal.nom = c.getString(1) != null ? c.getString(1) : "(sense nom)";
                 cal.compte = c.getString(2) != null ? c.getString(2) : "";
-                String tipus = c.getString(3);
+                cal.tipus = c.getString(3);
                 String propietari = c.getString(4);
-                if ("com.google".equals(tipus)) cal.punts += 4;
-                if (propietari != null && propietari.equalsIgnoreCase(cal.compte)) cal.punts += 2; // el calendari principal del compte
-                if (c.getInt(5) == 1) cal.punts += 1;
+                cal.visible = c.getInt(5) == 1;
+                cal.sincronitza = c.getInt(6) == 1;
+                cal.principal = propietari != null && propietari.equalsIgnoreCase(cal.compte);
+                if ("com.google".equals(cal.tipus)) cal.punts += 4;
+                if (cal.principal) cal.punts += 2;
+                if (cal.visible) cal.punts += 1;
                 llista.add(cal);
             }
         }
-        llista.sort((x, y) -> y.punts - x.punts);
+        llista.sort((x, y) -> {
+            if (x.punts / 4 != y.punts / 4) return y.punts / 4 - x.punts / 4;   // Google primer
+            int pc = x.compte.compareToIgnoreCase(y.compte);                    // agrupats per compte
+            if (pc != 0) return pc;
+            if (x.principal != y.principal) return x.principal ? -1 : 1;        // el principal primer
+            return x.nom.compareToIgnoreCase(y.nom);
+        });
         return llista;
     }
 
     /**
-     * Fa servir el calendari triat l'últim cop. Si no n'hi ha cap de triat i en hi ha més d'un,
-     * pregunta on apuntar les coses (i ho recorda per a la propera vegada).
+     * Fa servir el calendari triat. Si encara no se n'ha triat cap (o ja no existeix), sempre pregunta,
+     * encara que només n'hi hagi un, perquè quedi clar on s'apunten les coses.
      */
     private void triaCalendari(boolean preguntaSempre, String frase, DespresDeTriar despres) {
         List<Calendari> llista;
@@ -418,27 +463,25 @@ public class MainActivity extends Activity {
         }
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         long desat = prefs.getLong(CLAU_CALENDARI, -1);
-        if (!preguntaSempre) {
-            for (Calendari c : llista) {
-                if (c.id == desat) {
-                    despres.fes(c);
-                    return;
-                }
-            }
-            if (llista.size() == 1) {
-                prefs.edit().putLong(CLAU_CALENDARI, llista.get(0).id).apply();
-                despres.fes(llista.get(0));
-                return;
-            }
+        int actual = -1;
+        for (int i = 0; i < llista.size(); i++) if (llista.get(i).id == desat) actual = i;
+        if (!preguntaSempre && actual >= 0) {
+            despres.fes(llista.get(actual));
+            return;
         }
-        String[] noms = new String[llista.size()];
-        for (int i = 0; i < noms.length; i++) {
-            Calendari c = llista.get(i);
-            noms[i] = c.compte.isEmpty() || c.compte.equals(c.nom) ? c.nom : c.nom + "  ·  " + c.compte;
-        }
+
+        String[] opcions = new String[llista.size() + 1];
+        for (int i = 0; i < llista.size(); i++) opcions[i] = llista.get(i).etiqueta();
+        opcions[llista.size()] = getString(R.string.no_hi_es_el_compte);
+
         new AlertDialog.Builder(this)
                 .setTitle(R.string.on_apunto)
-                .setItems(noms, (d, i) -> {
+                .setSingleChoiceItems(opcions, actual, (d, i) -> {
+                    d.dismiss();
+                    if (i == llista.size()) {
+                        mostra(getString(R.string.no_hi_es_el_compte), getString(R.string.no_hi_es_el_compte_detall), frase, true);
+                        return;
+                    }
                     Calendari c = llista.get(i);
                     prefs.edit().putLong(CLAU_CALENDARI, c.id).apply();
                     actualitzaBotoCalendari();
@@ -450,16 +493,16 @@ public class MainActivity extends Activity {
 
     private void actualitzaBotoCalendari() {
         TextView boto = findViewById(R.id.boto_calendari);
-        String nom = null;
+        String text = null;
         if (checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
             long desat = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(CLAU_CALENDARI, -1);
             try {
-                for (Calendari c : calendaris()) if (c.id == desat) nom = c.nom;
+                for (Calendari c : calendaris()) if (c.id == desat) text = c.curt();
             } catch (RuntimeException ignorat) {
                 // si no es pot llegir, ensenyem el text genèric
             }
         }
-        boto.setText(nom != null ? getString(R.string.agenda_actual, nom) : getString(R.string.tria_agenda));
+        boto.setText(text != null ? getString(R.string.agenda_actual, text) : getString(R.string.tria_agenda));
     }
 
     // ---------------- Pantalla ----------------
