@@ -5,11 +5,11 @@ App d'Android personal: obres l'app, dius una frase i:
 - si és per a les pròximes 24 hores, posa una **alarma** al Rellotge amb l'hora i el títol;
 - si dius un dia concret («divendres», «el 15 de novembre», «passat demà»), l'apunta a l'**agenda** amb avisos el dia abans a les 20:00 i el mateix dia a les 7:00. Si aquell dia ja hi ha alguna cosa apuntada, t'ho diu i et pregunta si l'apunta igualment;
 - si preguntes «què tinc divendres?», et mostra el que hi ha apuntat aquell dia;
-- si demanes un temporitzador («temporitzador de 15 minuts per l'arròs», «posa 15 minuts per bullir l'aigua», «avisa'm d'aquí mitja hora»), engega un **temporitzador al Rellotge** amb el compte enrere.
+- si demanes un temporitzador («temporitzador de 15 minuts per l'arròs», «posa 15 minuts per bullir l'aigua», «avisa'm d'aquí mitja hora»), posa una **alarma al Rellotge** a l'hora que toca (ara + el temps), amb el títol «⏱ …» (el temporitzador del Rellotge d'aquest mòbil no accepta el temps des d'una altra app).
 
 Si tot va bé, mostra una confirmació breu i es tanca sola.
 
-Mentre escolta, a sota hi ha sempre dos botons: **📅 Agenda** (obre l'agenda del mòbil) i **🕘 Historial** (tot el que s'ha demanat, el més recent a dalt).
+A dalt de tot hi ha sempre dos botons: **📅 Agenda** (obre l'agenda del mòbil) i **🕘 Historial** (tot el que s'ha demanat, el més recent a dalt).
 
 ## Com es fa servir
 
@@ -24,13 +24,14 @@ Mentre escolta, a sota hi ha sempre dos botons: **📅 Agenda** (obre l'agenda d
    - «el 15 de novembre a les 5 de la tarda, dentista» (agenda)
 3. L'app mostra una confirmació breu i es tanca.
 
-Per tornar a parlar, toca el micròfon (mentre escolta, el botó batega amb la veu; si el toques, deixa d'escoltar). «Alarmes» obre el Rellotge per comprovar-les o esborrar-les.
+Per tornar a parlar, toca el micròfon. «Alarmes» obre el Rellotge per comprovar-les o esborrar-les.
 
 ## Bon saber
 
 - Si no dius «del matí», «de la tarda» o «del vespre», agafa la propera vegada que arribi aquella hora: a les 10 del matí, «a les 5» vol dir les 17:00.
 - A l'agenda, si no dius matí o tarda: de les 1 a les 6 entén tarda, de les 7 a les 11 entén matí, excepte si parles de sopar, concert, assaig, cine, teatre o festa.
-- El primer cop, l'app demanarà permís per fer servir el micròfon. Si no es dona, farà servir la finestra de dictat de Google, com abans.
+- Mentre la finestra de dictat de Google és oberta, el primer toc fora d'ella la tanca; després ja es poden tocar els botons.
+- Com que el Rellotge treballa en minuts, els temporitzadors s'arrodoneixen al minut més proper.
 - El primer cop que s'apunti alguna cosa a l'agenda, l'app demanarà permís de Calendari i preguntarà en quin calendari s'han d'apuntar les coses. La llista mostra cada calendari amb l'app (Google Calendar, Calendari del telèfon…) i el compte; el principal de cada compte porta una ★. Es pot canviar quan vulguis amb el botó «Agenda: …» de sota. Si un compte no hi surt, cal activar-ne la sincronització del calendari a Configuració → Comptes.
 - Si algun dels avisos ja ha passat (per exemple, apuntes una cosa per a demà a les 22:00), només es posa el que encara toca. Si no en toca cap, l'avís es posa 1 hora abans.
 - «Avisa'm d'aquí a mitja hora» posa un **temporitzador**; «avisa'm a les quatre i mitja» posa una **alarma**.

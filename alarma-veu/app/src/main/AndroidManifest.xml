@@ -8,16 +8,6 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
-    <!-- Micròfon per escoltar dins la pantalla de l'app (si no es dona, es fa servir la finestra de Google) -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Android 11+: cal declarar que fem servir el servei de reconeixement de veu -->
-    <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-    </queries>
-
 
     <application
         android:allowBackup="true"

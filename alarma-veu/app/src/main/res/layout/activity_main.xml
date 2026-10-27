@@ -17,6 +17,38 @@
         android:textColor="@color/text_suau"
         android:textSize="16sp" />
 
+    <!-- Botons principals a dalt: així es veuen encara que la finestra de dictat de Google tapi la part de baix -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/boto_agenda"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/boto_contorn"
+            android:text="@string/obre_agenda"
+            android:textAllCaps="false"
+            android:textColor="@color/accent"
+            android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/boto_historial"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/boto_contorn"
+            android:text="@string/obre_historial"
+            android:textAllCaps="false"
+            android:textColor="@color/accent"
+            android:textSize="17sp" />
+    </LinearLayout>
+
     <!-- Part central: es pot desplaçar si el text és llarg, així els botons de sota sempre es veuen -->
     <ScrollView
         android:layout_width="match_parent"
@@ -109,38 +141,6 @@
             android:text="@string/apunta_igualment"
             android:textAllCaps="false"
             android:textColor="@color/blanc"
-            android:textSize="17sp" />
-    </LinearLayout>
-
-    <!-- Botons principals, sempre visibles -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/boto_agenda"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_marginEnd="8dp"
-            android:layout_weight="1"
-            android:background="@drawable/boto_contorn"
-            android:text="@string/obre_agenda"
-            android:textAllCaps="false"
-            android:textColor="@color/accent"
-            android:textSize="17sp" />
-
-        <Button
-            android:id="@+id/boto_historial"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:background="@drawable/boto_contorn"
-            android:text="@string/obre_historial"
-            android:textAllCaps="false"
-            android:textColor="@color/accent"
             android:textSize="17sp" />
     </LinearLayout>
 
