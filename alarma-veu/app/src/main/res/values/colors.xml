@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fons">#FBF6EF</color>
+    <color name="text">#2B2420</color>
+    <color name="text_suau">#8A7E74</color>
+    <color name="accent">#E0563B</color>
+    <color name="accent_fosc">#B8412A</color>
+    <color name="error">#B8412A</color>
+    <color name="blanc">#FFFFFF</color>
+</resources>

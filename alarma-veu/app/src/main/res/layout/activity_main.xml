@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/fons"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/app_name"
+        android:textColor="@color/text_suau"
+        android:textSize="16sp" />
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <ImageButton
+        android:id="@+id/boto_parla"
+        android:layout_width="168dp"
+        android:layout_height="168dp"
+        android:background="@drawable/boto_rodo"
+        android:contentDescription="@string/parla"
+        android:elevation="6dp"
+        android:padding="44dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mic" />
+
+    <TextView
+        android:id="@+id/estat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="36dp"
+        android:gravity="center"
+        android:text="@string/toca_per_parlar"
+        android:textColor="@color/text"
+        android:textSize="34sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/detall"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="@string/exemple"
+        android:textColor="@color/text"
+        android:textSize="19sp" />
+
+    <TextView
+        android:id="@+id/escoltat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:textColor="@color/text_suau"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/boto_alarmes"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/veure_alarmes"
+        android:textAllCaps="false"
+        android:textColor="@color/accent"
+        android:textSize="16sp" />
+</LinearLayout>
