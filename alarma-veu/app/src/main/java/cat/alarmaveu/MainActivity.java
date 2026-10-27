@@ -14,7 +14,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.AlarmClock;
 import android.provider.CalendarContract;
+import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,6 +43,7 @@ public class MainActivity extends Activity {
 
     private static final int PETICIO_VEU = 1;
     private static final int PERMIS_CALENDARI = 2;
+    private static final int PERMIS_MICRO = 4;
     private static final long DURADA_ESDEVENIMENT_MIN = 60;
 
     private TextView estat;
@@ -48,6 +51,13 @@ public class MainActivity extends Activity {
     private TextView escoltat;
 
     private View filaDubte;
+    private View botoParla;
+
+    /** Reconeixement de veu dins la mateixa pantalla (així els botons es poden tocar mentre escolta). */
+    private SpeechRecognizer reconeixedor;
+    private boolean escoltant;
+    /** Si el reconeixement dins l'app no funciona (idioma, permís...), es fa servir la finestra de Google. */
+    private boolean ambDialeg;
 
     /** Feina pendent mentre es demana permís per al calendari. */
     private Runnable pendent;
@@ -62,8 +72,27 @@ public class MainActivity extends Activity {
         escoltat = findViewById(R.id.escoltat);
         filaDubte = findViewById(R.id.fila_dubte);
 
-        findViewById(R.id.boto_parla).setOnClickListener(v -> escolta());
-        findViewById(R.id.boto_alarmes).setOnClickListener(v -> obreAlarmes());
+        botoParla = findViewById(R.id.boto_parla);
+        botoParla.setOnClickListener(v -> {
+            if (escoltant) {
+                paraDEscoltar();
+                mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false);
+            } else {
+                escolta();
+            }
+        });
+        findViewById(R.id.boto_alarmes).setOnClickListener(v -> {
+            paraDEscoltar();
+            obreAlarmes();
+        });
+        findViewById(R.id.boto_agenda).setOnClickListener(v -> {
+            paraDEscoltar();
+            obreAgenda();
+        });
+        findViewById(R.id.boto_historial).setOnClickListener(v -> {
+            paraDEscoltar();
+            startActivity(new Intent(this, HistorialActivity.class));
+        });
         findViewById(R.id.boto_calendari).setOnClickListener(v ->
                 ambPermisCalendari(() -> triaCalendari(true, null, c ->
                         mostra(getString(R.string.agenda_desada), c.curt(), null, false)), null));
@@ -79,17 +108,126 @@ public class MainActivity extends Activity {
         escolta();
     }
 
+    // ---------------- Escoltar ----------------
+
     private void escolta() {
+        filaDubte.setVisibility(View.GONE);
+        if (ambDialeg || !SpeechRecognizer.isRecognitionAvailable(this)) {
+            escoltaAmbDialeg();
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MICRO);
+            return;
+        }
+        if (reconeixedor == null) {
+            reconeixedor = SpeechRecognizer.createSpeechRecognizer(this);
+            reconeixedor.setRecognitionListener(new Oient());
+        }
+        Intent i = intentVeu();
+        i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        escoltant = true;
+        botoParla.setBackgroundResource(R.drawable.boto_rodo_actiu);
+        mostra(getString(R.string.t_escolto), getString(R.string.exemple), null, false);
+        reconeixedor.startListening(i);
+    }
+
+    private Intent intentVeu() {
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ca-ES");
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ca-ES");
         i.putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.indicacio_veu));
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
+        return i;
+    }
+
+    /** La finestra de dictat de Google, com a les primeres versions. */
+    private void escoltaAmbDialeg() {
         try {
-            startActivityForResult(i, PETICIO_VEU);
+            startActivityForResult(intentVeu(), PETICIO_VEU);
         } catch (ActivityNotFoundException e) {
             mostra(getString(R.string.sense_reconeixement), getString(R.string.sense_reconeixement_detall), null, true);
+        }
+    }
+
+    private void paraDEscoltar() {
+        if (!escoltant) return;
+        escoltant = false;
+        if (reconeixedor != null) reconeixedor.cancel();
+        reposaBoto();
+    }
+
+    private void reposaBoto() {
+        botoParla.setBackgroundResource(R.drawable.boto_rodo);
+        botoParla.setScaleX(1f);
+        botoParla.setScaleY(1f);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        paraDEscoltar();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (reconeixedor != null) reconeixedor.destroy();
+    }
+
+    private class Oient implements RecognitionListener {
+        @Override public void onReadyForSpeech(Bundle params) { }
+        @Override public void onBeginningOfSpeech() { }
+        @Override public void onBufferReceived(byte[] buffer) { }
+        @Override public void onEvent(int eventType, Bundle params) { }
+
+        @Override
+        public void onRmsChanged(float rmsdB) {
+            if (!escoltant) return;
+            float escala = 1f + Math.max(0f, Math.min(rmsdB, 10f)) / 40f; // el botó "batega" amb la veu
+            botoParla.setScaleX(escala);
+            botoParla.setScaleY(escala);
+        }
+
+        @Override
+        public void onEndOfSpeech() {
+            if (escoltant) estat.setText(R.string.un_moment);
+        }
+
+        @Override
+        public void onPartialResults(Bundle b) {
+            ArrayList<String> p = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (escoltant && p != null && !p.isEmpty() && !p.get(0).isEmpty()) {
+                escoltat.setText("«" + p.get(0) + "»");
+                escoltat.setVisibility(View.VISIBLE);
+            }
+        }
+
+        @Override
+        public void onResults(Bundle b) {
+            if (!escoltant) return;
+            escoltant = false;
+            reposaBoto();
+            processa(b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));
+        }
+
+        @Override
+        public void onError(int error) {
+            if (!escoltant) return;
+            escoltant = false;
+            reposaBoto();
+            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                mostra(getString(R.string.no_t_he_sentit), getString(R.string.toca_per_tornar), null, false);
+            } else if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS || error == 12 || error == 13) {
+                // 12/13: idioma no disponible en aquest reconeixedor → finestra de Google
+                ambDialeg = true;
+                escoltaAmbDialeg();
+            } else {
+                mostra(getString(R.string.no_t_he_sentit), getString(R.string.toca_per_tornar)
+                        + " (codi " + error + ")", null, false);
+            }
         }
     }
 
@@ -101,9 +239,13 @@ public class MainActivity extends Activity {
             mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false);
             return;
         }
-        ArrayList<String> frases = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        processa(data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS));
+    }
+
+    /** Decideix què fer amb el que s'ha sentit. */
+    private void processa(ArrayList<String> frases) {
         if (frases == null || frases.isEmpty()) {
-            mostra(getString(R.string.no_t_he_sentit), getString(R.string.exemple), null, true);
+            mostra(getString(R.string.no_t_he_sentit), getString(R.string.toca_per_tornar), null, false);
             return;
         }
 
@@ -151,34 +293,26 @@ public class MainActivity extends Activity {
             mostra(getString(R.string.sense_rellotge), getString(R.string.sense_rellotge_detall), frase, true);
             return;
         }
-        acaba("⏰ " + r.horaText() + " · " + r.titol + "\n" + falten(r.minutsFins));
+        acaba("⏰ " + r.horaText() + " · " + r.titol + "\n" + falten(r.minutsFins), frase);
     }
 
     // ---------------- Temporitzador ----------------
 
-    /**
-     * Temporitzador → alarma real al Rellotge a l'hora que toca (ara + durada).
-     * Així sona sempre, també amb el mòbil en silenci, com qualsevol alarma.
-     */
+    /** Temporitzador de veritat al Rellotge (compte enrere). */
     private void posaTemporitzador(ParserAlarma.Resultat r, String frase) {
-        LocalDateTime ara = LocalDateTime.now();
-        LocalDateTime quan = ara.plusSeconds(r.segons).plusSeconds(30).truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
-        LocalDateTime minim = ara.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).plusMinutes(1);
-        if (quan.isBefore(minim)) quan = minim; // el Rellotge treballa en minuts: com a mínim, el minut següent
-        Intent a = new Intent(AlarmClock.ACTION_SET_ALARM)
-                .putExtra(AlarmClock.EXTRA_HOUR, quan.getHour())
-                .putExtra(AlarmClock.EXTRA_MINUTES, quan.getMinute())
-                .putExtra(AlarmClock.EXTRA_MESSAGE, "⏱ " + r.titol)
+        Intent t = new Intent(AlarmClock.ACTION_SET_TIMER)
+                .putExtra(AlarmClock.EXTRA_LENGTH, r.segons)
+                .putExtra(AlarmClock.EXTRA_MESSAGE, r.titol)
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                 // Tasca pròpia: si no, en tancar la nostra app es perdia l'encàrrec abans que el Rellotge el desés
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
-            startActivity(a);
+            startActivity(t);
         } catch (ActivityNotFoundException e) {
             mostra(getString(R.string.sense_rellotge), getString(R.string.sense_rellotge_detall), frase, true);
             return;
         }
-        acaba(String.format(Locale.ROOT, "⏰ %02d:%02d · %s\n(d'aquí %s)", quan.getHour(), quan.getMinute(), r.titol, r.duradaText()));
+        acaba("⏱ " + r.duradaText() + " · " + r.titol, frase);
     }
 
     // ---------------- Agenda ----------------
@@ -202,6 +336,12 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMIS_MICRO) {
+            boolean ok = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (!ok) ambDialeg = true; // sense permís de micròfon, fem servir la finestra de Google
+            escolta();
+            return;
+        }
         if (requestCode != PERMIS_CALENDARI || pendent == null) return;
         boolean ok = grantResults.length > 0;
         for (int g : grantResults) ok &= g == PackageManager.PERMISSION_GRANTED;
@@ -232,7 +372,7 @@ public class MainActivity extends Activity {
         mostra(getString(R.string.compte), sb.toString(), frase, true);
         filaDubte.setVisibility(View.VISIBLE);
         findViewById(R.id.boto_si).setOnClickListener(v -> desaEsdeveniment(r, frase));
-        findViewById(R.id.boto_no).setOnClickListener(v -> acaba("No s'ha apuntat res"));
+        findViewById(R.id.boto_no).setOnClickListener(v -> acaba("✕ No s'ha apuntat: " + r.titol, frase));
     }
 
     /** Resposta a "què tinc divendres?". L'app es queda oberta perquè es pugui llegir. */
@@ -246,6 +386,7 @@ public class MainActivity extends Activity {
         }
         String nom = ParserAlarma.nomDia(dia);
         nom = nom.substring(0, 1).toUpperCase(Locale.ROOT) + nom.substring(1);
+        Historial.afegeix(this, frase, "🔎 " + nom + ": " + (coses.isEmpty() ? "res apuntat" : coses.size() + " coses"));
         if (coses.isEmpty()) {
             mostra(nom, getString(R.string.res_apuntat), frase, false);
             return;
@@ -347,7 +488,7 @@ public class MainActivity extends Activity {
 
             acaba("📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
-                    + "\nAgenda: " + cal.curt());
+                    + "\nAgenda: " + cal.curt(), frase);
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
@@ -512,7 +653,8 @@ public class MainActivity extends Activity {
     // ---------------- Pantalla ----------------
 
     /** Missatge breu de confirmació i tancar l'app. */
-    private void acaba(String missatge) {
+    private void acaba(String missatge, String frase) {
+        Historial.afegeix(this, frase, missatge);
         Toast.makeText(getApplicationContext(), missatge, Toast.LENGTH_LONG).show();
         // Esperem una mica abans de tancar perquè el Rellotge tingui temps de desar l'alarma.
         estat.postDelayed(this::finish, 1500);
@@ -525,6 +667,23 @@ public class MainActivity extends Activity {
         return "Sonarà d'aquí a " + h + " h " + m + " min";
     }
 
+    /** Obre l'app d'agenda del mòbil al dia d'avui. */
+    private void obreAgenda() {
+        Intent i = new Intent(Intent.ACTION_VIEW)
+                .setData(Uri.parse("content://com.android.calendar/time/" + System.currentTimeMillis()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(i);
+        } catch (ActivityNotFoundException e) {
+            try {
+                startActivity(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (ActivityNotFoundException e2) {
+                mostra(getString(R.string.sense_app_agenda), "", null, true);
+            }
+        }
+    }
+
     private void obreAlarmes() {
         try {
             startActivity(new Intent(AlarmClock.ACTION_SHOW_ALARMS));
@@ -535,6 +694,9 @@ public class MainActivity extends Activity {
 
     private void mostra(String titol, String text, String frase, boolean error) {
         filaDubte.setVisibility(View.GONE);
+        if (error && frase != null && !titol.equals(getString(R.string.compte))) {
+            Historial.afegeix(this, frase, "⚠ " + titol + (text != null ? ": " + text : ""));
+        }
         estat.setText(titol);
         estat.setTextColor(getColor(error ? R.color.error : R.color.text));
         detall.setText(text);
