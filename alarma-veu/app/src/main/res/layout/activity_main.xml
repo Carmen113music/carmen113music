@@ -63,6 +63,39 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
+    <LinearLayout
+        android:id="@+id/fila_dubte"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/boto_no"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:text="@string/no_deixa_ho"
+            android:textAllCaps="false"
+            android:textColor="@color/text_suau"
+            android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/boto_si"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/boto_pastilla"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:text="@string/apunta_igualment"
+            android:textAllCaps="false"
+            android:textColor="@color/blanc"
+            android:textSize="17sp" />
+    </LinearLayout>
+
     <Space
         android:layout_width="0dp"
         android:layout_height="0dp"

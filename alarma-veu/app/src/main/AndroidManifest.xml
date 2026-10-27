@@ -4,6 +4,10 @@
     <!-- Permís per crear alarmes a l'app de Rellotge (s'atorga automàticament en instal·lar) -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
+    <!-- Permisos per apuntar esdeveniments a l'agenda (es demanen el primer cop que cal) -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

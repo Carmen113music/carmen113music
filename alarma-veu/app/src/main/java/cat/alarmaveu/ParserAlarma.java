@@ -1,61 +1,95 @@
 package cat.alarmaveu;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Interpreta frases en català com:
- *   "posa'm una alarma a les 7 i mitja per portar el cotxe al taller"
- *   "dos quarts de vuit trucar a la mare"
- *   "d'aquí a 20 minuts treure el pa del forn"
+ * Interpreta frases en català i decideix si són una ALARMA o un esdeveniment d'AGENDA.
+ *
+ * Alarma (pròximes 24 hores, sense dia concret):
+ *   "a les 7 i mitja portar el cotxe al taller", "d'aquí a 20 minuts treure el pa",
  *   "demà a les 6 del matí aeroport"
- * i en treu l'hora, els minuts i el títol.
+ * Agenda (dia concret, o "demà" a una hora que queda a més de 24 hores):
+ *   "divendres tenim sopar a les vuit", "el 15 de novembre a les 5 de la tarda dentista",
+ *   "passat demà a les 10 recollir les ulleres"
  */
 public final class ParserAlarma {
 
+    public enum Tipus { ALARMA, AGENDA }
+
     public static final class Resultat {
         public final boolean ok;
-        public final int hora;
-        public final int minut;
+        public final Tipus tipus;
+        /** Data i hora en què sonarà l'alarma o començarà l'esdeveniment. */
+        public final LocalDateTime quan;
         public final String titol;
         public final String error;
-        /** Minuts que falten perquè soni l'alarma. */
-        public final int minutsFins;
+        /** Minuts que falten fins a l'alarma o l'esdeveniment. */
+        public final long minutsFins;
 
-        private Resultat(boolean ok, int hora, int minut, String titol, String error, int minutsFins) {
+        private Resultat(boolean ok, Tipus tipus, LocalDateTime quan, String titol, String error, long minutsFins) {
             this.ok = ok;
-            this.hora = hora;
-            this.minut = minut;
+            this.tipus = tipus;
+            this.quan = quan;
             this.titol = titol;
             this.error = error;
             this.minutsFins = minutsFins;
         }
 
-        static Resultat be(int h, int m, String titol, int minutsFins) {
-            return new Resultat(true, h, m, titol, null, minutsFins);
+        static Resultat be(Tipus tipus, LocalDateTime quan, String titol, long minutsFins) {
+            return new Resultat(true, tipus, quan, titol, null, minutsFins);
         }
 
         static Resultat malament(String error) {
-            return new Resultat(false, -1, -1, null, error, -1);
+            return new Resultat(false, null, null, null, error, -1);
+        }
+
+        public int hora() {
+            return quan.getHour();
+        }
+
+        public int minut() {
+            return quan.getMinute();
         }
 
         public String horaText() {
-            return String.format(Locale.ROOT, "%02d:%02d", hora, minut);
+            return String.format(Locale.ROOT, "%02d:%02d", quan.getHour(), quan.getMinute());
+        }
+
+        private static final String[] DIES = {"dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte", "diumenge"};
+
+        /** "divendres 30/10 a les 20:00" */
+        public String dataText() {
+            return String.format(Locale.ROOT, "%s %d/%d a les %s", DIES[quan.getDayOfWeek().getValue() - 1],
+                    quan.getDayOfMonth(), quan.getMonthValue(), horaText());
         }
     }
 
     public static final String ERROR_HORA =
             "No he entès l'hora. Prova a dir, per exemple: «a les 7 i mitja, portar el cotxe al taller».";
-    public static final String ERROR_LLUNY =
-            "El Rellotge només pot posar alarmes per a les pròximes 24 hores. Digues una hora d'avui o de demà.";
+    public static final String ERROR_SENSE_HORA =
+            "Falta l'hora. Prova a dir, per exemple: «divendres a les 8 del vespre, sopar».";
+    public static final String ERROR_DIA =
+            "No he entès quin dia. Prova a dir el dia de la setmana o la data, per exemple «el 15 de novembre».";
+    public static final String ERROR_PASSAT = "Aquesta data i hora ja han passat.";
 
-    private static final int F = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
     // Android no admet Pattern.UNICODE_CHARACTER_CLASS (l'app es tancava en analitzar la frase).
-    // Per això, "lletra o número" s'escriu com a [\\p{L}\\p{N}_], que reconeix també les lletres amb accent.
+    // Per això, els límits de paraula s'escriuen amb [\p{L}\p{N}_], que reconeix també les lletres amb accent.
+    private static final int F = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+    private static final String L = "(?<![\\p{L}\\p{N}_])";
+    private static final String R = "(?![\\p{L}\\p{N}_])";
 
     private static final String HORES =
             "\\d{1,2}|una|dues|dos|tres|quatre|cinc|sis|set|vuit|nou|deu|onze|dotze";
@@ -65,60 +99,90 @@ public final class ParserAlarma {
     private static final String QUANTITAT =
             "\\d{1,3}|una|un|dues|dos|tres|quatre|cinc|sis|set|vuit|nou|deu|onze|dotze|quinze"
                     + "|vint[- ]i[- ]cinc|vint|trenta|quaranta[- ]cinc|quaranta|cinquanta";
+    private static final String DIES_SETMANA = "dilluns|dimarts|dimecres|dijous|divendres|dissabte|diumenge";
+    private static final String MESOS =
+            "gener|febrer|març|abril|maig|juny|juliol|agost|setembre|octubre|novembre|desembre";
+
+    // ---------- Dies ----------
+
+    private static final Pattern PASSAT_DEMA = Pattern.compile(L + "(?:passat\\s+demà|demà\\s+passat)" + R, F);
+
+    // "divendres", "aquest divendres", "el dijous que ve", "divendres de la setmana que ve"
+    private static final Pattern DIA_SETMANA = Pattern.compile(
+            L + "(?:(?:el|aquest|aquest\\s+mateix|per\\s+al|pel)\\s+)?(?<d>" + DIES_SETMANA + ")"
+                    + "(?<seg>\\s+(?:de\\s+)?la\\s+setmana\\s+que\\s+ve|\\s+de\\s+la\\s+setmana\\s+vinent)?"
+                    + "(?:\\s+(?:que\\s+ve|vinent))?" + R, F);
+
+    // "el 15 de novembre", "el dia 3", "15 d'abril", "el 15/11"
+    private static final Pattern DATA = Pattern.compile(
+            L + "(?:(?:el\\s+(?:dia\\s+)?)?(?<d3>\\d{1,2})/(?<m3>\\d{1,2})"
+                    + "|(?:el\\s+(?:dia\\s+)?|dia\\s+)(?<d>\\d{1,2})(?:\\s+(?:de\\s+|d'\\s*)(?<m>" + MESOS + "))?"
+                    + "|(?<d2>\\d{1,2})\\s+(?:de\\s+|d'\\s*)(?<m2>" + MESOS + "))" + R, F);
+
+    private static final Pattern SENSE_DIA = Pattern.compile(
+            L + "(?:la\\s+setmana\\s+que\\s+ve|la\\s+setmana\\s+vinent|el\\s+mes\\s+que\\s+ve)" + R, F);
+
+    private static final Pattern DEMA = Pattern.compile(L + "demà" + R, F);
+    private static final Pattern AVUI = Pattern.compile(L + "avui" + R, F);
+
+    // ---------- Hores ----------
 
     // "d'aquí a 20 minuts", "d'aquí a mitja hora", "en una hora i mitja"
     private static final Pattern RELATIU = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:d'?aqu[ií](?:\\s+a)?|dins\\s+d(?:e\\s+|')|en)\\s+"
+            L + "(?:d'?aqu[ií](?:\\s+a)?|dins\\s+d(?:e\\s+|')|en)\\s+"
                     + "(?:(?<mitja>mitja)\\s+hora"
                     + "|(?<q>un|tres)\\s+quarts?\\s+d'hora"
                     + "|(?<n>" + QUANTITAT + ")\\s+(?<u>minuts?|min|hora|hores|h)(?:\\s+i\\s+(?<extra>mitja|quart))?)"
-                    + "(?![\\p{L}\\p{N}_])", F);
+                    + R, F);
 
     // "dos quarts de vuit", "un quart d'onze", "tres quarts i cinc de dues"
     private static final Pattern QUARTS = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:(?:a|cap\\s+a)\\s+)?(?<q>un|1|dos|2|tres|3)\\s+quarts?"
-                    + "(?:\\s+i\\s+(?<i>cinc|deu|5|10))?\\s+(?:de\\s+|d'\\s*)(?<h>" + HORES + ")(?![\\p{L}\\p{N}_])", F);
+            L + "(?:(?:a|cap\\s+a)\\s+)?(?<q>un|1|dos|2|tres|3)\\s+quarts?"
+                    + "(?:\\s+i\\s+(?<i>cinc|deu|5|10))?\\s+(?:de\\s+|d'\\s*)(?<h>" + HORES + ")" + R, F);
 
     // "a les 7:30", "19.45", "7h30"
     private static final Pattern DIGITAL = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:(?:a|per\\s+a|cap\\s+a)\\s+(?:les|la)\\s+)?(?<h>\\d{1,2})\\s*[:.h]\\s*(?<m>\\d{2})(?:\\s*h)?(?![\\p{L}\\p{N}_])", F);
+            L + "(?:(?:a|per\\s+a|cap\\s+a)\\s+(?:les|la)\\s+)?(?<h>\\d{1,2})\\s*[:.h]\\s*(?<m>\\d{2})(?:\\s*h)?" + R, F);
 
     // "a les 7", "a les set i quart", "a les 8 menys deu", "a la una i mitja"
     private static final Pattern A_LES = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:(?:a|per\\s+a|cap\\s+a)\\s+)?(?:les|la)\\s+(?<h>" + HORES + ")"
+            L + "(?:(?:a|per\\s+a|cap\\s+a)\\s+)?(?:les|la)\\s+(?<h>" + HORES + ")"
                     + "(?:\\s+(?:en\\s+punt|hores|h))?"
                     + "(?:\\s+i\\s+(?<mes>mitja|quart|tres\\s+quarts|" + MINUTS + ")(?:\\s+minuts)?"
                     + "|\\s+menys\\s+(?<menys>quart|" + MINUTS + ")(?:\\s+minuts)?)?"
-                    + "(?:\\s+en\\s+punt)?(?![\\p{L}\\p{N}_])", F);
+                    + "(?:\\s+en\\s+punt)?" + R, F);
 
-    private static final Pattern MIGDIA = Pattern.compile("(?<![\\p{L}\\p{N}_])(?:al\\s+|a\\s+|cap\\s+al\\s+)?migdia(?![\\p{L}\\p{N}_])", F);
-    private static final Pattern MITJANIT = Pattern.compile("(?<![\\p{L}\\p{N}_])(?:a\\s+|cap\\s+a\\s+)?(?:la\\s+)?mitjanit(?![\\p{L}\\p{N}_])", F);
+    private static final Pattern MIGDIA = Pattern.compile(L + "(?:al\\s+|a\\s+|cap\\s+al\\s+)?migdia" + R, F);
+    private static final Pattern MITJANIT = Pattern.compile(L + "(?:a\\s+|cap\\s+a\\s+)?(?:la\\s+)?mitjanit" + R, F);
 
     private static final Pattern PERIODE = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:del|de\\s+la|al|a\\s+la|aquest|aquesta|el|la)\\s+(?<p>matinada|matí|tarda|vespre|nit|migdia)(?![\\p{L}\\p{N}_])", F);
+            L + "(?:del|de\\s+la|al|a\\s+la|aquest|aquesta|el|la)\\s+(?<p>matinada|matí|tarda|vespre|nit|migdia)" + R, F);
 
-    private static final Pattern DEMA = Pattern.compile("(?<![\\p{L}\\p{N}_])demà(?![\\p{L}\\p{N}_])", F);
-    private static final Pattern AVUI = Pattern.compile("(?<![\\p{L}\\p{N}_])avui(?![\\p{L}\\p{N}_])", F);
-    private static final Pattern LLUNY = Pattern.compile(
-            "(?<![\\p{L}\\p{N}_])(?:passat\\s+demà|demà\\s+passat|dilluns|dimarts|dimecres|dijous|divendres|dissabte|diumenge"
-                    + "|la\\s+setmana\\s+que\\s+ve|el\\s+mes\\s+que\\s+ve)(?![\\p{L}\\p{N}_])", F);
+    // Paraules que fan pensar en vespre quan algú diu "a les 8" sense dir matí o tarda (només per a l'agenda)
+    private static final Pattern PISTA_VESPRE = Pattern.compile(
+            L + "(?:sopar|sopem|sopa|copes|copa|concert|assaig|bolo|cine|cinema|teatre|festa|pel·lícula)" + R, F);
+
+    // ---------- Títol ----------
 
     private static final Pattern[] INICI = {
-            Pattern.compile("^(?:ei|hola|ok|vale|bé)(?![\\p{L}\\p{N}_])", F),
+            Pattern.compile("^(?:ei|hola|ok|vale|bé)" + R, F),
             Pattern.compile("^(?:posa'?m|posa-me|posam|posa|fes-me|fes|crea'?m|crea|programa'?m|programa"
-                    + "|activa'?m|activa|configura|vull|necessito|si\\s+us\\s+plau)(?![\\p{L}\\p{N}_])", F),
-            Pattern.compile("^(?:una|un|l')\\s*(?=alarma|despertador|recordatori|avís)", F),
-            Pattern.compile("^(?:alarma|despertador|recordatori|avís)(?![\\p{L}\\p{N}_])", F),
-            Pattern.compile("^(?:avisa'?m|avisa-me|recorda'?m|recorda-me|desperta'?m|desperta-me)(?![\\p{L}\\p{N}_])", F),
+                    + "|activa'?m|activa|configura|vull|necessito|si\\s+us\\s+plau|apunta'?m|apunta|anota)" + R, F),
+            Pattern.compile("^(?:una|un|l')\\s*(?=alarma|despertador|recordatori|avís|esdeveniment|cita)", F),
+            Pattern.compile("^(?:alarma|despertador|recordatori|avís|esdeveniment|cita)" + R, F),
+            Pattern.compile("^(?:a\\s+l'agenda|al\\s+calendari|a\\s+l'calendari)" + R, F),
+            Pattern.compile("^(?:avisa'?m|avisa-me|recorda'?m|recorda-me|desperta'?m|desperta-me)" + R, F),
             Pattern.compile("^(?:amb\\s+(?:el\\s+)?(?:nom|títol|text)(?:\\s+de)?|que\\s+es\\s+digui|que\\s+digui"
-                    + "|que\\s+posi|titulada|anomenada|dient)(?![\\p{L}\\p{N}_])", F),
-            Pattern.compile("^(?:per\\s+a|per|que|i|de)(?![\\p{L}\\p{N}_])", F),
+                    + "|que\\s+posi|titulada|anomenada|dient)" + R, F),
+            Pattern.compile("^(?:tenim|tinc|tenen|té|hi\\s+ha|hi\\s+haurà|hi\\s+ha\\s+un|hi\\s+ha\\s+una)" + R, F),
+            Pattern.compile("^(?:per\\s+a|per|que|i|de)" + R, F),
             Pattern.compile("^d'(?=[\\p{L}\\p{N}_])", F),
     };
     private static final Pattern FINAL = Pattern.compile(
-            "(?:[\\s,.;:!?¡¿\\-]+|\\s+(?:per\\s+a|per|a|que|i|de|del|al|amb))$", F);
+            "(?:[\\s,.;:!?¡¿\\-]+|\\s+(?:per\\s+a|per|a|que|i|de|del|al|amb|el|la))$", F);
 
     private static final Map<String, Integer> NUMS = new HashMap<>();
+    private static final Map<String, Integer> NUM_MES = new HashMap<>();
 
     static {
         String[][] taula = {
@@ -129,6 +193,8 @@ public final class ParserAlarma {
                 {"cinquanta", "50"}, {"cinquanta-cinc", "55"},
         };
         for (String[] f : taula) NUMS.put(f[0], Integer.parseInt(f[1]));
+        String[] mesos = MESOS.split("\\|");
+        for (int i = 0; i < mesos.length; i++) NUM_MES.put(mesos[i], i + 1);
     }
 
     private ParserAlarma() {
@@ -152,20 +218,194 @@ public final class ParserAlarma {
         return d == 0 ? 1440 : d;
     }
 
-    /** true si l'hora h:m ja ha passat avui (o és ara), és a dir, la propera vegada que arribi serà demà. */
+    /** true si l'hora h:m ja ha passat avui (o és ara): la propera vegada que arribi serà demà. */
     private static boolean jaHaPassat(LocalTime ara, int h, int m) {
         return h * 60 + m <= ara.getHour() * 60 + ara.getMinute();
     }
 
-    public static Resultat analitza(String text, LocalTime ara) {
-        if (text == null || text.trim().isEmpty()) return Resultat.malament("No t'he sentit. Torna-ho a provar.");
-        String s = " " + text.replace('’', '\'').replace('‘', '\'').replace('`', '\'').trim() + " ";
+    private static DayOfWeek diaSetmana(String nom) {
+        switch (nom.toLowerCase(Locale.ROOT)) {
+            case "dilluns": return DayOfWeek.MONDAY;
+            case "dimarts": return DayOfWeek.TUESDAY;
+            case "dimecres": return DayOfWeek.WEDNESDAY;
+            case "dijous": return DayOfWeek.THURSDAY;
+            case "divendres": return DayOfWeek.FRIDAY;
+            case "dissabte": return DayOfWeek.SATURDAY;
+            default: return DayOfWeek.SUNDAY;
+        }
+    }
 
-        if (LLUNY.matcher(s).find()) return Resultat.malament(ERROR_LLUNY);
+    /** Dia i mes: si ja ha passat aquest any, l'any vinent. Només dia: aquest mes o el següent. */
+    private static LocalDate dataDe(int dia, int mes, LocalDate avui) {
+        if (dia < 1 || dia > 31) return null;
+        if (mes > 0) {
+            if (mes > 12) return null;
+            for (int any = avui.getYear(); any <= avui.getYear() + 1; any++) {
+                YearMonth ym = YearMonth.of(any, mes);
+                if (!ym.isValidDay(dia)) continue;
+                LocalDate d = ym.atDay(dia);
+                if (!d.isBefore(avui)) return d;
+            }
+            return null;
+        }
+        YearMonth ym = YearMonth.from(avui);
+        for (int i = 0; i < 3; i++, ym = ym.plusMonths(1)) {
+            if (!ym.isValidDay(dia)) continue;
+            LocalDate d = ym.atDay(dia);
+            if (!d.isBefore(avui)) return d;
+        }
+        return null;
+    }
 
-        int h = -1, m = 0;
-        boolean relatiu = false, explicit24 = false;
+    /** Hora d'un esdeveniment d'agenda quan no s'ha dit matí ni tarda. */
+    private static int horaEsdeveniment(int h, String text) {
+        if (h == 12) return 12;
+        if (h >= 1 && h <= 6) return h + 12;               // "a les 5" → 17:00
+        if (h >= 7 && h <= 11 && PISTA_VESPRE.matcher(text).find()) return h + 12; // "sopar a les 8" → 20:00
+        return h;                                          // "reunió a les 9" → 09:00
+    }
+
+    /** Resultat de buscar un dia a la frase. */
+    private static final class DiaTrobat {
+        LocalDate dia;     // dia explícit (dia de la setmana, data o passat demà)
+        boolean dema;      // ha dit "demà" (i cap altre dia)
+        boolean avui;      // ha dit "avui"
+        String resta;      // frase sense les paraules del dia
+        String error;
+    }
+
+    private static DiaTrobat extreuDia(String s, LocalDate avui) {
+        DiaTrobat r = new DiaTrobat();
         Matcher x;
+        if ((x = PASSAT_DEMA.matcher(s)).find()) {
+            r.dia = avui.plusDays(2);
+            s = treu(s, x);
+        } else if ((x = DIA_SETMANA.matcher(s)).find()) {
+            DayOfWeek dow = diaSetmana(x.group("d"));
+            if (x.group("seg") != null) {
+                r.dia = avui.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).with(TemporalAdjusters.nextOrSame(dow));
+            } else {
+                r.dia = avui.with(TemporalAdjusters.next(dow)); // mai avui: "divendres" dit un divendres = el següent
+            }
+            s = treu(s, x);
+        } else if ((x = DATA.matcher(s)).find()) {
+            int d, m;
+            if (x.group("d") != null) {
+                d = Integer.parseInt(x.group("d"));
+                m = x.group("m") != null ? NUM_MES.get(x.group("m").toLowerCase(Locale.ROOT)) : 0;
+            } else if (x.group("d2") != null) {
+                d = Integer.parseInt(x.group("d2"));
+                m = NUM_MES.get(x.group("m2").toLowerCase(Locale.ROOT));
+            } else {
+                d = Integer.parseInt(x.group("d3"));
+                m = Integer.parseInt(x.group("m3"));
+            }
+            r.dia = dataDe(d, m, avui);
+            if (r.dia == null) {
+                r.error = ERROR_DIA;
+                return r;
+            }
+            s = treu(s, x);
+        } else if (SENSE_DIA.matcher(s).find()) {
+            r.error = ERROR_DIA;
+            return r;
+        }
+        if ((x = DEMA.matcher(s)).find()) {
+            if (r.dia == null) r.dema = true;
+            s = treu(s, x);
+        }
+        if ((x = AVUI.matcher(s)).find()) {
+            r.avui = true;
+            s = treu(s, x);
+        }
+        r.resta = s;
+        return r;
+    }
+
+    // ---------------- Consultes: "què tinc divendres?" ----------------
+
+    private static final Pattern CONSULTA = Pattern.compile(
+            L + "(?:què|que)\\s+(?:tinc|tenim|hi\\s+ha|faig|fem)" + R
+                    + "|" + L + "(?:tinc|tenim)\\s+(?:alguna\\s+cosa|res|algo|coses|plans?)" + R
+                    + "|" + L + "(?:estic|estem)\\s+(?:lliures?|ocupad[ae]s?)" + R
+                    + "|" + L + "(?:mira|consulta|digues-me)\\s+(?:l'agenda|el\\s+calendari|què)" + R, F);
+
+    /**
+     * Si la frase és una pregunta sobre l'agenda ("què tinc divendres?", "tinc alguna cosa demà?"),
+     * retorna el dia per consultar. Si no ho és, retorna null.
+     */
+    public static LocalDate diaConsulta(String text, LocalDateTime ara) {
+        if (text == null) return null;
+        String s = " " + text.replace('’', '\'').replace('‘', '\'').trim() + " ";
+        if (!CONSULTA.matcher(s).find()) return null;
+        DiaTrobat dt = extreuDia(s, ara.toLocalDate());
+        if (dt.error != null) return null;
+        if (dt.dia != null) return dt.dia;
+        if (dt.dema) return ara.toLocalDate().plusDays(1);
+        return ara.toLocalDate();
+    }
+
+    // ---------------- Avisos de l'agenda ----------------
+
+    /**
+     * Moments dels avisos d'un esdeveniment: el dia abans a les 20:00 i el mateix dia a les 7:00.
+     * Només els que encara no han passat i són abans de l'inici. Si no en queda cap,
+     * 1 hora abans (o a l'hora, si ja no hi som a temps).
+     */
+    public static List<LocalDateTime> avisos(LocalDateTime inici, LocalDateTime ara) {
+        List<LocalDateTime> llista = new ArrayList<>();
+        LocalDateTime vespreAbans = inici.toLocalDate().minusDays(1).atTime(20, 0);
+        LocalDateTime matiMateixDia = inici.toLocalDate().atTime(7, 0);
+        for (LocalDateTime a : new LocalDateTime[]{vespreAbans, matiMateixDia}) {
+            if (a.isAfter(ara) && a.isBefore(inici)) llista.add(a);
+        }
+        if (llista.isEmpty()) {
+            LocalDateTime unaHora = inici.minusHours(1);
+            llista.add(unaHora.isAfter(ara) ? unaHora : inici);
+        }
+        return llista;
+    }
+
+    /** "dia abans a les 20:00 i mateix dia a les 07:00" */
+    public static String descriuAvisos(List<LocalDateTime> avisos, LocalDateTime inici) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < avisos.size(); i++) {
+            LocalDateTime a = avisos.get(i);
+            if (i > 0) sb.append(i == avisos.size() - 1 ? " i " : ", ");
+            String hora = String.format(Locale.ROOT, "%02d:%02d", a.getHour(), a.getMinute());
+            if (a.equals(inici)) sb.append("a l'hora");
+            else if (a.toLocalDate().equals(inici.toLocalDate().minusDays(1))) sb.append("dia abans a les ").append(hora);
+            else if (a.toLocalDate().equals(inici.toLocalDate())) sb.append("mateix dia a les ").append(hora);
+            else sb.append(hora);
+        }
+        return sb.toString();
+    }
+
+    /** "divendres 30/10" */
+    public static String nomDia(LocalDate d) {
+        String[] dies = {"dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte", "diumenge"};
+        return dies[d.getDayOfWeek().getValue() - 1] + " " + d.getDayOfMonth() + "/" + d.getMonthValue();
+    }
+
+    public static Resultat analitza(String text, LocalDateTime araComplet) {
+        if (text == null || text.trim().isEmpty()) return Resultat.malament("No t'he sentit. Torna-ho a provar.");
+        LocalDateTime araMinut = araComplet.truncatedTo(ChronoUnit.MINUTES);
+        LocalTime ara = araMinut.toLocalTime();
+        LocalDate avui = araMinut.toLocalDate();
+        String original = text.replace('’', '\'').replace('‘', '\'').replace('`', '\'').trim();
+        String s = " " + original + " ";
+        Matcher x;
+
+        // ---- 1. Dia concret? ----
+        DiaTrobat dt = extreuDia(s, avui);
+        if (dt.error != null) return Resultat.malament(dt.error);
+        LocalDate dia = dt.dia;   // dia dit explícitament (dia de la setmana, data, passat demà)
+        boolean dema = dt.dema;
+        s = dt.resta;
+
+        // ---- 2. Hora ----
+        int h = -1, m = 0;
+        boolean explicit24 = false;
 
         if ((x = RELATIU.matcher(s)).find()) {
             int total;
@@ -181,12 +421,11 @@ public final class ParserAlarma {
                 String extra = x.group("extra");
                 if (extra != null) total += extra.equalsIgnoreCase("mitja") ? 30 : 15;
             }
-            if (total <= 0 || total > 24 * 60) return Resultat.malament(ERROR_LLUNY);
-            LocalTime t = ara.withSecond(0).withNano(0).plusMinutes(total);
-            h = t.getHour();
-            m = t.getMinute();
-            relatiu = true;
+            if (total <= 0) return Resultat.malament(ERROR_HORA);
             s = treu(s, x);
+            LocalDateTime quan = araMinut.plusMinutes(total);
+            Tipus t = total <= 24 * 60 ? Tipus.ALARMA : Tipus.AGENDA;
+            return Resultat.be(t, quan, netejaTitol(s), total);
         } else if ((x = QUARTS.matcher(s)).find()) {
             int q = num(x.group("q"));
             int hh = num(x.group("h"));
@@ -233,56 +472,67 @@ public final class ParserAlarma {
             s = treu(s, x);
         }
 
-        if (h < 0) return Resultat.malament(ERROR_HORA);
+        if (h < 0) return Resultat.malament(dia != null ? ERROR_SENSE_HORA : ERROR_HORA);
 
         String periode = null;
         if ((x = PERIODE.matcher(s)).find()) {
             periode = x.group("p").toLowerCase(Locale.ROOT);
             s = treu(s, x);
         }
-        boolean dema = false;
-        if ((x = DEMA.matcher(s)).find()) {
-            dema = true;
-            s = treu(s, x);
+        if (periode != null && !explicit24) {
+            switch (periode) {
+                case "tarda":
+                case "vespre":
+                    if (h < 12) h += 12;
+                    break;
+                case "nit":
+                    if (h == 12) h = 0;
+                    else if (h >= 6) h += 12;
+                    break;
+                case "migdia":
+                    if (h <= 5) h += 12;
+                    break;
+                default: // matí, matinada
+                    break;
+            }
+            explicit24 = true;
         }
-        if ((x = AVUI.matcher(s)).find()) s = treu(s, x);
+        String titol = netejaTitol(s);
 
-        if (!relatiu) {
-            if (periode != null && !explicit24) {
-                switch (periode) {
-                    case "tarda":
-                    case "vespre":
-                        if (h < 12) h += 12;
-                        break;
-                    case "nit":
-                        if (h == 12) h = 0;
-                        else if (h >= 6) h += 12;
-                        break;
-                    case "migdia":
-                        if (h <= 5) h += 12;
-                        break;
-                    default: // matí, matinada
-                        break;
-                }
-            } else if (!explicit24 && h <= 12) {
-                int c1 = h;                      // matí (o les 12 del migdia)
-                int c2 = (h == 12) ? 0 : h + 12; // tarda/vespre (o mitjanit)
-                if (dema) {
-                    if (jaHaPassat(ara, c1, m)) h = c1;
-                    else if (jaHaPassat(ara, c2, m)) h = c2;
-                    else h = c1; // es detectarà més avall que sonaria avui
-                } else {
-                    h = minutsEntre(ara, c1, m) <= minutsEntre(ara, c2, m) ? c1 : c2;
-                }
-            }
-            if (dema && !jaHaPassat(ara, h, m)) {
-                return Resultat.malament(String.format(Locale.ROOT,
-                        "Una alarma a les %02d:%02d sonaria avui, no demà. El Rellotge només pot posar alarmes "
-                                + "per a les pròximes 24 hores: posa-la més tard, avui mateix.", h, m));
-            }
+        // ---- 3. Alarma o agenda ----
+        if (dia != null) {
+            if (!explicit24 && h <= 12) h = horaEsdeveniment(h, original);
+            LocalDateTime quan = dia.atTime(h, m);
+            if (!quan.isAfter(araMinut)) return Resultat.malament(ERROR_PASSAT);
+            return Resultat.be(Tipus.AGENDA, quan, titol, ChronoUnit.MINUTES.between(araMinut, quan));
         }
 
-        return Resultat.be(h, m, netejaTitol(s), minutsEntre(ara, h, m));
+        if (dema) {
+            int hDema = h;
+            if (!explicit24 && h <= 12) {
+                int c1 = h, c2 = (h == 12) ? 0 : h + 12;
+                if (jaHaPassat(ara, c1, m)) hDema = c1;
+                else if (jaHaPassat(ara, c2, m)) hDema = c2;
+                else hDema = -1;
+            } else if (!jaHaPassat(ara, h, m)) {
+                hDema = -1;
+            }
+            if (hDema >= 0) {
+                LocalDateTime quan = avui.plusDays(1).atTime(hDema, m);
+                return Resultat.be(Tipus.ALARMA, quan, titol, ChronoUnit.MINUTES.between(araMinut, quan));
+            }
+            // Demà, però a una hora que queda a més de 24 hores: no cap al Rellotge, va a l'agenda.
+            if (!explicit24 && h <= 12) h = horaEsdeveniment(h, original);
+            LocalDateTime quan = avui.plusDays(1).atTime(h, m);
+            return Resultat.be(Tipus.AGENDA, quan, titol, ChronoUnit.MINUTES.between(araMinut, quan));
+        }
+
+        if (!explicit24 && h <= 12) {
+            int c1 = h, c2 = (h == 12) ? 0 : h + 12;
+            h = minutsEntre(ara, c1, m) <= minutsEntre(ara, c2, m) ? c1 : c2;
+        }
+        int falten = minutsEntre(ara, h, m);
+        return Resultat.be(Tipus.ALARMA, araMinut.plusMinutes(falten), titol, falten);
     }
 
     static String netejaTitol(String s) {
@@ -296,7 +546,7 @@ public final class ParserAlarma {
             while ((f = FINAL.matcher(t)).find()) t = t.substring(0, f.start());
             t = t.replaceAll("\\s+([,.;:!?])", "$1").replaceAll("\\s+", " ").trim();
         } while (!t.equals(abans));
-        if (t.isEmpty()) return "Alarma";
+        if (t.isEmpty()) return "Recordatori";
         int primer = t.codePointAt(0);
         return new String(Character.toChars(Character.toUpperCase(primer))) + t.substring(Character.charCount(primer));
     }
