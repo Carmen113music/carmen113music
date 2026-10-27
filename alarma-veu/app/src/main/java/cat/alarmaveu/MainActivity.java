@@ -142,7 +142,9 @@ public class MainActivity extends Activity {
                 .putExtra(AlarmClock.EXTRA_HOUR, r.hora())
                 .putExtra(AlarmClock.EXTRA_MINUTES, r.minut())
                 .putExtra(AlarmClock.EXTRA_MESSAGE, r.titol)
-                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                // Tasca pròpia: si no, en tancar la nostra app es perdia l'encàrrec abans que el Rellotge el desés
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(a);
         } catch (ActivityNotFoundException e) {
@@ -167,7 +169,9 @@ public class MainActivity extends Activity {
                 .putExtra(AlarmClock.EXTRA_HOUR, quan.getHour())
                 .putExtra(AlarmClock.EXTRA_MINUTES, quan.getMinute())
                 .putExtra(AlarmClock.EXTRA_MESSAGE, "⏱ " + r.titol)
-                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                // Tasca pròpia: si no, en tancar la nostra app es perdia l'encàrrec abans que el Rellotge el desés
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
             startActivity(a);
         } catch (ActivityNotFoundException e) {
@@ -510,7 +514,8 @@ public class MainActivity extends Activity {
     /** Missatge breu de confirmació i tancar l'app. */
     private void acaba(String missatge) {
         Toast.makeText(getApplicationContext(), missatge, Toast.LENGTH_LONG).show();
-        finishAndRemoveTask();
+        // Esperem una mica abans de tancar perquè el Rellotge tingui temps de desar l'alarma.
+        estat.postDelayed(this::finish, 1500);
     }
 
     private static String falten(long minuts) {
