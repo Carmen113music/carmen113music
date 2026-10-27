@@ -158,7 +158,9 @@ public class MainActivity extends Activity {
         Intent t = new Intent(AlarmClock.ACTION_SET_TIMER)
                 .putExtra(AlarmClock.EXTRA_LENGTH, r.segons)
                 .putExtra(AlarmClock.EXTRA_MESSAGE, r.titol)
-                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+                // Obrim el Rellotge perquè es vegi el compte enrere en marxa
+                // (amb la pantalla amagada, alguns mòbils no l'engegaven o no el mostraven)
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, false);
         try {
             startActivity(t);
         } catch (ActivityNotFoundException e) {
