@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ContentUris;
+import android.accounts.Account;
+import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -363,12 +365,42 @@ public class MainActivity extends Activity {
                 getContentResolver().insert(CalendarContract.Reminders.CONTENT_URI, avis);
             }
 
+            String sincro = sincronitza(cal);
+
             acaba("📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
-                    + "\nAgenda: " + cal.curt(), frase);
+                    + "\nAgenda: " + cal.curt() + sincro, frase);
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
+    }
+
+    /**
+     * Perquè l'esdeveniment pugi de seguida al compte de Google (i es vegi a Google Calendar,
+     * al web i als altres dispositius) i no es quedi només al telèfon:
+     * - si el calendari tenia la sincronització d'esdeveniments desactivada, l'activa;
+     * - demana una sincronització immediata d'aquell compte.
+     * Retorna un avís per a la confirmació si el calendari és només del telèfon.
+     */
+    private String sincronitza(Calendari cal) {
+        boolean local = cal.tipus == null || cal.tipus.toLowerCase(Locale.ROOT).contains("local")
+                || cal.tipus.toLowerCase(Locale.ROOT).contains("samsung");
+        if (local) return "\n⚠ Aquest calendari és només del telèfon: no es veurà a Google Calendar.";
+        try {
+            if (!cal.sincronitza) {
+                ContentValues v = new ContentValues();
+                v.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
+                getContentResolver().update(
+                        ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, cal.id), v, null, null);
+            }
+            Bundle extres = new Bundle();
+            extres.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+            extres.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+            ContentResolver.requestSync(new Account(cal.compte, cal.tipus), CalendarContract.AUTHORITY, extres);
+        } catch (RuntimeException ignorat) {
+            // si no es pot forçar, ja es sincronitzarà quan el mòbil ho faci
+        }
+        return "";
     }
 
     // ---------------- Triar el calendari ----------------
@@ -390,6 +422,7 @@ public class MainActivity extends Activity {
         String app() {
             String t = tipus == null ? "" : tipus.toLowerCase(java.util.Locale.ROOT);
             if (t.equals("com.google")) return "Google Calendar";
+            if (t.equals("com.osp.app.signin")) return "Compte Samsung";
             if (t.contains("samsung")) return "Calendari del telèfon (Samsung)";
             if (t.equals("local") || t.contains("local")) return "Calendari del telèfon";
             if (t.contains("exchange") || t.contains("outlook") || t.contains("microsoft")) return "Outlook / Exchange";
