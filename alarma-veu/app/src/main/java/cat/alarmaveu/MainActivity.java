@@ -126,7 +126,8 @@ public class MainActivity extends Activity {
             }
             if (primer == null) primer = r;
             if (r.ok) {
-                if (r.tipus == ParserAlarma.Tipus.ALARMA) posaAlarma(r, f);
+                if (r.tipus == ParserAlarma.Tipus.TEMPORITZADOR) posaTemporitzador(r, f);
+                else if (r.tipus == ParserAlarma.Tipus.ALARMA) posaAlarma(r, f);
                 else posaAgenda(r, f);
                 return;
             }
@@ -149,6 +150,22 @@ public class MainActivity extends Activity {
             return;
         }
         acaba("⏰ " + r.horaText() + " · " + r.titol + "\n" + falten(r.minutsFins));
+    }
+
+    // ---------------- Temporitzador ----------------
+
+    private void posaTemporitzador(ParserAlarma.Resultat r, String frase) {
+        Intent t = new Intent(AlarmClock.ACTION_SET_TIMER)
+                .putExtra(AlarmClock.EXTRA_LENGTH, r.segons)
+                .putExtra(AlarmClock.EXTRA_MESSAGE, r.titol)
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+        try {
+            startActivity(t);
+        } catch (ActivityNotFoundException e) {
+            mostra(getString(R.string.sense_rellotge), getString(R.string.sense_rellotge_detall), frase, true);
+            return;
+        }
+        acaba("⏱ " + r.duradaText() + " · " + r.titol);
     }
 
     // ---------------- Agenda ----------------
@@ -298,12 +315,14 @@ public class MainActivity extends Activity {
             ev.put(CalendarContract.Events.DTEND, inici + DURADA_ESDEVENIMENT_MIN * 60_000L);
             ev.put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().getID());
             ev.put(CalendarContract.Events.HAS_ALARM, 1);
+            List<LocalDateTime> avisos = ParserAlarma.avisos(r.quan, LocalDateTime.now());
+            ev.put(CalendarContract.Events.DESCRIPTION,
+                    "Avisos: " + ParserAlarma.descriuAvisos(avisos, r.quan) + "\n(Apuntat amb Alarma per veu)");
             Uri uri = getContentResolver().insert(CalendarContract.Events.CONTENT_URI, ev);
             if (uri == null) throw new IllegalStateException("el calendari no ha acceptat l'esdeveniment");
             long idEsdeveniment = Long.parseLong(uri.getLastPathSegment());
 
             // Avisos: el dia abans a les 20:00 i el mateix dia a les 7:00 (els que encara siguin possibles)
-            List<LocalDateTime> avisos = ParserAlarma.avisos(r.quan, LocalDateTime.now());
             for (LocalDateTime a : avisos) {
                 long minutsAbans = (inici - a.atZone(zona).toInstant().toEpochMilli()) / 60_000L;
                 ContentValues avis = new ContentValues();

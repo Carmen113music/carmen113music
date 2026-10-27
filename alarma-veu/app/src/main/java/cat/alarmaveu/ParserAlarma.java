@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  */
 public final class ParserAlarma {
 
-    public enum Tipus { ALARMA, AGENDA }
+    public enum Tipus { ALARMA, AGENDA, TEMPORITZADOR }
 
     public static final class Resultat {
         public final boolean ok;
@@ -38,6 +38,8 @@ public final class ParserAlarma {
         public final String error;
         /** Minuts que falten fins a l'alarma o l'esdeveniment. */
         public final long minutsFins;
+        /** Durada del temporitzador, en segons (només per a TEMPORITZADOR). */
+        public int segons;
 
         private Resultat(boolean ok, Tipus tipus, LocalDateTime quan, String titol, String error, long minutsFins) {
             this.ok = ok;
@@ -46,6 +48,22 @@ public final class ParserAlarma {
             this.titol = titol;
             this.error = error;
             this.minutsFins = minutsFins;
+        }
+
+        static Resultat temporitzador(int segons, String titol) {
+            Resultat r = new Resultat(true, Tipus.TEMPORITZADOR, null, titol, null, (segons + 59) / 60);
+            r.segons = segons;
+            return r;
+        }
+
+        /** "15 min", "1 h 30 min", "2 min 30 s" */
+        public String duradaText() {
+            int h = segons / 3600, m = (segons % 3600) / 60, sg = segons % 60;
+            StringBuilder sb = new StringBuilder();
+            if (h > 0) sb.append(h).append(" h");
+            if (m > 0) sb.append(sb.length() > 0 ? " " : "").append(m).append(" min");
+            if (sg > 0) sb.append(sb.length() > 0 ? " " : "").append(sg).append(" s");
+            return sb.toString();
         }
 
         static Resultat be(Tipus tipus, LocalDateTime quan, String titol, long minutsFins) {
@@ -175,8 +193,10 @@ public final class ParserAlarma {
             Pattern.compile("^(?:amb\\s+(?:el\\s+)?(?:nom|títol|text)(?:\\s+de)?|que\\s+es\\s+digui|que\\s+digui"
                     + "|que\\s+posi|titulada|anomenada|dient)" + R, F),
             Pattern.compile("^(?:tenim|tinc|tenen|té|hi\\s+ha|hi\\s+haurà|hi\\s+ha\\s+un|hi\\s+ha\\s+una)" + R, F),
-            Pattern.compile("^(?:per\\s+a|per|que|i|de)" + R, F),
-            Pattern.compile("^d'(?=[\\p{L}\\p{N}_])", F),
+            Pattern.compile("^(?:un|una)\\s+(?=temporitzador|compte\\s+enrere|cronòmetre)", F),
+            Pattern.compile("^(?:temporitzador|compte\\s+enrere|cronòmetre)" + R, F),
+            Pattern.compile("^(?:per\\s+a|per|pels|pel|que|i|de)" + R, F),
+            Pattern.compile("^d'\\s*", F),
     };
     private static final Pattern FINAL = Pattern.compile(
             "(?:[\\s,.;:!?¡¿\\-]+|\\s+(?:per\\s+a|per|a|que|i|de|del|al|amb|el|la))$", F);
@@ -387,6 +407,65 @@ public final class ParserAlarma {
         return dies[d.getDayOfWeek().getValue() - 1] + " " + d.getDayOfMonth() + "/" + d.getMonthValue();
     }
 
+    // ---------------- Temporitzadors: "temporitzador de 15 minuts per l'arròs" ----------------
+
+    private static final String DURADA =
+            "(?:(?<n>" + QUANTITAT + ")\\s+(?<u>minuts?|min|hora|hores|h|segons?|seg)"
+                    + "(?:\\s+i\\s+(?:(?<extra>mitja|quart)|(?<n2>" + QUANTITAT + ")\\s+(?<u2>minuts?|min|segons?|seg)))?"
+                    + "|(?<mitja>mitja)\\s+hora"
+                    + "|(?<q>un|tres)\\s+quarts?(?:\\s+d'hora|(?!\\s+(?:i\\s+|de\\s+|d'))))"; // no "un quart d'onze"
+    private static final Pattern PARAULA_TEMPORITZADOR = Pattern.compile(
+            L + "(?:temporitzador|compte\\s+enrere|cronòmetre)" + R, F);
+    // "posa 15 minuts per bullir l'aigua", "15 minuts per l'arròs"
+    private static final Pattern POSA_DURADA = Pattern.compile(
+            "^\\s*(?:(?:posa'?m|posa-me|posa|fes-me|fes|programa'?m|programa|activa)\\s+)?(?:uns\\s+)?" + DURADA + R, F);
+    private static final Pattern DURADA_P = Pattern.compile(L + "(?:d'\\s*|de\\s+)?" + DURADA + R, F);
+
+    private static int segonsDe(String n, String u) {
+        int v = num(n);
+        if (v < 0 || u == null) return -1;
+        String k = u.toLowerCase(Locale.ROOT);
+        if (k.startsWith("h")) return v * 3600;
+        if (k.startsWith("s")) return v;
+        return v * 60;
+    }
+
+    private static int segonsDe(Matcher x) {
+        if (x.group("mitja") != null) return 30 * 60;
+        if (x.group("q") != null) return num(x.group("q")) * 15 * 60;
+        int t = segonsDe(x.group("n"), x.group("u"));
+        if (t < 0) return -1;
+        String extra = x.group("extra");
+        if (extra != null) {
+            boolean hores = x.group("u").toLowerCase(Locale.ROOT).startsWith("h");
+            int base = hores ? 3600 : 60;
+            t += extra.equalsIgnoreCase("mitja") ? base / 2 : base / 4;
+        } else if (x.group("n2") != null) {
+            int t2 = segonsDe(x.group("n2"), x.group("u2"));
+            if (t2 < 0) return -1;
+            t += t2;
+        }
+        return t;
+    }
+
+    /** Si la frase demana un temporitzador, el retorna; si no, null. */
+    private static Resultat temporitzador(String s) {
+        Matcher x;
+        if (PARAULA_TEMPORITZADOR.matcher(s).find()) {
+            x = DURADA_P.matcher(s);
+            if (!x.find()) return Resultat.malament("Quant de temps? Prova a dir, per exemple: «temporitzador de 15 minuts per l'arròs».");
+        } else {
+            x = POSA_DURADA.matcher(s);
+            if (!x.find()) return null;
+        }
+        int segons = segonsDe(x);
+        if (segons <= 0 || segons > 24 * 3600) return Resultat.malament("El temporitzador ha de ser de menys de 24 hores.");
+        String resta = s.substring(0, x.start()) + " " + s.substring(x.end());
+        String titol = netejaTitol(resta);
+        if (titol.equals("Recordatori")) titol = "Temporitzador";
+        return Resultat.temporitzador(segons, titol);
+    }
+
     public static Resultat analitza(String text, LocalDateTime araComplet) {
         if (text == null || text.trim().isEmpty()) return Resultat.malament("No t'he sentit. Torna-ho a provar.");
         LocalDateTime araMinut = araComplet.truncatedTo(ChronoUnit.MINUTES);
@@ -394,6 +473,10 @@ public final class ParserAlarma {
         LocalDate avui = araMinut.toLocalDate();
         String original = text.replace('’', '\'').replace('‘', '\'').replace('`', '\'').trim();
         String s = " " + original + " ";
+
+        // ---- 0. Temporitzador? ----
+        Resultat temps = temporitzador(s);
+        if (temps != null) return temps;
         Matcher x;
 
         // ---- 1. Dia concret? ----
@@ -423,9 +506,12 @@ public final class ParserAlarma {
             }
             if (total <= 0) return Resultat.malament(ERROR_HORA);
             s = treu(s, x);
-            LocalDateTime quan = araMinut.plusMinutes(total);
-            Tipus t = total <= 24 * 60 ? Tipus.ALARMA : Tipus.AGENDA;
-            return Resultat.be(t, quan, netejaTitol(s), total);
+            String titol = netejaTitol(s);
+            // "d'aquí a mitja hora" → temporitzador (compte enrere). Més de 24 hores → agenda.
+            if (total <= 24 * 60) {
+                return Resultat.temporitzador(total * 60, titol.equals("Recordatori") ? "Temporitzador" : titol);
+            }
+            return Resultat.be(Tipus.AGENDA, araMinut.plusMinutes(total), titol, total);
         } else if ((x = QUARTS.matcher(s)).find()) {
             int q = num(x.group("q"));
             int hh = num(x.group("h"));
