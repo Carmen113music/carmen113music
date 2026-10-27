@@ -53,7 +53,9 @@ public final class ParserAlarma {
     public static final String ERROR_LLUNY =
             "El Rellotge només pot posar alarmes per a les pròximes 24 hores. Digues una hora d'avui o de demà.";
 
-    private static final int F = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS;
+    private static final int F = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+    // Android no admet Pattern.UNICODE_CHARACTER_CLASS (l'app es tancava en analitzar la frase).
+    // Per això, "lletra o número" s'escriu com a [\\p{L}\\p{N}_], que reconeix també les lletres amb accent.
 
     private static final String HORES =
             "\\d{1,2}|una|dues|dos|tres|quatre|cinc|sis|set|vuit|nou|deu|onze|dotze";
@@ -66,52 +68,52 @@ public final class ParserAlarma {
 
     // "d'aquí a 20 minuts", "d'aquí a mitja hora", "en una hora i mitja"
     private static final Pattern RELATIU = Pattern.compile(
-            "(?<!\\w)(?:d'?aqu[ií](?:\\s+a)?|dins\\s+d(?:e\\s+|')|en)\\s+"
+            "(?<![\\p{L}\\p{N}_])(?:d'?aqu[ií](?:\\s+a)?|dins\\s+d(?:e\\s+|')|en)\\s+"
                     + "(?:(?<mitja>mitja)\\s+hora"
                     + "|(?<q>un|tres)\\s+quarts?\\s+d'hora"
                     + "|(?<n>" + QUANTITAT + ")\\s+(?<u>minuts?|min|hora|hores|h)(?:\\s+i\\s+(?<extra>mitja|quart))?)"
-                    + "(?!\\w)", F);
+                    + "(?![\\p{L}\\p{N}_])", F);
 
     // "dos quarts de vuit", "un quart d'onze", "tres quarts i cinc de dues"
     private static final Pattern QUARTS = Pattern.compile(
-            "(?<!\\w)(?:(?:a|cap\\s+a)\\s+)?(?<q>un|1|dos|2|tres|3)\\s+quarts?"
-                    + "(?:\\s+i\\s+(?<i>cinc|deu|5|10))?\\s+(?:de\\s+|d'\\s*)(?<h>" + HORES + ")(?!\\w)", F);
+            "(?<![\\p{L}\\p{N}_])(?:(?:a|cap\\s+a)\\s+)?(?<q>un|1|dos|2|tres|3)\\s+quarts?"
+                    + "(?:\\s+i\\s+(?<i>cinc|deu|5|10))?\\s+(?:de\\s+|d'\\s*)(?<h>" + HORES + ")(?![\\p{L}\\p{N}_])", F);
 
     // "a les 7:30", "19.45", "7h30"
     private static final Pattern DIGITAL = Pattern.compile(
-            "(?<!\\w)(?:(?:a|per\\s+a|cap\\s+a)\\s+(?:les|la)\\s+)?(?<h>\\d{1,2})\\s*[:.h]\\s*(?<m>\\d{2})(?:\\s*h)?(?!\\w)", F);
+            "(?<![\\p{L}\\p{N}_])(?:(?:a|per\\s+a|cap\\s+a)\\s+(?:les|la)\\s+)?(?<h>\\d{1,2})\\s*[:.h]\\s*(?<m>\\d{2})(?:\\s*h)?(?![\\p{L}\\p{N}_])", F);
 
     // "a les 7", "a les set i quart", "a les 8 menys deu", "a la una i mitja"
     private static final Pattern A_LES = Pattern.compile(
-            "(?<!\\w)(?:(?:a|per\\s+a|cap\\s+a)\\s+)?(?:les|la)\\s+(?<h>" + HORES + ")"
+            "(?<![\\p{L}\\p{N}_])(?:(?:a|per\\s+a|cap\\s+a)\\s+)?(?:les|la)\\s+(?<h>" + HORES + ")"
                     + "(?:\\s+(?:en\\s+punt|hores|h))?"
                     + "(?:\\s+i\\s+(?<mes>mitja|quart|tres\\s+quarts|" + MINUTS + ")(?:\\s+minuts)?"
                     + "|\\s+menys\\s+(?<menys>quart|" + MINUTS + ")(?:\\s+minuts)?)?"
-                    + "(?:\\s+en\\s+punt)?(?!\\w)", F);
+                    + "(?:\\s+en\\s+punt)?(?![\\p{L}\\p{N}_])", F);
 
-    private static final Pattern MIGDIA = Pattern.compile("(?<!\\w)(?:al\\s+|a\\s+|cap\\s+al\\s+)?migdia(?!\\w)", F);
-    private static final Pattern MITJANIT = Pattern.compile("(?<!\\w)(?:a\\s+|cap\\s+a\\s+)?(?:la\\s+)?mitjanit(?!\\w)", F);
+    private static final Pattern MIGDIA = Pattern.compile("(?<![\\p{L}\\p{N}_])(?:al\\s+|a\\s+|cap\\s+al\\s+)?migdia(?![\\p{L}\\p{N}_])", F);
+    private static final Pattern MITJANIT = Pattern.compile("(?<![\\p{L}\\p{N}_])(?:a\\s+|cap\\s+a\\s+)?(?:la\\s+)?mitjanit(?![\\p{L}\\p{N}_])", F);
 
     private static final Pattern PERIODE = Pattern.compile(
-            "(?<!\\w)(?:del|de\\s+la|al|a\\s+la|aquest|aquesta|el|la)\\s+(?<p>matinada|matí|tarda|vespre|nit|migdia)(?!\\w)", F);
+            "(?<![\\p{L}\\p{N}_])(?:del|de\\s+la|al|a\\s+la|aquest|aquesta|el|la)\\s+(?<p>matinada|matí|tarda|vespre|nit|migdia)(?![\\p{L}\\p{N}_])", F);
 
-    private static final Pattern DEMA = Pattern.compile("(?<!\\w)demà(?!\\w)", F);
-    private static final Pattern AVUI = Pattern.compile("(?<!\\w)avui(?!\\w)", F);
+    private static final Pattern DEMA = Pattern.compile("(?<![\\p{L}\\p{N}_])demà(?![\\p{L}\\p{N}_])", F);
+    private static final Pattern AVUI = Pattern.compile("(?<![\\p{L}\\p{N}_])avui(?![\\p{L}\\p{N}_])", F);
     private static final Pattern LLUNY = Pattern.compile(
-            "(?<!\\w)(?:passat\\s+demà|demà\\s+passat|dilluns|dimarts|dimecres|dijous|divendres|dissabte|diumenge"
-                    + "|la\\s+setmana\\s+que\\s+ve|el\\s+mes\\s+que\\s+ve)(?!\\w)", F);
+            "(?<![\\p{L}\\p{N}_])(?:passat\\s+demà|demà\\s+passat|dilluns|dimarts|dimecres|dijous|divendres|dissabte|diumenge"
+                    + "|la\\s+setmana\\s+que\\s+ve|el\\s+mes\\s+que\\s+ve)(?![\\p{L}\\p{N}_])", F);
 
     private static final Pattern[] INICI = {
-            Pattern.compile("^(?:ei|hola|ok|vale|bé)(?!\\w)", F),
+            Pattern.compile("^(?:ei|hola|ok|vale|bé)(?![\\p{L}\\p{N}_])", F),
             Pattern.compile("^(?:posa'?m|posa-me|posam|posa|fes-me|fes|crea'?m|crea|programa'?m|programa"
-                    + "|activa'?m|activa|configura|vull|necessito|si\\s+us\\s+plau)(?!\\w)", F),
+                    + "|activa'?m|activa|configura|vull|necessito|si\\s+us\\s+plau)(?![\\p{L}\\p{N}_])", F),
             Pattern.compile("^(?:una|un|l')\\s*(?=alarma|despertador|recordatori|avís)", F),
-            Pattern.compile("^(?:alarma|despertador|recordatori|avís)(?!\\w)", F),
-            Pattern.compile("^(?:avisa'?m|avisa-me|recorda'?m|recorda-me|desperta'?m|desperta-me)(?!\\w)", F),
+            Pattern.compile("^(?:alarma|despertador|recordatori|avís)(?![\\p{L}\\p{N}_])", F),
+            Pattern.compile("^(?:avisa'?m|avisa-me|recorda'?m|recorda-me|desperta'?m|desperta-me)(?![\\p{L}\\p{N}_])", F),
             Pattern.compile("^(?:amb\\s+(?:el\\s+)?(?:nom|títol|text)(?:\\s+de)?|que\\s+es\\s+digui|que\\s+digui"
-                    + "|que\\s+posi|titulada|anomenada|dient)(?!\\w)", F),
-            Pattern.compile("^(?:per\\s+a|per|que|i|de)(?!\\w)", F),
-            Pattern.compile("^d'(?=\\w)", F),
+                    + "|que\\s+posi|titulada|anomenada|dient)(?![\\p{L}\\p{N}_])", F),
+            Pattern.compile("^(?:per\\s+a|per|que|i|de)(?![\\p{L}\\p{N}_])", F),
+            Pattern.compile("^d'(?=[\\p{L}\\p{N}_])", F),
     };
     private static final Pattern FINAL = Pattern.compile(
             "(?:[\\s,.;:!?¡¿\\-]+|\\s+(?:per\\s+a|per|a|que|i|de|del|al|amb))$", F);

@@ -78,7 +78,13 @@ public class MainActivity extends Activity {
         ParserAlarma.Resultat primer = null;
         String frasePrimer = frases.get(0);
         for (String f : frases) {
-            ParserAlarma.Resultat r = ParserAlarma.analitza(f, ara);
+            ParserAlarma.Resultat r;
+            try {
+                r = ParserAlarma.analitza(f, ara);
+            } catch (RuntimeException | Error e) {
+                mostra(getString(R.string.no_ho_he_entes), "Error intern: " + e, f, true);
+                return;
+            }
             if (primer == null) primer = r;
             if (r.ok) {
                 posaAlarma(r, f);
