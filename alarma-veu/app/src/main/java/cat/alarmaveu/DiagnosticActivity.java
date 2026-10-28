@@ -227,7 +227,6 @@ public class DiagnosticActivity extends Activity {
             if (calTipus != null && !calTipus.equals(t.accountType)) continue;
             if (sb.length() > 0) sb.append(", ");
             sb.append(t.accountType);
-            if (Build.VERSION.SDK_INT >= 29) sb.append(" → ").append(t.getPackageName());
         }
         return sb.length() == 0 ? "cap" : sb.toString();
     }
