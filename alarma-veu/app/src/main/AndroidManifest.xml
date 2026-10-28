@@ -11,6 +11,17 @@
     <!-- Per saber si la sincronització amb Google està activada (s'atorga automàticament) -->
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
 
+    <!-- Per poder mostrar la icona de l'app de cada calendari -->
+    <queries>
+        <package android:name="com.google.android.calendar" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CALENDAR" />
+        </intent>
+        <intent>
+            <action android:name="android.accounts.AccountAuthenticator" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"

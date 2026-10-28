@@ -6,6 +6,17 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ContentUris;
 import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.accounts.AuthenticatorDescription;
+import android.content.pm.ResolveInfo;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -504,9 +515,14 @@ public class MainActivity extends Activity {
         return avis;
     }
 
+    /** Calendaris que només són al telèfon (no es pugen a cap compte en línia). */
     private static boolean esLocal(Calendari cal) {
         String t = cal.tipus == null ? "local" : cal.tipus.toLowerCase(Locale.ROOT);
-        return t.contains("local") || (t.contains("samsung") && !t.equals("com.osp.app.signin"));
+        if (t.equals("com.osp.app.signin")) return false; // compte Samsung (en línia)
+        return t.isEmpty() || t.contains("local") || t.contains("samsung") || t.contains("honor")
+                || t.contains("huawei") || t.contains("xiaomi") || t.contains("miui") || t.contains("oppo")
+                || t.contains("coloros") || t.contains("vivo") || t.contains("oneplus") || t.contains("phone")
+                || t.contains("courseschedule") || t.contains("birthday");
     }
 
     /** Sincronització manual (passa per sobre de la sincronització automàtica desactivada). */
@@ -543,41 +559,37 @@ public class MainActivity extends Activity {
         String nom;
         String compte;
         String tipus;
+        int color;
         boolean visible;
         boolean sincronitza;
         boolean principal;
-        int punts;
 
         /** Quina app / servei és: «Google Calendar», «Calendari del telèfon»... */
         String app() {
             String t = tipus == null ? "" : tipus.toLowerCase(java.util.Locale.ROOT);
             if (t.equals("com.google")) return "Google Calendar";
             if (t.equals("com.osp.app.signin")) return "Compte Samsung";
-            if (t.contains("samsung")) return "Calendari del telèfon (Samsung)";
-            if (t.equals("local") || t.contains("local")) return "Calendari del telèfon";
-            if (t.contains("exchange") || t.contains("outlook") || t.contains("microsoft")) return "Outlook / Exchange";
+            if (t.contains("exchange") || t.contains("outlook") || t.contains("microsoft") || t.contains("office"))
+                return "Outlook";
             if (t.contains("caldav") || t.contains("dav")) return "CalDAV";
-            if (t.contains("xiaomi") || t.contains("miui")) return "Calendari Xiaomi";
-            if (t.contains("huawei")) return "Calendari Huawei";
-            return tipus == null || tipus.isEmpty() ? "Calendari" : tipus;
+            if (t.contains("courseschedule")) return "Horari de classes del telèfon";
+            return "Calendari del telèfon";
         }
 
-        /** Text de la llista: nom a la primera línia, app i compte a la segona. */
-        String etiqueta() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(principal ? "★ " : "").append(nom);
-            sb.append("\n").append(app());
-            if (!compte.isEmpty() && !compte.equalsIgnoreCase(nom)) sb.append(" · ").append(compte);
-            if (principal) sb.append(" · principal");
-            if (!sincronitza) sb.append(" · ⚠ no se sincronitza");
-            if (!visible) sb.append(" · ⚠ amagat");
-            return sb.toString();
+        /** El calendari principal d'un compte de Google es diu com el correu: millor dir-ne «Principal». */
+        String nomCurt() {
+            return nom.equalsIgnoreCase(compte) ? "Principal" : nom;
         }
 
-        /** Text curt per a la confirmació i el botó: «nom (Google Calendar · compte)». */
+        /** Text curt per a la confirmació i el botó: «Familia (Google Calendar · compte)». */
         String curt() {
             String c = !compte.isEmpty() && !compte.equalsIgnoreCase(nom) ? " · " + compte : "";
-            return nom + " (" + app() + c + ")";
+            return nomCurt() + " (" + app() + c + ")";
+        }
+
+        /** Per agrupar: mateix compte i mateixa app. */
+        String clauGrup() {
+            return (tipus == null ? "" : tipus) + "|" + compte;
         }
     }
 
@@ -586,8 +598,8 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Tots els calendaris on es pot escriure, de tots els comptes, ordenats per app i compte
-     * (Google primer, i dins de cada compte, el principal primer).
+     * Tots els calendaris on es pot escriure, ordenats: comptes de Google primer,
+     * agrupats per compte, i dins de cada compte el principal primer.
      */
     private List<Calendari> calendaris() {
         String[] camps = {
@@ -598,6 +610,7 @@ public class MainActivity extends Activity {
                 CalendarContract.Calendars.OWNER_ACCOUNT,
                 CalendarContract.Calendars.VISIBLE,
                 CalendarContract.Calendars.SYNC_EVENTS,
+                CalendarContract.Calendars.CALENDAR_COLOR,
         };
         String filtre = CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL + " >= "
                 + CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR;
@@ -613,21 +626,27 @@ public class MainActivity extends Activity {
                 String propietari = c.getString(4);
                 cal.visible = c.getInt(5) == 1;
                 cal.sincronitza = c.getInt(6) == 1;
+                cal.color = c.getInt(7);
                 cal.principal = propietari != null && propietari.equalsIgnoreCase(cal.compte);
-                if ("com.google".equals(cal.tipus)) cal.punts += 4;
-                if (cal.principal) cal.punts += 2;
-                if (cal.visible) cal.punts += 1;
                 llista.add(cal);
             }
         }
         llista.sort((x, y) -> {
-            if (x.punts / 4 != y.punts / 4) return y.punts / 4 - x.punts / 4;   // Google primer
-            int pc = x.compte.compareToIgnoreCase(y.compte);                    // agrupats per compte
+            boolean gx = "com.google".equals(x.tipus), gy = "com.google".equals(y.tipus);
+            if (gx != gy) return gx ? -1 : 1;                                   // Google primer
+            boolean lx = esLocal(x), ly = esLocal(y);
+            if (lx != ly) return lx ? 1 : -1;                                   // els del telèfon al final
+            int pc = x.clauGrup().compareToIgnoreCase(y.clauGrup());            // agrupats per compte
             if (pc != 0) return pc;
             if (x.principal != y.principal) return x.principal ? -1 : 1;        // el principal primer
             return x.nom.compareToIgnoreCase(y.nom);
         });
         return llista;
+    }
+
+    /** Els que val la pena oferir: en línia i sincronitzats. La resta queden a «Altres calendaris». */
+    private static boolean recomanat(Calendari c) {
+        return !esLocal(c) && c.sincronitza;
     }
 
     /**
@@ -648,32 +667,217 @@ public class MainActivity extends Activity {
         }
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         long desat = prefs.getLong(CLAU_CALENDARI, -1);
-        int actual = -1;
-        for (int i = 0; i < llista.size(); i++) if (llista.get(i).id == desat) actual = i;
-        if (!preguntaSempre && actual >= 0) {
-            despres.fes(llista.get(actual));
-            return;
+        if (!preguntaSempre) {
+            for (Calendari c : llista) {
+                if (c.id == desat) {
+                    despres.fes(c);
+                    return;
+                }
+            }
+        }
+        mostraSelector(llista, desat, frase, prefs, despres);
+    }
+
+    // ---------------- Finestra per triar el calendari ----------------
+
+    /**
+     * Llista ordenada per comptes: a cada compte, la icona de la seva app i el correu,
+     * i a sota els seus calendaris amb el seu color. Els calendaris que només són al telèfon
+     * (aniversaris, horaris...) queden plegats a «Altres calendaris».
+     */
+    private void mostraSelector(List<Calendari> llista, long desat, String frase,
+                                SharedPreferences prefs, DespresDeTriar despres) {
+        List<Calendari> bons = new ArrayList<>();
+        List<Calendari> altres = new ArrayList<>();
+        for (Calendari c : llista) (recomanat(c) ? bons : altres).add(c);
+        if (bons.isEmpty()) { // si no n'hi ha cap de recomanat, els ensenyem tots
+            bons.addAll(altres);
+            altres.clear();
+        }
+        boolean triatEsAltre = false;
+        for (Calendari c : altres) if (c.id == desat) triatEsAltre = true;
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout cos = new LinearLayout(this);
+        cos.setOrientation(LinearLayout.VERTICAL);
+        cos.setPadding(dp(12), dp(4), dp(12), dp(12));
+        scroll.addView(cos);
+
+        AlertDialog dialeg = new AlertDialog.Builder(this)
+                .setTitle(R.string.on_apunto)
+                .setView(scroll)
+                .setNegativeButton(R.string.cancela, null)
+                .setOnCancelListener(d -> mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false))
+                .create();
+
+        DespresDeTriar tria = c -> {
+            dialeg.dismiss();
+            prefs.edit().putLong(CLAU_CALENDARI, c.id).apply();
+            actualitzaBotoCalendari();
+            despres.fes(c);
+        };
+
+        afegeixGrups(cos, bons, desat, tria);
+
+        if (!altres.isEmpty()) {
+            LinearLayout plegats = new LinearLayout(this);
+            plegats.setOrientation(LinearLayout.VERTICAL);
+            afegeixGrups(plegats, altres, desat, tria);
+            plegats.setVisibility(triatEsAltre ? View.VISIBLE : View.GONE);
+
+            TextView mostraAltres = textSelector(getString(triatEsAltre ? R.string.amaga_altres : R.string.mostra_altres,
+                    altres.size()), 15, R.color.accent);
+            mostraAltres.setPadding(dp(8), dp(16), dp(8), dp(8));
+            mostraAltres.setOnClickListener(v -> {
+                boolean obrir = plegats.getVisibility() != View.VISIBLE;
+                plegats.setVisibility(obrir ? View.VISIBLE : View.GONE);
+                mostraAltres.setText(getString(obrir ? R.string.amaga_altres : R.string.mostra_altres, altres.size()));
+            });
+            cos.addView(mostraAltres);
+            TextView nota = textSelector(getString(R.string.altres_nota), 13, R.color.text_suau);
+            nota.setPadding(dp(8), 0, dp(8), dp(4));
+            plegats.addView(nota, 0);
+            cos.addView(plegats);
         }
 
-        String[] opcions = new String[llista.size() + 1];
-        for (int i = 0; i < llista.size(); i++) opcions[i] = llista.get(i).etiqueta();
-        opcions[llista.size()] = getString(R.string.no_hi_es_el_compte);
+        TextView noHiEs = textSelector(getString(R.string.no_hi_es_el_compte), 15, R.color.text_suau);
+        noHiEs.setPadding(dp(8), dp(16), dp(8), dp(8));
+        noHiEs.setOnClickListener(v -> {
+            dialeg.dismiss();
+            mostra(getString(R.string.no_hi_es_el_compte), getString(R.string.no_hi_es_el_compte_detall), frase, true);
+        });
+        cos.addView(noHiEs);
 
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.on_apunto)
-                .setSingleChoiceItems(opcions, actual, (d, i) -> {
-                    d.dismiss();
-                    if (i == llista.size()) {
-                        mostra(getString(R.string.no_hi_es_el_compte), getString(R.string.no_hi_es_el_compte_detall), frase, true);
-                        return;
+        dialeg.show();
+    }
+
+    /** Afegeix els calendaris agrupats per compte: capçalera (icona + app + correu) i files. */
+    private void afegeixGrups(LinearLayout on, List<Calendari> llista, long desat, DespresDeTriar tria) {
+        String grupActual = null;
+        for (Calendari c : llista) {
+            if (!c.clauGrup().equals(grupActual)) {
+                grupActual = c.clauGrup();
+                on.addView(capcalera(c));
+            }
+            on.addView(fila(c, c.id == desat, tria));
+        }
+    }
+
+    private View capcalera(Calendari c) {
+        LinearLayout fila = new LinearLayout(this);
+        fila.setOrientation(LinearLayout.HORIZONTAL);
+        fila.setGravity(Gravity.CENTER_VERTICAL);
+        fila.setPadding(dp(8), dp(18), dp(8), dp(6));
+
+        View icona = iconaApp(c);
+        LinearLayout.LayoutParams pi = new LinearLayout.LayoutParams(dp(32), dp(32));
+        pi.setMarginEnd(dp(12));
+        fila.addView(icona, pi);
+
+        LinearLayout textos = new LinearLayout(this);
+        textos.setOrientation(LinearLayout.VERTICAL);
+        TextView app = textSelector(c.app(), 16, R.color.text);
+        app.setTypeface(Typeface.DEFAULT_BOLD);
+        textos.addView(app);
+        if (!c.compte.isEmpty() && !esLocal(c)) textos.addView(textSelector(c.compte, 14, R.color.text_suau));
+        fila.addView(textos, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        return fila;
+    }
+
+    private View fila(Calendari c, boolean triat, DespresDeTriar tria) {
+        LinearLayout fila = new LinearLayout(this);
+        fila.setOrientation(LinearLayout.HORIZONTAL);
+        fila.setGravity(Gravity.CENTER_VERTICAL);
+        fila.setMinimumHeight(dp(52));
+        fila.setPadding(dp(52), dp(6), dp(12), dp(6)); // sagnat sota la icona del compte
+        GradientDrawable fons = new GradientDrawable();
+        fons.setCornerRadius(dp(12));
+        fons.setColor(triat ? 0x22E0563B : 0x00000000);
+        fila.setBackground(fons);
+
+        View punt = new View(this);
+        GradientDrawable rodona = new GradientDrawable();
+        rodona.setShape(GradientDrawable.OVAL);
+        rodona.setColor(c.color != 0 ? (0xFF000000 | c.color) : getColor(R.color.text_suau));
+        punt.setBackground(rodona);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(dp(14), dp(14));
+        pp.setMarginEnd(dp(14));
+        fila.addView(punt, pp);
+
+        TextView nom = textSelector(c.nomCurt() + (c.principal && !c.nomCurt().equals("Principal") ? "  ★" : ""),
+                17, R.color.text);
+        if (triat) nom.setTypeface(Typeface.DEFAULT_BOLD);
+        fila.addView(nom, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (!c.sincronitza) fila.addView(textSelector("no se sincronitza", 12, R.color.text_suau));
+        if (triat) {
+            TextView marca = textSelector("✓", 20, R.color.accent);
+            marca.setTypeface(Typeface.DEFAULT_BOLD);
+            marca.setPadding(dp(8), 0, 0, 0);
+            fila.addView(marca);
+        }
+        fila.setOnClickListener(v -> tria.fes(c));
+        return fila;
+    }
+
+    /** Icona de l'app del calendari; si no se'n troba, un cercle amb la inicial. */
+    private View iconaApp(Calendari c) {
+        Drawable d = null;
+        PackageManager pm = getPackageManager();
+        String t = c.tipus == null ? "" : c.tipus;
+        if (t.equals("com.google")) {
+            try {
+                d = pm.getApplicationIcon("com.google.android.calendar");
+            } catch (PackageManager.NameNotFoundException | RuntimeException ignorat) {
+                // Google Calendar no instal·lat: provem la icona del compte
+            }
+        }
+        if (d == null && !esLocal(c)) {
+            try {
+                for (AuthenticatorDescription a : AccountManager.get(this).getAuthenticatorTypes()) {
+                    if (a.type.equals(t) && a.iconId != 0) {
+                        d = pm.getDrawable(a.packageName, a.iconId, null);
+                        break;
                     }
-                    Calendari c = llista.get(i);
-                    prefs.edit().putLong(CLAU_CALENDARI, c.id).apply();
-                    actualitzaBotoCalendari();
-                    despres.fes(c);
-                })
-                .setOnCancelListener(d -> mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false))
-                .show();
+                }
+            } catch (RuntimeException ignorat) {
+                // sense icona
+            }
+        }
+        if (d == null) {
+            try { // calendaris del telèfon: la icona de l'app de calendari del mòbil
+                ResolveInfo ri = pm.resolveActivity(
+                        Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR), 0);
+                if (ri != null) d = ri.loadIcon(pm);
+            } catch (RuntimeException ignorat) {
+                // sense icona
+            }
+        }
+        if (d != null) {
+            ImageView iv = new ImageView(this);
+            iv.setImageDrawable(d);
+            return iv;
+        }
+        TextView lletra = textSelector(c.app().substring(0, 1), 16, R.color.blanc);
+        lletra.setGravity(Gravity.CENTER);
+        lletra.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable rodona = new GradientDrawable();
+        rodona.setShape(GradientDrawable.OVAL);
+        rodona.setColor(getColor(R.color.accent));
+        lletra.setBackground(rodona);
+        return lletra;
+    }
+
+    private TextView textSelector(String s, int sp, int color) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTextColor(getColor(color));
+        return t;
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
     private void actualitzaBotoCalendari() {

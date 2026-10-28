@@ -39,6 +39,9 @@
     <string name="cerca_buida">No he trobat res amb «%1$s» a l\'agenda dels pròxims 12 mesos.</string>
     <string name="apuntat_amb_avis">Apuntat, però…</string>
     <string name="ja_apuntat">Això ja està apuntat</string>
+    <string name="mostra_altres">▸ Altres calendaris del telèfon (%1$d)</string>
+    <string name="amaga_altres">▾ Altres calendaris del telèfon (%1$d)</string>
+    <string name="altres_nota">Aquests només són al mòbil: no es veuen a Google Calendar.</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>
