@@ -161,6 +161,16 @@
             android:textSize="14sp" />
 
         <Button
+            android:id="@+id/boto_diagnostic"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:contentDescription="@string/diagnostic"
+            android:text="🔧"
+            android:textSize="16sp" />
+
+        <Button
             android:id="@+id/boto_calendari"
             style="?android:attr/borderlessButtonStyle"
             android:layout_width="0dp"

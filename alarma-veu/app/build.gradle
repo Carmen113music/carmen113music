@@ -10,8 +10,8 @@ android {
         applicationId 'cat.alarmaveu'
         minSdk 26
         targetSdk 34
-        versionCode 21
-        versionName '3.0'
+        versionCode 22
+        versionName '3.1'
     }
 
     // Clau fixa perquè les noves versions s'instal·lin per sobre de l'anterior

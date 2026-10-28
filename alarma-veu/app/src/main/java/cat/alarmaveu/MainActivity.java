@@ -54,6 +54,9 @@ import java.util.TimeZone;
 public class MainActivity extends Activity {
 
     private static final int PETICIO_VEU = 1;
+    private static final int PETICIO_COMPTE = 5;
+    /** Què fer quan l'usuari torni de donar accés al compte. */
+    private Runnable despresAcces;
     private static final int PERMIS_CALENDARI = 2;
     private static final long DURADA_ESDEVENIMENT_MIN = 60;
     /** Totes les alarmes que posa l'app comencen així, per trobar-les i esborrar-les fàcilment al Rellotge. */
@@ -80,6 +83,8 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.boto_parla).setOnClickListener(v -> escolta());
         findViewById(R.id.boto_alarmes).setOnClickListener(v -> obreAlarmes());
+        findViewById(R.id.boto_diagnostic).setOnClickListener(v ->
+                startActivity(new Intent(this, DiagnosticActivity.class)));
         findViewById(R.id.boto_agenda).setOnClickListener(v -> obreAgenda());
         findViewById(R.id.boto_historial).setOnClickListener(v ->
                 startActivity(new Intent(this, HistorialActivity.class)));
@@ -125,6 +130,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PETICIO_COMPTE) {
+            Runnable r = despresAcces;
+            despresAcces = null;
+            if (r != null) r.run();
+            return;
+        }
         if (requestCode != PETICIO_VEU) return;
         if (resultCode != RESULT_OK || data == null) {
             mostra(getString(R.string.toca_per_parlar), getString(R.string.exemple), null, false);
@@ -200,6 +211,17 @@ public class MainActivity extends Activity {
      * El temporitzador del Rellotge d'aquest mòbil s'obre però no accepta el temps, en canvi les alarmes sí.
      */
     private void posaTemporitzador(ParserAlarma.Resultat r, String frase) {
+        int mode = Temporitzadors.modeTriat(this);
+        Intent t = mode > 0 ? Temporitzadors.crea(this, mode, r.segons, PREFIX_ALARMA + r.titol) : null;
+        if (t != null) {
+            try {
+                startActivity(t);
+                acaba("⏱ " + r.duradaText() + " · " + r.titol, frase);
+                return;
+            } catch (ActivityNotFoundException | SecurityException e) {
+                // si falla, fem servir una alarma
+            }
+        }
         LocalDateTime ara = LocalDateTime.now();
         LocalDateTime quan = ara.plusSeconds(r.segons).plusSeconds(30).truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
         LocalDateTime minim = ara.truncatedTo(java.time.temporal.ChronoUnit.MINUTES).plusMinutes(1);
@@ -470,10 +492,20 @@ public class MainActivity extends Activity {
                 getContentResolver().insert(CalendarContract.Reminders.CONTENT_URI, avis);
             }
 
-            EstatSincro estat = sincronitza(cal);
             String fet = "📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
                     + "\nAgenda: " + cal.curt();
+            if (necessitaAcces(cal)) {
+                // Encara no té accés al compte: el demanem (un sol cop) i després pugem
+                Historial.afegeix(this, frase, fet);
+                demanaAcces(cal, () -> {
+                    EstatSincro e = sincronitza(cal);
+                    if (e == EstatSincro.OK) acaba(fet + "\n🔄 " + getString(R.string.pujant), null);
+                    else mostraAvisSincro(fet, cal, e, null);
+                });
+                return;
+            }
+            EstatSincro estat = sincronitza(cal);
             if (estat == EstatSincro.OK) acaba(fet, frase);
             else mostraAvisSincro(fet, cal, estat, frase);
         } catch (RuntimeException e) {
@@ -488,11 +520,12 @@ public class MainActivity extends Activity {
      * - demana una sincronització immediata d'aquell compte.
      * Retorna un avís per a la confirmació si el calendari és només del telèfon.
      */
-    private enum EstatSincro { OK, LOCAL, MOBIL_DESACTIVAT, COMPTE_DESACTIVAT }
+    private enum EstatSincro { OK, LOCAL, SENSE_ACCES, MOBIL_DESACTIVAT, COMPTE_DESACTIVAT }
 
     /** Mira si el calendari es pujarà sol a Google. */
     private EstatSincro estatSincro(Calendari cal) {
         if (esLocal(cal)) return EstatSincro.LOCAL;
+        if (!Comptes.teAcces(this, cal.compte, cal.tipus)) return EstatSincro.SENSE_ACCES;
         try {
             if (!ContentResolver.getMasterSyncAutomatically()) return EstatSincro.MOBIL_DESACTIVAT;
             if (!ContentResolver.getSyncAutomatically(new Account(cal.compte, cal.tipus), CalendarContract.AUTHORITY))
@@ -539,7 +572,11 @@ public class MainActivity extends Activity {
 
     /** Pantalla «Apuntat, però…» amb el botó per activar la sincronització des de l'app. */
     private void mostraAvisSincro(String fet, Calendari cal, EstatSincro estat, String frase) {
-        Historial.afegeix(this, frase, fet);
+        if (frase != null) Historial.afegeix(this, frase, fet);
+        if (estat == EstatSincro.SENSE_ACCES) { // l'usuari no ha donat accés: queda apuntat, pujarà quan el mòbil vulgui
+            acaba(fet + "\n" + getString(R.string.sense_acces_curt), null);
+            return;
+        }
         if (estat == EstatSincro.LOCAL) {
             mostra(getString(R.string.apuntat_amb_avis), fet + "\n\n⚠ " + getString(R.string.sincro_local), frase, false);
             return;
@@ -583,10 +620,27 @@ public class MainActivity extends Activity {
 
     /** Sincronització manual (passa per sobre de la sincronització automàtica desactivada). */
     private static void demanaSincronitzacio(Account compte) {
-        Bundle extres = new Bundle();
-        extres.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
-        extres.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-        ContentResolver.requestSync(compte, CalendarContract.AUTHORITY, extres);
+        Comptes.pujaAra(compte.name, compte.type);
+    }
+
+    /**
+     * Des d'Android 12L, Android ignora en silenci les peticions de sincronització d'una app que no té accés
+     * al compte (i li diu que la sincronització està desactivada, encara que no ho estigui).
+     * Aquí es demana aquest accés un sol cop: s'obre la finestra d'Android per triar el compte.
+     */
+    private boolean necessitaAcces(Calendari cal) {
+        return !esLocal(cal) && !Comptes.teAcces(this, cal.compte, cal.tipus);
+    }
+
+    private void demanaAcces(Calendari cal, Runnable despres) {
+        despresAcces = despres;
+        try {
+            startActivityForResult(Comptes.intentAcces(cal.compte, cal.tipus,
+                    getString(R.string.acces_explicacio, cal.compte)), PETICIO_COMPTE);
+        } catch (ActivityNotFoundException e) {
+            despresAcces = null;
+            despres.run();
+        }
     }
 
     /**
@@ -598,7 +652,8 @@ public class MainActivity extends Activity {
         try {
             long desat = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(CLAU_CALENDARI, -1);
             for (Calendari c : calendaris()) {
-                if (c.id == desat && !esLocal(c)) demanaSincronitzacio(new Account(c.compte, c.tipus));
+                if (c.id == desat && !esLocal(c) && Comptes.teAcces(this, c.compte, c.tipus))
+                    demanaSincronitzacio(new Account(c.compte, c.tipus));
             }
         } catch (RuntimeException ignorat) {
             // no és imprescindible
@@ -608,7 +663,7 @@ public class MainActivity extends Activity {
     // ---------------- Triar el calendari ----------------
 
     private static final String PREFS = "config";
-    private static final String CLAU_CALENDARI = "calendari_v2"; // v2: torna a preguntar un cop amb la llista nova
+    static final String CLAU_CALENDARI = "calendari_v2"; // v2: torna a preguntar un cop amb la llista nova
 
     private static final class Calendari {
         long id;
@@ -770,7 +825,8 @@ public class MainActivity extends Activity {
             dialeg.dismiss();
             prefs.edit().putLong(CLAU_CALENDARI, c.id).apply();
             actualitzaBotoCalendari();
-            despres.fes(c);
+            if (necessitaAcces(c)) demanaAcces(c, () -> despres.fes(c));
+            else despres.fes(c);
         };
 
         afegeixGrups(cos, bons, desat, tria);

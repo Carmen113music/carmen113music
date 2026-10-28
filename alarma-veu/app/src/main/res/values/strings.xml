@@ -50,6 +50,10 @@
     <string name="sincro_activada">Sincronització activada</string>
     <string name="sincro_no_puc">No l\'he pogut activar</string>
     <string name="sincro_no_puc_detall">El mòbil no deixa que l\'app la canviï. T\'obro la pantalla de sincronització: activa «Sincronització automàtica de dades» i, dins el compte de Gmail, «Calendari».</string>
+    <string name="diagnostic">Diagnòstic</string>
+    <string name="acces_explicacio">Tria %1$s perquè Alarma per veu pugui pujar a Google el que apuntes a l\'agenda.</string>
+    <string name="pujant">Pujant a Google…</string>
+    <string name="sense_acces_curt">(Sense accés al compte: pujarà a Google quan el mòbil sincronitzi.)</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>

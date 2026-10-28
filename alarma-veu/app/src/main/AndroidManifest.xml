@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
     <!-- Per poder activar la sincronització des de l'app (s'atorga automàticament) -->
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_SYNC_STATS" />
 
     <!-- Per poder mostrar la icona de l'app de cada calendari -->
     <queries>
@@ -23,6 +24,14 @@
         <intent>
             <action android:name="android.accounts.AccountAuthenticator" />
         </intent>
+        <!-- Per saber quins rellotges accepten alarmes i temporitzadors -->
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <package android:name="com.google.android.deskclock" />
     </queries>
 
     <application
@@ -42,6 +51,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".DiagnosticActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".HistorialActivity"

@@ -6,7 +6,7 @@ App d'Android personal: obres l'app, dius una frase i:
 - si dius un dia concret («divendres», «el 15 de novembre», «passat demà»), l'apunta a l'**agenda** amb avisos el dia abans a les 20:00 i el mateix dia a les 7:00. Si aquell dia ja hi ha alguna cosa apuntada, t'ho diu i et pregunta si l'apunta igualment;
 - si preguntes «què tinc divendres?», et mostra el que hi ha apuntat aquell dia;
 - si preguntes «quin dia tinc metge?» (o «quan és el sopar dels Puig?», «quan he d'anar al dentista?»), busca a l'agenda dels pròxims 12 mesos i et mostra les properes vegades;
-- si demanes un temporitzador («temporitzador de 15 minuts per l'arròs», «posa 15 minuts per bullir l'aigua», «avisa'm d'aquí mitja hora»), posa una **alarma al Rellotge** a l'hora que toca (ara + el temps), amb el títol «⏱ …» (el temporitzador del Rellotge d'aquest mòbil no accepta el temps des d'una altra app).
+- si demanes un temporitzador («temporitzador de 15 minuts per l'arròs», «posa 15 minuts per bullir l'aigua», «avisa'm d'aquí mitja hora»), engega un temporitzador al Rellotge si al diagnòstic s'ha trobat una manera que funcioni en aquest mòbil; si no, posa una **alarma** a l'hora que toca, amb el títol «⏱ …».
 
 Si tot va bé, mostra una confirmació breu i es tanca sola.
 
@@ -34,7 +34,9 @@ Per tornar a parlar, toca el micròfon. «Alarmes» obre el Rellotge per comprov
 - Mentre la finestra de dictat de Google és oberta, el primer toc fora d'ella la tanca; després ja es poden tocar els botons.
 - Com que el Rellotge treballa en minuts, els temporitzadors s'arrodoneixen al minut més proper.
 - El primer cop que s'apunti alguna cosa a l'agenda, l'app demanarà permís de Calendari i preguntarà en quin calendari s'han d'apuntar les coses. La llista està agrupada per comptes: a cada compte surt la icona de la seva app i el correu, i a sota els seus calendaris amb el seu color. Els calendaris que només són al telèfon (aniversaris, horaris…) queden plegats a «Altres calendaris del telèfon». Es pot canviar quan vulguis amb el botó «Agenda: …» de sota. Si un compte no hi surt, cal activar-ne la sincronització del calendari a Configuració → Comptes.
-- Cada cop que s'apunta alguna cosa i cada cop que s'obre l'app, es demana al mòbil que pugi el calendari a Google. Si la sincronització automàtica del mòbil o del compte està desactivada, l'app ho diu i ofereix un botó «Activa-la» per activar-la directament (si el mòbil no ho permet, obre la pantalla de sincronització).
+- Cada cop que s'apunta alguna cosa i cada cop que s'obre l'app, es demana al mòbil que pugi el calendari a Google. Perquè Android ho permeti, el primer cop l'app demana **accés al compte** de Google (surt la finestra d'Android per triar el compte: cal triar el mateix del calendari). Sense aquest accés, Android ignora les peticions de l'app.
+- Si la sincronització del mòbil o del compte està realment desactivada, l'app ho diu i ofereix un botó «Activa-la».
+- El botó 🔧 de sota obre el **diagnòstic**: estat de la sincronització, botó per pujar el calendari ara i proves per trobar la manera de fer temporitzadors que accepta el Rellotge d'aquest mòbil.
 - Si algun dels avisos ja ha passat (per exemple, apuntes una cosa per a demà a les 22:00), només es posa el que encara toca. Si no en toca cap, l'avís es posa 1 hora abans.
 - «Avisa'm d'aquí a mitja hora» posa un **temporitzador**; «avisa'm a les quatre i mitja» posa una **alarma**.
 - Els avisos de l'agenda també queden escrits a la descripció de l'esdeveniment. Google Calendar els mostra com a temps abans de l'esdeveniment (per exemple, per a un sopar a les 20:00: «1 dia abans» i «13 hores abans»).
