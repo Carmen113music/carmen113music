@@ -283,15 +283,19 @@ public class FitxaActivity extends Activity {
     }
 
     private void menu() {
-        Ui.dialeg(this)
-                .setItems(new String[]{"Mou a una carpeta", "Comparteix", "Esborra"}, (d, i) -> {
-                    if (i == 0) mou();
-                    else if (i == 1) {
-                        desaAra();
-                        Accions.comparteix(this, g.wav);
-                    } else esborra();
-                })
-                .show();
+        desaAra();
+        String info = (g.fitxa.esVeu() ? "Veu" : "Guitarra") + "  ·  " + Biblioteca.durada(g.fitxa.duradaMs)
+                + "  ·  " + Biblioteca.data(g.fitxa.data);
+        Full.accions(this, Ui.iconaMode(g.fitxa), Ui.colorMode(g.fitxa), g.fitxa.titol, info, java.util.Arrays.asList(
+                new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () -> Accions.canviaNom(this, g.wav, () -> {
+                    g = Ui.biblioteca(this).gravacio(g.wav);
+                    omplint = true;
+                    campTitol.setText(g.fitxa.titol);
+                    omplint = false;
+                })),
+                new Full.Accio(Icona.MOURE, "Mou", false, this::mou),
+                new Full.Accio(Icona.COMPARTIR, "Comparteix", false, () -> Accions.comparteix(this, g.wav)),
+                new Full.Accio(Icona.PAPERERA, "Esborra", true, this::esborra)));
     }
 
     private void mou() {

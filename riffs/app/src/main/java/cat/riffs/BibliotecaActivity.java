@@ -31,6 +31,22 @@ public class BibliotecaActivity extends Activity {
     private MediaPlayer reproductor;
     private File sonant;
     private FrameLayout botoSonant;
+    private OnaView onaSonant;
+    private final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    /** Il·lumina l'ona de la gravació que sona, com a la fitxa. */
+    private final Runnable tic = new Runnable() {
+        @Override
+        public void run() {
+            if (reproductor == null || onaSonant == null) return;
+            try {
+                onaSonant.setProgres(reproductor.getCurrentPosition() / (float) Math.max(1, reproductor.getDuration()));
+            } catch (IllegalStateException e) {
+                return;
+            }
+            h.postDelayed(this, 50);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -184,7 +200,6 @@ public class BibliotecaActivity extends Activity {
         t.setGravity(Gravity.TOP);
 
         FrameLayout play = Ui.botoIcona(this, Icona.PLAY, color, Ui.alfa(color, 36), 44, 18, "Escolta");
-        play.setOnClickListener(v -> alternaSo(g.wav, play, color));
         t.addView(play);
 
         LinearLayout textos = Ui.columna(this);
@@ -197,9 +212,11 @@ public class BibliotecaActivity extends Activity {
 
         OnaView ona = new OnaView(this);
         ona.setBarres(Ui.dp(this, 2), Ui.dp(this, 1.5f));
-        ona.setColors(Ui.alfa(color, 200), Ui.LINIA_FORTA);
+        ona.setColors(color, Ui.LINIA_FORTA);
+        ona.setProgres(1f); // sense reproduir, tota l'ona es veu amb el seu color
         ona.setPics(null);
         textos.addView(ona, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 26)));
+        play.setOnClickListener(v -> alternaSo(g.wav, play, color, ona));
         LinearLayout.LayoutParams o = (LinearLayout.LayoutParams) ona.getLayoutParams();
         o.topMargin = Ui.dp(this, 8);
         fil.execute(() -> {
@@ -249,7 +266,7 @@ public class BibliotecaActivity extends Activity {
 
     // ---------- Escoltar ràpid ----------
 
-    private void alternaSo(File wav, FrameLayout b, int color) {
+    private void alternaSo(File wav, FrameLayout b, int color, OnaView ona) {
         if (wav.equals(sonant)) {
             aturaSo();
             return;
@@ -263,6 +280,9 @@ public class BibliotecaActivity extends Activity {
             reproductor.start();
             sonant = wav;
             botoSonant = b;
+            onaSonant = ona;
+            ona.setProgres(0f);
+            h.post(tic);
             b.setTag(color);
             Ui.canviaIcona(b, Icona.STOP, color, 18);
         } catch (Exception e) {
@@ -272,6 +292,9 @@ public class BibliotecaActivity extends Activity {
     }
 
     private void aturaSo() {
+        h.removeCallbacks(tic);
+        if (onaSonant != null) onaSonant.setProgres(1f);
+        onaSonant = null;
         if (reproductor != null) {
             try {
                 reproductor.stop();
@@ -303,54 +326,50 @@ public class BibliotecaActivity extends Activity {
     }
 
     private void menuCarpeta(File c) {
-        Ui.dialeg(this)
-                .setTitle(c.getName())
-                .setItems(new String[]{"Grava aquí", "Canvia el nom", "Esborra la carpeta"}, (d, i) -> {
-                    if (i == 0) {
-                        Ui.posaCarpetaActual(this, c);
-                        Intent in = new Intent(this, MainActivity.class);
-                        in.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                        startActivity(in);
-                    } else if (i == 1) {
-                        Ui.demanaText(this, "Nom de la carpeta", c.getName(), "Desa", nom -> {
-                            try {
-                                String vell = c.getName();
-                                File nova = biblio.reanomenaCarpeta(c, nom);
-                                Ui.reubica(this, c, nova);
-                                Ui.historial(this, "La carpeta «" + vell + "» ara es diu «" + nova.getName() + "»");
-                                omple();
-                            } catch (IllegalArgumentException e) {
-                                Ui.avis(this, e.getMessage());
-                            }
-                        });
-                    } else {
-                        int n = biblio.compta(c);
-                        String msg = n == 0 ? "La carpeta és buida."
-                                : n == 1 ? "S'esborrarà també la gravació que té a dins (i la seva lletra). No es pot desfer."
-                                : "S'esborraran també les " + n + " gravacions que té a dins (i les seves lletres). No es pot desfer.";
-                        Ui.confirma(this, "Vols esborrar «" + c.getName() + "»?", msg, "Esborra", () -> {
-                            biblio.esborraCarpeta(c);
-                            Ui.historial(this, "Esborrada la carpeta «" + c.getName() + "»" + (n > 0 ? " (" + n + " gravacions)" : ""));
-                            omple();
-                        });
+        int n = biblio.compta(c);
+        int sub = biblio.carpetes(c).size();
+        String info = n == 1 ? "1 gravació" : n + " gravacions";
+        if (sub > 0) info += "  ·  " + (sub == 1 ? "1 carpeta" : sub + " carpetes");
+        List<Full.Accio> acc = new java.util.ArrayList<>();
+        acc.add(new Full.Accio(Icona.MIC, "Grava aquí", false, () -> {
+            Ui.posaCarpetaActual(this, c);
+            Intent in = new Intent(this, MainActivity.class);
+            in.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(in);
+        }));
+        acc.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
+                Ui.demanaText(this, "Nom de la carpeta", c.getName(), "Desa", nom -> {
+                    try {
+                        String vell = c.getName();
+                        File nova = biblio.reanomenaCarpeta(c, nom);
+                        Ui.reubica(this, c, nova);
+                        Ui.historial(this, "La carpeta «" + vell + "» ara es diu «" + nova.getName() + "»");
+                        omple();
+                    } catch (IllegalArgumentException e) {
+                        Ui.avis(this, e.getMessage());
                     }
-                })
-                .show();
+                })));
+        acc.add(new Full.Accio(Icona.PAPERERA, "Esborra", true, () -> {
+            String msg = n == 0 ? "La carpeta és buida."
+                    : n == 1 ? "S'esborrarà també la gravació que té a dins (i la seva lletra). No es pot desfer."
+                    : "S'esborraran també les " + n + " gravacions que té a dins (i les seves lletres). No es pot desfer.";
+            Ui.confirma(this, "Vols esborrar «" + c.getName() + "»?", msg, "Esborra", () -> {
+                biblio.esborraCarpeta(c);
+                Ui.historial(this, "Esborrada la carpeta «" + c.getName() + "»" + (n > 0 ? " (" + n + " gravacions)" : ""));
+                omple();
+            });
+        }));
+        Full.accions(this, Icona.CARPETA, Ui.TEXT, c.getName(), info, acc);
     }
 
     private void menuGravacio(Biblioteca.Gravacio g) {
-        Ui.dialeg(this)
-                .setTitle(g.fitxa.titol)
-                .setItems(new String[]{"Obre", "Mou a una carpeta", "Comparteix", "Esborra"}, (d, i) -> {
-                    aturaSo();
-                    if (i == 0) {
-                        Intent in = new Intent(this, FitxaActivity.class);
-                        in.putExtra(FitxaActivity.EXTRA_WAV, g.wav.getAbsolutePath());
-                        startActivity(in);
-                    } else if (i == 1) Accions.mou(this, g.wav, nou -> omple());
-                    else if (i == 2) Accions.comparteix(this, g.wav);
-                    else Accions.esborra(this, g.wav, this::omple);
-                })
-                .show();
+        aturaSo();
+        String info = (g.fitxa.esVeu() ? "Veu" : "Guitarra") + "  ·  " + Biblioteca.durada(g.fitxa.duradaMs)
+                + "  ·  " + Biblioteca.data(g.fitxa.data);
+        Full.accions(this, Ui.iconaMode(g.fitxa), Ui.colorMode(g.fitxa), g.fitxa.titol, info, java.util.Arrays.asList(
+                new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () -> Accions.canviaNom(this, g.wav, this::omple)),
+                new Full.Accio(Icona.MOURE, "Mou", false, () -> Accions.mou(this, g.wav, nou -> omple())),
+                new Full.Accio(Icona.COMPARTIR, "Comparteix", false, () -> Accions.comparteix(this, g.wav)),
+                new Full.Accio(Icona.PAPERERA, "Esborra", true, () -> Accions.esborra(this, g.wav, this::omple))));
     }
 }

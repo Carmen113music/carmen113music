@@ -36,6 +36,24 @@ public final class Accions {
         });
     }
 
+    /** Demana un títol nou per a la gravació (el fitxer de so no es toca). */
+    public static void canviaNom(Activity a, File wav, Runnable fet) {
+        Biblioteca.Gravacio g = Ui.biblioteca(a).gravacio(wav);
+        String vell = g.fitxa.titol;
+        Ui.demanaText(a, "Nom de la gravació", vell, "Desa", nom -> {
+            String nou = nom == null ? "" : nom.trim().replaceAll("\\s+", " ");
+            if (nou.isEmpty() || nou.equals(vell)) return;
+            g.fitxa.titol = nou;
+            try {
+                g.desa();
+                Ui.historial(a, "«" + vell + "» ara es diu «" + nou + "»");
+                fet.run();
+            } catch (IOException e) {
+                Ui.avis(a, "No s'ha pogut canviar el nom.");
+            }
+        });
+    }
+
     /** Pregunta i esborra la gravació. */
     public static void esborra(Activity a, File wav, Runnable fet) {
         Biblioteca b = Ui.biblioteca(a);

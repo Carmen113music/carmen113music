@@ -291,13 +291,10 @@ public class MainActivity extends Activity {
         if (resultats.length > 0 && resultats[0] == PackageManager.PERMISSION_GRANTED) {
             comenca();
         } else {
-            Ui.dialeg(this)
-                    .setTitle("Cal permís de micròfon")
-                    .setMessage("Sense el micròfon l'app no pot gravar. Dona-li permís a Configuració → Aplicacions → Riffs → Permisos → Micròfon.")
-                    .setPositiveButton("Obre la configuració", (d, w) -> startActivity(new Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null))))
-                    .setNegativeButton("Ara no", null)
-                    .show();
+            Full.avis(this, "Cal permís de micròfon",
+                    "Sense el micròfon l'app no pot gravar. Dona-li permís a Configuració → Aplicacions → Riffs → Permisos → Micròfon.",
+                    "Obre la configuració", () -> startActivity(new Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null))));
         }
     }
 

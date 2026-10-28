@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 1.1:** gravar, biblioteca amb carpetes, escoltar sobre l'ona, lletra i notes, compartir.
+**Versió 1.2:** gravar, biblioteca amb carpetes, escoltar sobre l'ona, lletra i notes, compartir.
 Pròximes fases: anàlisi (to, BPM i notes), estudi multipista (mini DAW), gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -21,8 +21,9 @@ El primer cop l'app demana permís de micròfon.
 ### Biblioteca
 - Cada carpeta pot ser una cançó, i a dins pot tenir subcarpetes (tornada, pont…).
 - **+** crea una carpeta dins la que estàs mirant. Dins una carpeta, el **micròfon vermell** de dalt torna a Gravar i fa que les gravacions noves vagin allà.
-- Cada gravació mostra la seva **ona**, la durada, i si té lletra o notes. ▶ l'escolta sense obrir-la.
-- Els **tres punts** (o mantenir premut) obren les opcions: obrir, moure, compartir, esborrar; a les carpetes, gravar-hi, canviar el nom o esborrar.
+- Cada gravació mostra la seva **ona**, la durada, i si té lletra o notes. ▶ l'escolta sense obrir-la, i l'ona s'il·lumina a mesura que sona.
+- Toca una gravació per obrir-la. Els **tres punts** (o mantenir premut) obren el panell d'opcions: **canvia el nom**, **mou**, **comparteix** i **esborra**. A les carpetes: **grava aquí**, **canvia el nom** i **esborra**.
+- Canviar el nom d'una gravació només canvia el títol: el so, la lletra i les notes no es toquen.
 
 ### Fitxa d'una gravació (lletra)
 - A dalt, l'**ona** amb el capçal: toca-la o arrossega el dit per anar a qualsevol punt. Sota, **enrere 5 s**, **reproduir/pausa** i **repetir**. Tot queda fix a dalt, també amb el teclat obert.
@@ -51,5 +52,6 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **1.2** (28/10/2026) — L'ona de la biblioteca s'il·lumina mentre sona. Panell d'opcions nou amb l'estil de l'app (icones grans, sense «Obre»). Nova opció per canviar el nom d'una gravació. Triar carpeta, confirmar i escriure un nom també tenen l'estil de l'app.
 - **1.1** (28/10/2026) — Corregit: la pantalla principal sortia buida (un espai invisible de la barra de dalt ocupava tota l'alçada). Disseny nou: tema fosc d'estudi, icones pròpies en lloc d'emojis, botó de gravar professional, ona en directe i rellotge amb dècimes, navegació a baix (Gravar · Biblioteca · Estudi), ona a cada gravació de la biblioteca, ona tocable per saltar a la fitxa, pestanya Estudi.
 - **1.0** (28/10/2026) — Primera versió: gravar (guitarra/veu), biblioteca amb carpetes i subcarpetes, reproducció, lletra i notes, compartir, historial i diagnòstic amb tria de font del micròfon.

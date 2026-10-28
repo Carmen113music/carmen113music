@@ -1,7 +1,6 @@
 package cat.riffs;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -346,74 +345,18 @@ public final class Ui {
         void fet(File carpeta);
     }
 
-    public static AlertDialog.Builder dialeg(Activity a) {
-        return new AlertDialog.Builder(a, android.R.style.Theme_DeviceDefault_Dialog_Alert);
-    }
-
     /** Demana un text (per exemple el nom d'una carpeta). */
     public static void demanaText(Activity a, String titol, String inicial, String boto, AmbText fet) {
-        EditText e = camp(a, "Nom", false);
-        e.setText(inicial == null ? "" : inicial);
-        e.setSelectAllOnFocus(true);
-        FrameLayout marc = new FrameLayout(a);
-        marc.setPadding(dp(a, 20), dp(a, 8), dp(a, 20), 0);
-        marc.addView(e);
-        AlertDialog d = dialeg(a)
-                .setTitle(titol)
-                .setView(marc)
-                .setPositiveButton(boto, (dd, w) -> fet.fet(e.getText().toString()))
-                .setNegativeButton("Cancel·la", null)
-                .create();
-        d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        d.show();
-        e.requestFocus();
+        Full.demanaText(a, titol, inicial, boto, fet);
     }
 
     /** Llista totes les carpetes en arbre i deixa'n triar una (o crear-ne una de nova). */
     public static void triaCarpeta(Activity a, String titol, File actual, AmbCarpeta fet) {
-        Biblioteca b = biblioteca(a);
-        List<Biblioteca.Carpeta> arbre = b.arbre();
-        List<String> noms = new ArrayList<>();
-        for (Biblioteca.Carpeta c : arbre) {
-            String marca = (actual != null && c.dir.equals(actual)) ? "   ✓" : "";
-            if (c.nivell == 0) {
-                noms.add("Biblioteca (sense carpeta)" + marca);
-            } else {
-                StringBuilder s = new StringBuilder();
-                for (int i = 1; i < c.nivell; i++) s.append("     ");
-                if (c.nivell > 1) s.append("└ ");
-                s.append(c.dir.getName()).append(marca);
-                noms.add(s.toString());
-            }
-        }
-        noms.add("+  Carpeta nova…");
-        dialeg(a)
-                .setTitle(titol)
-                .setItems(noms.toArray(new String[0]), (d, i) -> {
-                    if (i < arbre.size()) {
-                        fet.fet(arbre.get(i).dir);
-                    } else {
-                        demanaText(a, "Carpeta nova", "", "Crea", nom -> {
-                            try {
-                                File c = b.creaCarpeta(b.arrel, nom);
-                                historial(a, "Carpeta nova: «" + c.getName() + "»");
-                                fet.fet(c);
-                            } catch (IllegalArgumentException ex) {
-                                avis(a, ex.getMessage());
-                            }
-                        });
-                    }
-                })
-                .setNegativeButton("Cancel·la", null)
-                .show();
+        Full.triaCarpeta(a, titol, actual, fet);
     }
 
+    /** Confirmació per a una acció que esborra (botó vermell). */
     public static void confirma(Activity a, String titol, String missatge, String boto, Runnable fet) {
-        dialeg(a)
-                .setTitle(titol)
-                .setMessage(missatge)
-                .setPositiveButton(boto, (d, w) -> fet.run())
-                .setNegativeButton("Cancel·la", null)
-                .show();
+        Full.confirma(a, titol, missatge, boto, true, fet);
     }
 }
