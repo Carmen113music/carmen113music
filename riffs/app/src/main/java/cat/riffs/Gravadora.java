@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.AudioTimestamp;
 import android.media.MediaRecorder;
 
 import java.io.File;
@@ -45,6 +46,12 @@ public final class Gravadora {
     private double sumaQuadrats = 0;
     private long mostresTotals = 0;
     private String fontUsada = "";
+
+    // Per saber quin tros de la gravació correspon a cada moment (sincronia amb el metrònom)
+    private final AudioTimestamp marca = new AudioTimestamp();
+    private volatile boolean teMarca = false;
+    private volatile long nanoInici = 0;
+    private volatile long mostresGravades = 0;
 
     public boolean grava() {
         return actiu;
@@ -147,6 +154,9 @@ public final class Gravadora {
             return "El micròfon està ocupat (potser per una altra app o una trucada).";
         }
         duradaMs = 0;
+        teMarca = false;
+        mostresGravades = 0;
+        nanoInici = System.nanoTime();
         picMaxim = 0;
         sumaQuadrats = 0;
         mostresTotals = 0;
@@ -174,6 +184,8 @@ public final class Gravadora {
                 sumaQuadrats += (tros[i] / 32768.0) * (tros[i] / 32768.0);
             }
             mostresTotals += n;
+            mostresGravades += n;
+            if (!teMarca || mostresGravades % (MOSTREIG / 2) < tros.length) actualitzaMarca();
             float p = Math.min(1f, pic / 32768f);
             if (p > picMaxim) picMaxim = p;
             try {
@@ -191,6 +203,35 @@ public final class Gravadora {
             }
             if (oient != null) oient.nivell(p);
         }
+    }
+
+    private synchronized void actualitzaMarca() {
+        try {
+            if (rec != null && rec.getTimestamp(marca, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS
+                    && marca.nanoTime > 0) {
+                teMarca = true;
+            }
+        } catch (IllegalStateException ignored) {
+        }
+    }
+
+    /**
+     * Posició dins la gravació (en ms) del so que va entrar pel micròfon en el moment {@code nano}
+     * (System.nanoTime). Té en compte el retard del micròfon si el mòbil l'informa.
+     */
+    public synchronized long msDelMoment(long nano) {
+        double mostra;
+        if (teMarca) {
+            mostra = marca.framePosition + (nano - marca.nanoTime) * MOSTREIG / 1e9;
+        } else {
+            mostra = (nano - nanoInici) * MOSTREIG / 1e9 - MOSTREIG * 0.03; // retard típic d'entrada
+        }
+        return Math.max(0, Math.round(mostra * 1000 / MOSTREIG));
+    }
+
+    /** Si el mòbil dona marques de temps precises del micròfon (per al diagnòstic). */
+    public boolean teMarcaDeTemps() {
+        return teMarca;
     }
 
     /** Atura la gravació i tanca el fitxer. Torna la durada en mil·lisegons. */

@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 1.2:** gravar, biblioteca amb carpetes, escoltar sobre l'ona, lletra i notes, compartir.
-Pròximes fases: anàlisi (to, BPM i notes), estudi multipista (mini DAW), gravar sobre altres pistes.
+**Versió 1.3:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Pròximes fases: detecció automàtica de BPM i to, estudi multipista (mini DAW), gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -14,6 +14,12 @@ A baix hi ha tres pestanyes: **Gravar**, **Biblioteca** i **Estudi**.
 2. Toca el **botó rodó**: el cercle vermell es fa quadrat, el rellotge corre i l'ona es dibuixa en directe.
 3. Torna'l a tocar per aturar. Es desa sola amb el títol «Idea del 28/10 a les 12:30».
 4. A sota surt l'**última gravació**: ▶ per escoltar-la, o toca la targeta per obrir-la.
+
+### Metrònom (claqueta)
+- La rajola **Metrònom** (al costat de «Es desa a») obre els ajustos: activar-lo, **BPM** amb − i + (mantenint premut va ràpid) o **Tap** tocant al ritme, **compàs** (2/4, 3/4, 4/4, 6/8), **compte enrere** (cap, 1 o 2 compassos), i quan ha de sonar el **clic**: *Amb auriculars* (per defecte: si no n'hi ha, només es veu), *Sempre* o *Només visual*. «Escolta el tempo» el fa sonar per provar-lo.
+- Mentre graves, els **punts** de sota el rellotge marquen cada temps (ambre durant el compte enrere, vermell gravant) i el text diu el compte enrere i el compàs.
+- El compte enrere **també es grava**: si hi ha una anacrusi no es perd.
+- En aturar, la gravació es desa amb el seu tempo i amb la **bandera del primer temps**: l'app calcula quan va sonar el primer temps (tenint en compte el retard del mòbil) i l'enganxa a l'atac més proper de la guitarra o la veu.
 
 A dalt: l'**historial** (rellotge) i el **diagnòstic del micròfon** (controls lliscants).
 El primer cop l'app demana permís de micròfon.
@@ -30,6 +36,8 @@ El primer cop l'app demana permís de micròfon.
 - **Atura el so quan escric** i **En tornar a reproduir, retrocedeix 2 s** (no retrocedeix si acabes de triar tu el punt a l'ona).
 - Títol, **lletra** i **notes** es desen sols.
 - El botó de color de dalt (Guitarra/Veu) canvia el tipus de gravació.
+- **Tempo** (icona de metrònom): posa o canvia el BPM i el compàs d'una gravació (també amb Tap mentre l'escoltes). Sobre l'ona apareixen les línies dels temps i, més marcades, les dels compassos.
+- **Primer temps** (bandera): toca'l i arrossega la bandera vermella per l'ona fins al primer temps; el capçal s'hi posa perquè ho puguis escoltar. Torna a tocar «Fet» per acabar. «Treu» l'esborra.
 - **Mou**, **Comparteix** (WAV per WhatsApp, correu, Drive…) i **esborrar**.
 
 ### Estudi
@@ -52,6 +60,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **1.3** (28/10/2026) — Metrònom per gravar (BPM, tap, compàs, compte enrere, clic amb auriculars, sempre o visual) i punts de temps a la pantalla. Bandera del primer temps automàtica i ajustable, tempo de cada gravació, graella de temps i compassos sobre l'ona, BPM a la biblioteca.
 - **1.2** (28/10/2026) — L'ona de la biblioteca s'il·lumina mentre sona. Panell d'opcions nou amb l'estil de l'app (icones grans, sense «Obre»). Nova opció per canviar el nom d'una gravació. Triar carpeta, confirmar i escriure un nom també tenen l'estil de l'app.
 - **1.1** (28/10/2026) — Corregit: la pantalla principal sortia buida (un espai invisible de la barra de dalt ocupava tota l'alçada). Disseny nou: tema fosc d'estudi, icones pròpies en lloc d'emojis, botó de gravar professional, ona en directe i rellotge amb dècimes, navegació a baix (Gravar · Biblioteca · Estudi), ona a cada gravació de la biblioteca, ona tocable per saltar a la fitxa, pestanya Estudi.
 - **1.0** (28/10/2026) — Primera versió: gravar (guitarra/veu), biblioteca amb carpetes i subcarpetes, reproducció, lletra i notes, compartir, historial i diagnòstic amb tria de font del micròfon.

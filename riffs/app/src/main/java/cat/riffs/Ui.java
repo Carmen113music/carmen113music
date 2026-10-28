@@ -184,7 +184,7 @@ public final class Ui {
         return f;
     }
 
-    public static void colorIcona(FrameLayout boto, int color) {
+    public static void colorIcona(android.view.ViewGroup boto, int color) {
         ImageView i = (ImageView) boto.getChildAt(0);
         ((Icona) i.getDrawable()).setColor(color);
     }
@@ -358,5 +358,44 @@ public final class Ui {
     /** Confirmació per a una acció que esborra (botó vermell). */
     public static void confirma(Activity a, String titol, String missatge, String boto, Runnable fet) {
         Full.confirma(a, titol, missatge, boto, true, fet);
+    }
+
+    public interface AmbIndex {
+        void fet(int index);
+    }
+
+    /** Control segmentat: una fila d'opcions on només n'hi ha una de triada. */
+    public static LinearLayout segmentat(Context c, String[] opcions, int triada, int color, AmbIndex fet) {
+        LinearLayout seg = fila(c);
+        seg.setBackground(rodo(SUPERFICIE2, dp(c, 22)));
+        seg.setPadding(dp(c, 3), dp(c, 3), dp(c, 3), dp(c, 3));
+        TextView[] ts = new TextView[opcions.length];
+        for (int i = 0; i < opcions.length; i++) {
+            TextView t = negreta(c, opcions[i], 13, SUAU);
+            t.setGravity(Gravity.CENTER);
+            t.setMinHeight(dp(c, 38));
+            t.setClickable(true);
+            ts[i] = t;
+            seg.addView(t, pes(1));
+        }
+        Runnable[] pinta = new Runnable[1];
+        int[] actual = {triada};
+        pinta[0] = () -> {
+            for (int i = 0; i < ts.length; i++) {
+                boolean a = i == actual[0];
+                ts[i].setBackground(tocable(a ? color : 0x00000000, dp(c, 19)));
+                ts[i].setTextColor(a ? (color == TEXT ? SOBRE_COLOR : 0xFFFFFFFF) : SUAU);
+            }
+        };
+        for (int i = 0; i < ts.length; i++) {
+            int idx = i;
+            ts[i].setOnClickListener(v -> {
+                actual[0] = idx;
+                pinta[0].run();
+                fet.fet(idx);
+            });
+        }
+        pinta[0].run();
+        return seg;
     }
 }

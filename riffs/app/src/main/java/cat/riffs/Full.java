@@ -277,4 +277,157 @@ public final class Full {
         d[0] = panellBaix(a, cos);
         d[0].show();
     }
+
+    // ---------- Metrònom ----------
+
+    private static final int[] COMPASSOS = {2, 3, 4, 6};
+
+    private static int indexCompas(int c) {
+        for (int i = 0; i < COMPASSOS.length; i++) if (COMPASSOS[i] == c) return i;
+        return 2;
+    }
+
+    private static LinearLayout ambScrollLimitat(Activity a, LinearLayout dins) {
+        int maxim = (int) (a.getResources().getDisplayMetrics().heightPixels * 0.78f);
+        ScrollView sc = new ScrollView(a) {
+            @Override
+            protected void onMeasure(int ample, int alt) {
+                super.onMeasure(ample, MeasureSpec.makeMeasureSpec(maxim, MeasureSpec.AT_MOST));
+            }
+        };
+        sc.addView(dins);
+        LinearLayout l = Ui.columna(a);
+        l.addView(sc, Ui.ample(a, 0));
+        return l;
+    }
+
+    /** Ajustos del metrònom per gravar. Quan es tanca, desa i avisa. */
+    public static void metronom(Activity a, Runnable enTancar) {
+        Metronom.Config k = Metronom.Config.llegeix(a);
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 4), Ui.dp(a, 20), Ui.dp(a, 4));
+
+        LinearLayout cap = Ui.fila(a);
+        cap.addView(Ui.rajola(a, Icona.METRONOM, Ui.ACCENT, Ui.alfa(Ui.ACCENT, 36), 44));
+        LinearLayout tx = Ui.columna(a);
+        tx.addView(Ui.negreta(a, "Metrònom", 17, Ui.TEXT));
+        tx.addView(Ui.text(a, "Claqueta i compte enrere per gravar a tempo", 13, Ui.SUAU), Ui.ample(a, 4));
+        LinearLayout.LayoutParams lt = Ui.pes(1);
+        lt.leftMargin = Ui.dp(a, 12);
+        cap.addView(tx, lt);
+        android.widget.Switch actiu = new android.widget.Switch(a);
+        actiu.setChecked(k.actiu);
+        cap.addView(actiu);
+        cos.addView(cap);
+
+        LinearLayout opcions = Ui.columna(a);
+        ControlTempo tempo = new ControlTempo(a, k.bpm);
+        tempo.setOient(b -> k.bpm = b);
+        opcions.addView(tempo, Ui.ample(a, 22));
+
+        opcions.addView(Ui.etiqueta(a, "Compàs"), Ui.ample(a, 20));
+        opcions.addView(Ui.segmentat(a, new String[]{"2/4", "3/4", "4/4", "6/8"}, indexCompas(k.compas), Ui.TEXT,
+                i -> k.compas = COMPASSOS[i]), Ui.ample(a, 8));
+
+        opcions.addView(Ui.etiqueta(a, "Compte enrere"), Ui.ample(a, 18));
+        opcions.addView(Ui.segmentat(a, new String[]{"Cap", "1 compàs", "2 compassos"}, Math.max(0, Math.min(2, k.compteEnrere)), Ui.TEXT,
+                i -> k.compteEnrere = i), Ui.ample(a, 8));
+
+        opcions.addView(Ui.etiqueta(a, "Clic"), Ui.ample(a, 18));
+        String[] sons = {Metronom.SO_AURICULARS, Metronom.SO_SEMPRE, Metronom.SO_MAI};
+        int iso = k.so.equals(Metronom.SO_SEMPRE) ? 1 : k.so.equals(Metronom.SO_MAI) ? 2 : 0;
+        opcions.addView(Ui.segmentat(a, new String[]{"Amb auriculars", "Sempre", "Només visual"}, iso, Ui.TEXT,
+                i -> k.so = sons[i]), Ui.ample(a, 8));
+        TextView nota = Ui.text(a, "Si el clic sona per l'altaveu, també queda gravat. Amb «Amb auriculars», sona només si en tens connectats; si no, els temps es marquen a la pantalla.", 12, Ui.SUAU);
+        nota.setLineSpacing(0, 1.2f);
+        opcions.addView(nota, Ui.ample(a, 8));
+
+        Metronom[] prova = new Metronom[1];
+        LinearLayout escolta = Ui.pastilla(a, Icona.PLAY, "Escolta el tempo", Ui.SUPERFICIE2, Ui.TEXT);
+        TextView textEscolta = (TextView) escolta.getChildAt(2);
+        escolta.setOnClickListener(v -> {
+            if (prova[0] != null) {
+                prova[0].atura();
+                prova[0] = null;
+                textEscolta.setText("Escolta el tempo");
+            } else {
+                prova[0] = new Metronom(k.bpm, k.compas, 0, true);
+                if (prova[0].comenca()) textEscolta.setText("Atura");
+                else prova[0] = null;
+            }
+        });
+        tempo.setOient(b -> {
+            k.bpm = b;
+            if (prova[0] != null) {   // torna a engegar amb el tempo nou
+                prova[0].atura();
+                prova[0] = new Metronom(k.bpm, k.compas, 0, true);
+                if (!prova[0].comenca()) prova[0] = null;
+            }
+        });
+        opcions.addView(escolta, Ui.ample(a, 16));
+
+        Runnable mostraOpcions = () -> opcions.setAlpha(actiu.isChecked() ? 1f : 0.45f);
+        actiu.setOnCheckedChangeListener((b, v) -> {
+            k.actiu = v;
+            mostraOpcions.run();
+        });
+        mostraOpcions.run();
+        cos.addView(opcions);
+
+        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
+        cos.addView(fet, Ui.ample(a, 20));
+
+        Dialog d = panellBaix(a, ambScrollLimitat(a, cos));
+        fet.setOnClickListener(v -> d.dismiss());
+        d.setOnDismissListener(x -> {
+            if (prova[0] != null) prova[0].atura();
+            k.desa(a);
+            if (enTancar != null) enTancar.run();
+        });
+        d.show();
+    }
+
+    /** Tempo i compàs d'una gravació. {@code fet} rep el BPM (0 = sense tempo). */
+    public interface AmbTempo {
+        void fet(double bpm, int compas);
+    }
+
+    public static void tempo(Activity a, Fitxa f, AmbTempo fet) {
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 4), Ui.dp(a, 20), Ui.dp(a, 4));
+        cos.addView(Ui.negreta(a, "Tempo de la gravació", 17, Ui.TEXT));
+        TextView ajuda = Ui.text(a, f.claqueta
+                ? "Es va gravar amb metrònom. Si el canvies, la graella deixarà de coincidir amb el clic que vas sentir."
+                : "Posa el tempo amb − i +, o toca «Tap» al ritme mentre l'escoltes.", 13, Ui.SUAU);
+        ajuda.setLineSpacing(0, 1.2f);
+        cos.addView(ajuda, Ui.ample(a, 6));
+        ControlTempo tempo = new ControlTempo(a, f.teTempo() ? f.bpm : 100);
+        cos.addView(tempo, Ui.ample(a, 18));
+        int[] compas = {f.compas};
+        cos.addView(Ui.etiqueta(a, "Compàs"), Ui.ample(a, 18));
+        cos.addView(Ui.segmentat(a, new String[]{"2/4", "3/4", "4/4", "6/8"}, indexCompas(f.compas), Ui.TEXT,
+                i -> compas[0] = COMPASSOS[i]), Ui.ample(a, 8));
+
+        LinearLayout botons = Ui.fila(a);
+        Dialog[] d = new Dialog[1];
+        if (f.teTempo()) {
+            LinearLayout treu = Ui.pastilla(a, 0, "Treu el tempo", 0x00000000, Ui.ACCENT);
+            treu.setOnClickListener(v -> {
+                d[0].dismiss();
+                fet.fet(0, compas[0]);
+            });
+            botons.addView(treu);
+        }
+        botons.addView(Ui.mollaH(a));
+        LinearLayout desa = Ui.pastilla(a, 0, "Desa", Ui.TEXT, Ui.SOBRE_COLOR);
+        desa.setOnClickListener(v -> {
+            d[0].dismiss();
+            fet.fet(tempo.bpm(), compas[0]);
+        });
+        botons.addView(desa);
+        cos.addView(botons, Ui.ample(a, 22));
+
+        d[0] = panellBaix(a, ambScrollLimitat(a, cos));
+        d[0].show();
+    }
 }

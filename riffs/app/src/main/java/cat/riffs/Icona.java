@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -298,6 +298,31 @@ public class Icona extends Drawable {
                 p.close();
                 c.drawPath(p, traz);
                 linia(c, 13.5f, 6.5f, 17.5f, 10.5f);
+                break;
+            case METRONOM:
+                p.reset();
+                p.moveTo(9.5f, 3);
+                p.lineTo(14.5f, 3);
+                p.lineTo(19, 21);
+                p.lineTo(5, 21);
+                p.close();
+                c.drawPath(p, traz);
+                linia(c, 6.2f, 16.5f, 17.8f, 16.5f);
+                linia(c, 12, 16.5f, 16.8f, 6.5f);
+                c.drawCircle(15.4f, 9.4f, 1.3f, ple);
+                break;
+            case BANDERA:
+                linia(c, 6, 21, 6, 3);
+                p.reset();
+                p.moveTo(6, 3.5f);
+                p.lineTo(18.5f, 7.5f);
+                p.lineTo(6, 11.5f);
+                p.close();
+                c.drawPath(p, ple);
+                c.drawPath(p, traz);
+                break;
+            case MENYS:
+                linia(c, 5, 12, 19, 12);
                 break;
             default:
                 break;

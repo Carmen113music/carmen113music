@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -40,7 +41,9 @@ public class FitxaActivity extends Activity {
     private MediaPlayer mp;
     private boolean preparat = false;
     private boolean bucle = false;
-    private boolean saltat = false;         // l'usuari ha triat on reprendre: no cal retrocedir
+    private boolean saltat = false;
+    private LinearLayout xipTempo, xipPrimer, xipTreu;
+    private TextView textTempo, textPrimer;         // l'usuari ha triat on reprendre: no cal retrocedir
     private boolean omplint = false;        // canvis de text fets per l'app, no per l'usuari
     private boolean pendent = false;        // hi ha canvis per desar
     private boolean lletraApuntada = false; // ja s'ha apuntat a l'historial en aquesta visita
@@ -138,6 +141,25 @@ public class FitxaActivity extends Activity {
         botoBucle.setOnClickListener(v -> alternaBucle());
         controls.addView(botoBucle);
         rep.addView(controls, Ui.ample(this, 4));
+
+        // Tempo i primer temps
+        LinearLayout ritme = Ui.fila(this);
+        ritme.setGravity(Gravity.CENTER);
+        xipTempo = xip(Icona.METRONOM);
+        textTempo = (TextView) xipTempo.getChildAt(2);
+        xipTempo.setOnClickListener(v -> editaTempo());
+        xipPrimer = xip(Icona.BANDERA);
+        textPrimer = (TextView) xipPrimer.getChildAt(2);
+        xipPrimer.setOnClickListener(v -> alternaEditaPrimer());
+        xipTreu = xip(Icona.PAPERERA);
+        ((TextView) xipTreu.getChildAt(2)).setText("Treu");
+        xipTreu.setOnClickListener(v -> treuPrimer());
+        ritme.addView(xipTempo);
+        ritme.addView(Ui.espai(this, 8));
+        ritme.addView(xipPrimer);
+        ritme.addView(Ui.espai(this, 8));
+        ritme.addView(xipTreu);
+        rep.addView(ritme, Ui.ample(this, 12));
         arrel.addView(rep);
         arrel.addView(Ui.separador(this));
 
@@ -264,6 +286,97 @@ public class FitxaActivity extends Activity {
         return s;
     }
 
+    private LinearLayout xip(int icona) {
+        LinearLayout x = Ui.fila(this);
+        x.setClickable(true);
+        x.setFocusable(true);
+        x.setBackground(Ui.tocable(Ui.SUPERFICIE, Ui.dp(this, 16)));
+        x.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 12), 0);
+        x.setMinimumHeight(Ui.dp(this, 34));
+        x.addView(Ui.imatge(this, icona, Ui.SUAU, 15), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
+        x.addView(Ui.espai(this, 6));
+        x.addView(Ui.unaLinia(Ui.negreta(this, "", 13, Ui.TEXT)));
+        return x;
+    }
+
+    private static String msAmbDecimes(long ms) {
+        long d = Math.max(0, ms) / 100;
+        return String.format(java.util.Locale.ROOT, "%d:%02d.%d", d / 600, (d / 10) % 60, d % 10);
+    }
+
+    private void mostraRitme() {
+        Fitxa f = g.fitxa;
+        textTempo.setText(f.teTempo() ? f.textTempo() : "Posa el tempo");
+        textTempo.setTextColor(f.teTempo() ? Ui.TEXT : Ui.SUAU);
+        boolean edita = ona.editaMarca();
+        if (edita) {
+            textPrimer.setText(f.tePrimerTemps() ? "Fet · " + msAmbDecimes(f.primerTempsMs) : "Fet");
+            xipPrimer.setBackground(Ui.tocable(Ui.ACCENT, Ui.dp(this, 16)));
+            textPrimer.setTextColor(0xFFFFFFFF);
+            Ui.colorIcona(xipPrimer, 0xFFFFFFFF);
+        } else {
+            textPrimer.setText(f.tePrimerTemps() ? "1r temps " + msAmbDecimes(f.primerTempsMs) : "Marca el 1r temps");
+            xipPrimer.setBackground(Ui.tocable(Ui.SUPERFICIE, Ui.dp(this, 16)));
+            textPrimer.setTextColor(f.tePrimerTemps() ? Ui.TEXT : Ui.SUAU);
+            Ui.colorIcona(xipPrimer, f.tePrimerTemps() ? Ui.ACCENT : Ui.SUAU);
+        }
+        xipTreu.setVisibility(edita && f.tePrimerTemps() ? View.VISIBLE : View.GONE);
+        ona.setGraella(f.bpm, f.compas, f.primerTempsMs, durada());
+    }
+
+    private long durada() {
+        if (mp != null && preparat && mp.getDuration() > 0) return mp.getDuration();
+        return g.fitxa.duradaMs;
+    }
+
+    private void editaTempo() {
+        Full.tempo(this, g.fitxa, (bpm, compas) -> {
+            String abans = g.fitxa.teTempo() ? g.fitxa.textTempo() : "sense tempo";
+            g.fitxa.bpm = bpm;
+            g.fitxa.compas = compas;
+            pendent = true;
+            desaAra();
+            Ui.historial(this, "Tempo de «" + g.fitxa.titol + "»: " + abans + " → "
+                    + (g.fitxa.teTempo() ? g.fitxa.textTempo() : "sense tempo"));
+            mostraRitme();
+        });
+    }
+
+    private void alternaEditaPrimer() {
+        if (ona.editaMarca()) {
+            ona.setEditaMarca(false, null);
+            pendent = true;
+            desaAra();
+            mostraRitme();
+            return;
+        }
+        pausa();
+        if (!g.fitxa.tePrimerTemps()) {
+            // comença on és el capçal (o al principi)
+            g.fitxa.primerTempsMs = (mp != null && preparat) ? mp.getCurrentPosition() : 0;
+        }
+        ona.setEditaMarca(true, (ms, acabat) -> {
+            g.fitxa.primerTempsMs = ms;
+            textPrimer.setText("Fet · " + msAmbDecimes(ms));
+            if (acabat && mp != null && preparat) {
+                // deixa el capçal a la bandera per poder-ho escoltar
+                mp.seekTo((int) ms);
+                saltat = true;
+                tempsAra.setText(Biblioteca.durada(ms));
+            }
+        });
+        mostraRitme();
+        Ui.avis(this, "Arrossega la bandera vermella fins al primer temps");
+    }
+
+    private void treuPrimer() {
+        g.fitxa.primerTempsMs = -1;
+        ona.setEditaMarca(false, null);
+        pendent = true;
+        desaAra();
+        mostraRitme();
+    }
+
     private void mostraInfo() {
         int color = Ui.colorMode(g.fitxa);
         xipMode.setBackground(Ui.tocable(color, Ui.dp(this, 18)));
@@ -273,6 +386,7 @@ public class FitxaActivity extends Activity {
         ona.setColors(color, Ui.LINIA_FORTA);
         info.setText(Biblioteca.data(g.fitxa.data) + "  ·  " + Ui.nomCarpeta(this, g.wav.getParentFile()));
         tempsTotal.setText(Biblioteca.durada(g.fitxa.duradaMs));
+        mostraRitme();
     }
 
     private void canviaMode() {
@@ -336,6 +450,7 @@ public class FitxaActivity extends Activity {
             mp.prepare();
             mp.setLooping(bucle);
             preparat = true;
+            if (textTempo != null) mostraRitme();
             ona.setProgres(0);
             tempsTotal.setText(Biblioteca.durada(mp.getDuration()));
             // si la fitxa no tenia la durada (gravació recuperada), l'apunta

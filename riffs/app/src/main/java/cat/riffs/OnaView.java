@@ -14,6 +14,11 @@ import android.view.View;
  */
 public class OnaView extends View {
 
+    public interface OientMarca {
+        /** ms = on queda el primer temps; acabat = l'usuari ha deixat anar el dit */
+        void marca(long ms, boolean acabat);
+    }
+
     public interface OientSalt {
         /** fraccio de 0 a 1; acabat = l'usuari ha deixat anar el dit */
         void salta(float fraccio, boolean acabat);
@@ -34,6 +39,17 @@ public class OnaView extends View {
     private float ampleBarra, separacio;
     private OientSalt oient;
     private boolean tocant = false;
+
+    // Graella de temps i bandera del primer temps (mode fitxer)
+    private final Paint linia = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bandera = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.graphics.Path triangle = new android.graphics.Path();
+    private double bpm = 0;
+    private int compas = 4;
+    private long primerMs = -1;
+    private long duradaMs = 0;
+    private boolean editaMarca = false;
+    private OientMarca oientMarca;
 
     public OnaView(Context c) {
         super(c);
@@ -70,6 +86,26 @@ public class OnaView extends View {
 
     public void setOientSalt(OientSalt o) {
         oient = o;
+    }
+
+    /** Graella: tempo, compàs, primer temps (-1 = sense) i durada total de la gravació. */
+    public void setGraella(double bpm, int compas, long primerMs, long duradaMs) {
+        this.bpm = bpm;
+        this.compas = Math.max(1, compas);
+        this.primerMs = primerMs;
+        this.duradaMs = duradaMs;
+        invalidate();
+    }
+
+    /** Mentre està activat, tocar l'ona mou la bandera en lloc de saltar. */
+    public void setEditaMarca(boolean e, OientMarca o) {
+        editaMarca = e;
+        oientMarca = o;
+        invalidate();
+    }
+
+    public boolean editaMarca() {
+        return editaMarca;
     }
 
     /** Mode directe: buida l'ona. */
@@ -133,6 +169,27 @@ public class OnaView extends View {
         }
 
         float desp = (w - (caben * pas - separacio)) / 2f;
+        float ampleOna = caben * pas - separacio;
+
+        // Graella de temps (darrere de l'ona)
+        if (bpm > 0 && duradaMs > 0) {
+            double mpt = 60000.0 / bpm;
+            double origen = primerMs >= 0 ? primerMs : 0;
+            long kInici = (long) Math.ceil(-origen / mpt);
+            float pxPerTemps = (float) (mpt / duradaMs * ampleOna);
+            boolean nomesCompassos = pxPerTemps < Ui.dp(getContext(), 6);
+            for (long k = kInici; ; k++) {
+                double t = origen + k * mpt;
+                if (t > duradaMs) break;
+                boolean esCompas = Math.floorMod(k, (long) compas) == 0;
+                if (nomesCompassos && !esCompas) continue;
+                float x = desp + (float) (t / duradaMs) * ampleOna;
+                linia.setStrokeWidth(esCompas ? Ui.dp(getContext(), 1.2f) : Ui.dp(getContext(), 0.8f));
+                linia.setColor(esCompas ? 0x40FFFFFF : 0x1CFFFFFF);
+                c.drawLine(x, 0, x, h, linia);
+            }
+        }
+
         for (int i = 0; i < caben; i++) {
             // pic més alt dins el tros que toca a aquesta barra
             int a = (int) ((long) i * pics.length / caben);
@@ -146,15 +203,47 @@ public class OnaView extends View {
             r.set(x, mig - alt / 2f, x + ampleBarra, mig + alt / 2f);
             c.drawRoundRect(r, radi, radi, barra);
         }
-        if (progres >= 0) {
-            float x = desp + progres * (caben * pas - separacio);
+        if (progres >= 0 && progres < 1f && !editaMarca) {
+            float x = desp + progres * ampleOna;
             capcal.setColor(Ui.TEXT);
             c.drawLine(x, 1, x, h - 1, capcal);
+        }
+
+        // Bandera del primer temps
+        if (primerMs >= 0 && duradaMs > 0) {
+            float x = desp + (float) primerMs / duradaMs * ampleOna;
+            float m = Ui.dp(getContext(), editaMarca ? 11 : 8);
+            bandera.setColor(Ui.ACCENT);
+            bandera.setStrokeWidth(Ui.dp(getContext(), editaMarca ? 2.5f : 2f));
+            c.drawLine(x, 0, x, h, bandera);
+            triangle.reset();
+            triangle.moveTo(x, 0);
+            triangle.lineTo(x + m * 1.2f, m * 0.55f);
+            triangle.lineTo(x, m * 1.1f);
+            triangle.close();
+            c.drawPath(triangle, bandera);
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        if (editaMarca && oientMarca != null && duradaMs > 0 && !modeDirecte) {
+            float pas = ampleBarra + separacio;
+            int caben = Math.max(1, (int) ((getWidth() + separacio) / pas));
+            float ampleOna = caben * pas - separacio;
+            float desp = (getWidth() - ampleOna) / 2f;
+            float f = Math.max(0f, Math.min(1f, (e.getX() - desp) / Math.max(1f, ampleOna)));
+            long ms = Math.round(f * duradaMs);
+            int acc = e.getActionMasked();
+            if (acc == MotionEvent.ACTION_DOWN) getParent().requestDisallowInterceptTouchEvent(true);
+            if (acc == MotionEvent.ACTION_DOWN || acc == MotionEvent.ACTION_MOVE || acc == MotionEvent.ACTION_UP) {
+                primerMs = ms;
+                invalidate();
+                oientMarca.marca(ms, acc == MotionEvent.ACTION_UP);
+                if (acc == MotionEvent.ACTION_UP) performClick();
+            }
+            return true;
+        }
         if (oient == null || modeDirecte || pics == null) return super.onTouchEvent(e);
         float f = Math.max(0f, Math.min(1f, e.getX() / Math.max(1, getWidth())));
         switch (e.getActionMasked()) {

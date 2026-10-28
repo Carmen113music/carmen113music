@@ -206,14 +206,16 @@ public class BibliotecaActivity extends Activity {
         textos.addView(Ui.unaLinia(Ui.negreta(this, g.fitxa.titol, 16, Ui.TEXT)));
         StringBuilder info = new StringBuilder();
         info.append(g.fitxa.esVeu() ? "Veu" : "Guitarra").append("  ·  ")
-                .append(Biblioteca.durada(g.fitxa.duradaMs)).append("  ·  ")
-                .append(Biblioteca.data(g.fitxa.data));
+                .append(Biblioteca.durada(g.fitxa.duradaMs)).append("  ·  ");
+        if (g.fitxa.teTempo()) info.append(Math.round(g.fitxa.bpm)).append(" BPM  ·  ");
+        info.append(Biblioteca.data(g.fitxa.data));
         textos.addView(Ui.unaLinia(Ui.text(this, info, 13, Ui.SUAU)), Ui.ample(this, 4));
 
         OnaView ona = new OnaView(this);
         ona.setBarres(Ui.dp(this, 2), Ui.dp(this, 1.5f));
         ona.setColors(color, Ui.LINIA_FORTA);
         ona.setProgres(1f); // sense reproduir, tota l'ona es veu amb el seu color
+        if (g.fitxa.tePrimerTemps()) ona.setGraella(0, g.fitxa.compas, g.fitxa.primerTempsMs, g.fitxa.duradaMs);
         ona.setPics(null);
         textos.addView(ona, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 26)));
         play.setOnClickListener(v -> alternaSo(g.wav, play, color, ona));

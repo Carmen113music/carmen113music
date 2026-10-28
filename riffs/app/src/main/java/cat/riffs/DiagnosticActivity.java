@@ -148,6 +148,9 @@ public class DiagnosticActivity extends Activity {
         Biblioteca b = Ui.biblioteca(this);
         s.append("Gravacions: ").append(b.compta(b.arrel)).append(" · ").append(Biblioteca.mida(b.midaTotal(b.arrel))).append('\n');
         s.append("Espai lliure: ").append(Biblioteca.mida(getFilesDir().getUsableSpace())).append('\n');
+        Metronom.Config k = Metronom.Config.llegeix(this);
+        s.append("Metrònom: ").append(k.actiu ? k.resum() + " · clic " + k.so : "desactivat")
+                .append(" · auriculars: ").append(Metronom.auriculars(this) ? "sí" : "no").append('\n');
         s.append("Es desa a: ").append(Ui.nomCarpeta(this, Ui.carpetaActual(this))).append('\n');
         s.append("Darrera prova: ").append(resultatProva);
         return s.toString();
@@ -183,8 +186,8 @@ public class DiagnosticActivity extends Activity {
             if (pic > -0.5) valoracio = "Satura (massa fort): allunya el mòbil o prova una altra font.";
             else if (pic < -30) valoracio = "Molt fluix: potser aquesta font no capta bé, prova'n una altra.";
             else valoracio = "Nivell correcte ✓";
-            resultatProva = String.format(Locale.ROOT, "%s (%s): pic %.1f dB, mitjà %.1f dB",
-                    font, gravadora.fontUsada(), pic, mitja);
+            resultatProva = String.format(Locale.ROOT, "%s (%s): pic %.1f dB, mitjà %.1f dB, marques de temps: %s",
+                    font, gravadora.fontUsada(), pic, mitja, gravadora.teMarcaDeTemps() ? "sí" : "no");
             resultat.setText(String.format(new Locale("ca"), "Pic: %.1f dB · Mitjà: %.1f dB\n%s", pic, mitja, valoracio));
             resultat.setTextColor(Ui.TEXT);
             escolta.setEnabled(true);

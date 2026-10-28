@@ -31,7 +31,10 @@ public class MainActivity extends Activity {
 
     private BotoGravar boto;
     private OnaView ona;
-    private TextView rellotge, estat, textCarpeta;
+    private TextView rellotge, estat, textCarpeta, textMetronom;
+    private LinearLayout rajolaMet;
+    private PuntsTemps punts;
+    private Metronom metronom;
     private LinearLayout segGuitarra, segVeu, filaCarpeta;
     private LinearLayout targetaUltima;
     private TextView titolUltima, infoUltima;
@@ -48,9 +51,30 @@ public class MainActivity extends Activity {
         public void run() {
             if (!gravadora.grava()) return;
             rellotge.setText(tempsAmbDecimes(gravadora.duradaMs()));
-            h.postDelayed(this, 100);
+            if (metronom != null) mostraTemps();
+            h.postDelayed(this, metronom != null ? 25 : 100);
         }
     };
+
+    /** Punts del compàs i compte enrere mentre grava amb metrònom. */
+    private void mostraTemps() {
+        long t = metronom.tempsAra();
+        int compte = metronom.tempsCompte();
+        if (t < 0) {
+            punts.setActiu(-1, Ui.GUITARRA);
+            mostraEstat("Preparat…", Ui.GUITARRA);
+            return;
+        }
+        int dins = (int) (t % metronom.compas());
+        if (t < compte) {
+            punts.setActiu(dins, Ui.GUITARRA);
+            mostraEstat("Compte enrere · " + (compte - t), Ui.GUITARRA);
+        } else {
+            punts.setActiu(dins, Ui.ACCENT);
+            long compasN = (t - compte) / metronom.compas() + 1;
+            mostraEstat("● Gravant · compàs " + compasN, Ui.ACCENT);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,15 +122,10 @@ public class MainActivity extends Activity {
         seg.addView(segVeu, Ui.pes(1));
         cos.addView(seg, Ui.ample(this, 16));
 
-        // ---- On es desa ----
-        cos.addView(Ui.etiqueta(this, "Es desa a"), Ui.ample(this, 16));
-        filaCarpeta = Ui.targeta(this);
-        filaCarpeta.addView(Ui.rajola(this, Icona.CARPETA, Ui.TEXT, Ui.SUPERFICIE2, 38));
-        textCarpeta = Ui.unaLinia(Ui.negreta(this, "", 16, Ui.TEXT));
-        LinearLayout.LayoutParams lpc = Ui.pes(1);
-        lpc.leftMargin = Ui.dp(this, 12);
-        filaCarpeta.addView(textCarpeta, lpc);
-        filaCarpeta.addView(Ui.imatge(this, Icona.XEVRO, Ui.SUAU, 20), new LinearLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24)));
+        // ---- On es desa · Metrònom ----
+        LinearLayout duesRajoles = Ui.fila(this);
+        filaCarpeta = rajolaAjust(Icona.CARPETA, "Es desa a");
+        textCarpeta = (TextView) ((LinearLayout) filaCarpeta.getChildAt(1)).getChildAt(2);
         filaCarpeta.setOnClickListener(v -> {
             if (gravadora.grava()) return;
             Ui.triaCarpeta(this, "On es desen les gravacions?", Ui.carpetaActual(this), c -> {
@@ -114,7 +133,16 @@ public class MainActivity extends Activity {
                 mostraCarpeta();
             });
         });
-        cos.addView(filaCarpeta, Ui.ample(this, 8));
+        rajolaMet = rajolaAjust(Icona.METRONOM, "Metrònom");
+        textMetronom = (TextView) ((LinearLayout) rajolaMet.getChildAt(1)).getChildAt(2);
+        rajolaMet.setOnClickListener(v -> {
+            if (gravadora.grava()) return;
+            Full.metronom(this, this::mostraMetronom);
+        });
+        duesRajoles.addView(filaCarpeta, Ui.pes(1));
+        duesRajoles.addView(Ui.espai(this, 10));
+        duesRajoles.addView(rajolaMet, Ui.pes(1));
+        cos.addView(duesRajoles, Ui.ample(this, 12));
 
         // ---- Ona, rellotge i botó ----
         cos.addView(Ui.mollaV(this, 1));
@@ -129,6 +157,10 @@ public class MainActivity extends Activity {
         rellotge.setFontFeatureSettings("tnum");
         rellotge.setGravity(Gravity.CENTER);
         cos.addView(rellotge, Ui.ample(this, 12));
+
+        punts = new PuntsTemps(this);
+        cos.addView(punts, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 14)));
+        ((LinearLayout.LayoutParams) punts.getLayoutParams()).topMargin = Ui.dp(this, 10);
 
         estat = Ui.text(this, "Preparat per gravar", 14, Ui.SUAU);
         estat.setGravity(Gravity.CENTER);
@@ -168,6 +200,39 @@ public class MainActivity extends Activity {
         setContentView(arrel);
         mostraMode();
         mostraCarpeta();
+        mostraMetronom();
+    }
+
+    /** Rajola d'ajust (mitja amplada): icona + etiqueta, i a sota el valor. */
+    private LinearLayout rajolaAjust(int icona, String etiqueta) {
+        LinearLayout t = Ui.targeta(this);
+        t.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
+        t.addView(Ui.rajola(this, icona, Ui.TEXT, Ui.SUPERFICIE2, 34));
+        LinearLayout col = Ui.columna(this);
+        col.addView(Ui.etiqueta(this, etiqueta));
+        col.addView(Ui.espai(this, 3));
+        col.addView(Ui.unaLinia(Ui.negreta(this, "", 14, Ui.TEXT)));
+        LinearLayout.LayoutParams lp = Ui.pes(1);
+        lp.leftMargin = Ui.dp(this, 10);
+        t.addView(col, lp);
+        return t;
+    }
+
+    private void mostraMetronom() {
+        Metronom.Config k = Metronom.Config.llegeix(this);
+        if (k.actiu) {
+            textMetronom.setText(Math.round(k.bpm) + " BPM · " + Ritme.nomCompas(k.compas));
+            textMetronom.setTextColor(Ui.TEXT);
+            Ui.colorIcona((FrameLayout) rajolaMet.getChildAt(0), Ui.ACCENT);
+            punts.setCompas(k.compas);
+            punts.setActiu(-1, Ui.ACCENT);
+            punts.setVisibility(View.VISIBLE);
+        } else {
+            textMetronom.setText("Desactivat");
+            textMetronom.setTextColor(Ui.SUAU);
+            Ui.colorIcona((FrameLayout) rajolaMet.getChildAt(0), Ui.TEXT);
+            punts.setVisibility(View.INVISIBLE);
+        }
     }
 
     @Override
@@ -334,10 +399,25 @@ public class MainActivity extends Activity {
             mostraEstat(error, Ui.ACCENT);
             return;
         }
+        // Metrònom: comença just després del micròfon perquè no es perdi el primer clic
+        Metronom.Config k = Metronom.Config.llegeix(this);
+        metronom = null;
+        if (k.actiu) {
+            metronom = new Metronom(k.bpm, k.compas, k.compteEnrere, Metronom.ambSo(this, k));
+            if (!metronom.comenca()) {
+                metronom = null;
+                Ui.avis(this, "No s'ha pogut engegar el metrònom: grava sense.");
+            } else {
+                fitxaActual.bpm = metronom.bpm();
+                fitxaActual.compas = metronom.compas();
+                fitxaActual.claqueta = true;
+                punts.setCompas(metronom.compas());
+            }
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         boto.setGravant(true);
         ona.comencaDirecte();
-        mostraEstat("● Gravant", Ui.ACCENT);
+        mostraEstat(metronom != null ? "Preparat…" : "● Gravant", metronom != null ? Ui.GUITARRA : Ui.ACCENT);
         rellotge.setText("0:00.0");
         h.post(rellotgeTic);
         bloqueja(true);
@@ -347,6 +427,8 @@ public class MainActivity extends Activity {
         float a = b ? 0.4f : 1f;
         filaCarpeta.setEnabled(!b);
         filaCarpeta.setAlpha(a);
+        rajolaMet.setEnabled(!b);
+        rajolaMet.setAlpha(a);
         segGuitarra.setEnabled(!b);
         segVeu.setEnabled(!b);
         ((View) segGuitarra.getParent()).setAlpha(a);
@@ -361,7 +443,14 @@ public class MainActivity extends Activity {
 
     private void atura(String motiu) {
         if (wavActual == null) return;
+        // On cau el primer temps dins la gravació (abans d'aturar res)
+        long primerEsperat = -1;
+        Metronom met = metronom;
+        metronom = null;
+        if (met != null) primerEsperat = gravadora.msDelMoment(met.nanoPrimerTemps());
         long durada = gravadora.atura();
+        if (met != null) met.atura();
+        punts.setActiu(-1, Ui.ACCENT);
         h.removeCallbacks(rellotgeTic);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         boto.setGravant(false);
@@ -378,6 +467,14 @@ public class MainActivity extends Activity {
             return;
         }
         fitxaActual.duradaMs = durada;
+        if (met != null) {
+            if (primerEsperat >= 0 && primerEsperat < durada - 100) {
+                // l'enganxa a l'atac (la nota) més proper, si n'hi ha un de clar
+                fitxaActual.primerTempsMs = Ritme.afinaPrimerTemps(wav, primerEsperat);
+            } else {
+                fitxaActual.primerTempsMs = -1; // s'ha aturat durant el compte enrere
+            }
+        }
         try {
             fitxaActual.desa(Biblioteca.fitxaDe(wav));
         } catch (IOException ignored) {
@@ -386,7 +483,8 @@ public class MainActivity extends Activity {
         ultima = wav;
         Ui.prefs(this).edit().putString("ultima", wav.getAbsolutePath()).apply();
         Ui.historial(this, "Gravat «" + fitxaActual.titol + "» (" + (fitxaActual.esVeu() ? "veu" : "guitarra") + ", "
-                + Biblioteca.durada(durada) + ") a " + Ui.nomCarpeta(this, wav.getParentFile()));
+                + Biblioteca.durada(durada) + (fitxaActual.claqueta ? ", " + fitxaActual.textTempo() : "")
+                + ") a " + Ui.nomCarpeta(this, wav.getParentFile()));
         rellotge.setText(tempsAmbDecimes(durada));
         mostraEstat(motiu != null ? motiu : "Desada ✓", motiu != null ? Ui.ACCENT : Ui.SUAU);
         mostraUltima();
