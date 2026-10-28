@@ -40,6 +40,11 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".ProjecteActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".HistorialActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

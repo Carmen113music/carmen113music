@@ -146,6 +146,39 @@ public final class Wav {
         }
     }
 
+    /**
+     * Llegeix tot el so com a mostres mono de 16 bits (si és estèreo, fa la mitjana dels canals).
+     * Torna null si no és un WAV que entenguem.
+     */
+    public static short[] llegeixMostres(File fitxer) {
+        Info info = llegeixInfo(fitxer);
+        if (info == null || info.bits != 16 || info.canals < 1) return null;
+        long n = info.bytesDades / (2L * info.canals);
+        if (n > Integer.MAX_VALUE / 2) return null;
+        short[] r = new short[(int) n];
+        try (RandomAccessFile f = new RandomAccessFile(fitxer, "r")) {
+            f.seek(f.length() - info.bytesDades);
+            byte[] b = new byte[65536 - 65536 % (2 * info.canals)];
+            int pas = 2 * info.canals;
+            int idx = 0;
+            while (idx < r.length) {
+                int volen = Math.min(b.length, (r.length - idx) * pas);
+                int llegits = f.read(b, 0, volen);
+                if (llegits <= 0) break;
+                for (int i = 0; i + pas - 1 < llegits && idx < r.length; i += pas) {
+                    int suma = 0;
+                    for (int c = 0; c < info.canals; c++) {
+                        suma += (short) ((b[i + 2 * c] & 0xff) | (b[i + 2 * c + 1] << 8));
+                    }
+                    r[idx++] = (short) (suma / info.canals);
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return r;
+    }
+
     // --- ajudes de bytes (little-endian) ---
 
     private static void posaText(byte[] b, int i, String s) {

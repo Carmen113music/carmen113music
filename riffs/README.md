@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 1.4:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Pròximes fases: detecció automàtica de BPM i to, estudi multipista (mini DAW), gravar sobre altres pistes.
+**Versió 2.1:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Pròximes fases: marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -40,8 +40,16 @@ El primer cop l'app demana permís de micròfon.
 - **Primer temps** (bandera): toca'l i arrossega la bandera vermella per l'ona fins al primer temps; el capçal s'hi posa perquè ho puguis escoltar. Torna a tocar «Fet» per acabar. «Treu» l'esborra.
 - **Mou**, **Comparteix** (WAV per WhatsApp, correu, Drive…) i **esborrar**.
 
-### Estudi
-De moment explica què farà l'estudi multipista (fase 3) i mostra quines carpetes es podran obrir com a projecte (les que tenen dues gravacions o més).
+### Estudi (multipista)
+- La pestanya **Estudi** llista els projectes: cada carpeta amb gravacions. També s'obre des de la Biblioteca (tres punts d'una carpeta → **Obre a l'Estudi**).
+- L'Estudi sempre es veu **en horitzontal**; la resta de l'app, en vertical.
+- **Cada gravació és una pista.** Les que tenen la bandera del primer temps s'encaixen soles a l'inici d'un compàs (a partir del 2, perquè hi càpiguen les anacrusis). El tempo del projecte surt del primer take amb tempo; es canvia amb el botó de tempo de dalt.
+- **Regla** de compassos i temps: tocar-la o arrossegar-hi el dit mou el capçal. **Posició** a dalt a la dreta en format compàs.temps.semicorxera.
+- **Snap**: *Compàs*, *Temps* o *Lliure*. En moure un clip, el que s'enganxa a la graella és la seva bandera (o l'inici, si no en té).
+- **Gestos**: **un dit edita** (arrossegar un clip el mou; tocar un espai buit hi posa el capçal). **Dos dits mouen la pantalla**: arrossegar en horitzontal recorre la cançó, en vertical passa per les pistes, i obrir o tancar els dits fa zoom. Si poses un segon dit mentre mous un clip, el clip torna on era.
+- **Clip triat** (toca'l): les **cantonades de baix** retallen o allarguen el que sona (el fitxer no es toca mai); les **cantonades de dalt** fan el **fade in** i el **fade out** (línia de silenci a 0 dB); el **punt del mig** baixa el **volum del clip** de 0 a -24 dB. Mentre arrossegues, a dalt es veu el valor.
+- **Capçalera de cada pista**: **M** (silenci), **S** (solo) i el **fader** de volum (de -∞ a +6 dB; s'enganxa a 0 dB).
+- Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
 
 ### Diagnòstic
 Estat del micròfon i de l'espai, i **tria de la font del micròfon**: prova-les amb «Prova 3 segons» i queda't la que soni millor. «Copia el diagnòstic» el copia per enganxar-lo al xat.
@@ -60,6 +68,8 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.1** (28/10/2026) — Estudi: la pantalla només es desplaça amb dos dits (horitzontal, vertical i zoom alhora); un dit és només per editar. Si entra un segon dit durant una edició, el clip torna on era.
+- **2.0** (28/10/2026) — Estudi multipista: pantalla horitzontal, regla de compassos, una pista per take encaixada per la bandera, moure amb snap (compàs, temps, lliure), retallar, fades, volum del clip, M/S/fader per pista, reproducció amb capçal que segueix, zoom amb dos dits. Llista de projectes a la pestanya Estudi i «Obre a l'Estudi» a les carpetes.
 - **1.4** (28/10/2026) — Corregit: el clic del metrònom ja no pot sonar mai per l'altaveu (es gravava). Només amb auriculars o visual; si es desconnecten els auriculars, el clic s'apaga a l'instant. Pampallugues a tota la pantalla a cada temps i punts més grans.
 - **1.3** (28/10/2026) — Metrònom per gravar (BPM, tap, compàs, compte enrere, clic amb auriculars, sempre o visual) i punts de temps a la pantalla. Bandera del primer temps automàtica i ajustable, tempo de cada gravació, graella de temps i compassos sobre l'ona, BPM a la biblioteca.
 - **1.2** (28/10/2026) — L'ona de la biblioteca s'il·lumina mentre sona. Panell d'opcions nou amb l'estil de l'app (icones grans, sense «Obre»). Nova opció per canviar el nom d'una gravació. Triar carpeta, confirmar i escriure un nom també tenen l'estil de l'app.

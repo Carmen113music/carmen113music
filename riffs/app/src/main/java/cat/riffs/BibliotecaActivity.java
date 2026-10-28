@@ -339,6 +339,7 @@ public class BibliotecaActivity extends Activity {
             in.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(in);
         }));
+        if (n > 0) acc.add(new Full.Accio(Icona.ESTUDI, "Obre a l'Estudi", false, () -> EstudiActivity.obre(this, c)));
         acc.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
                 Ui.demanaText(this, "Nom de la carpeta", c.getName(), "Desa", nom -> {
                     try {
