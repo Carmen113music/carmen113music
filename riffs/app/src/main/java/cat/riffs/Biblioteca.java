@@ -177,17 +177,21 @@ public final class Biblioteca {
             } while (nou.exists() || fitxaDe(nou).exists());
         }
         File fitxaVella = fitxaDe(wav);
+        File onaVella = Ona.fitxerDe(wav);
         if (!wav.renameTo(nou)) throw new IOException("No s'ha pogut moure la gravació.");
         if (fitxaVella.exists() && !fitxaVella.renameTo(fitxaDe(nou))) {
             throw new IOException("S'ha mogut el so, però no la fitxa.");
         }
+        if (onaVella.exists() && !onaVella.renameTo(Ona.fitxerDe(nou))) onaVella.delete();
         return nou;
     }
 
     public boolean esborra(File wav) {
         File fx = fitxaDe(wav);
+        File ona = Ona.fitxerDe(wav);
         boolean ok = wav.delete();
         if (fx.exists()) fx.delete();
+        if (ona.exists()) ona.delete();
         return ok;
     }
 

@@ -9,13 +9,14 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -24,17 +25,25 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Colors, botons i diàlegs comuns de totes les pantalles. */
+/** Colors, peces i diàlegs comuns de totes les pantalles. */
 public final class Ui {
 
-    public static final int FONS = 0xFF1A1714;
-    public static final int TARGETA = 0xFF27221E;
-    public static final int LINIA = 0xFF3B342E;
-    public static final int TEXT = 0xFFF3ECE4;
-    public static final int SUAU = 0xFFA39788;
-    public static final int ACCENT = 0xFFE0563B;   // vermell de gravar
-    public static final int GUITARRA = 0xFFF2B84B; // ambre
-    public static final int VEU = 0xFF7FC4C9;      // turquesa
+    // Paleta fosca d'estudi
+    public static final int FONS = 0xFF0E0E10;
+    public static final int SUPERFICIE = 0xFF18181C;
+    public static final int SUPERFICIE2 = 0xFF222227;
+    public static final int LINIA = 0xFF2A2A31;
+    public static final int LINIA_FORTA = 0xFF3A3A43;
+    public static final int TEXT = 0xFFF2F1F5;
+    public static final int SUAU = 0xFF8D8C97;
+    public static final int APAGAT = 0xFF5E5D68;
+    public static final int ACCENT = 0xFFFF4B3E;    // vermell de gravar
+    public static final int GUITARRA = 0xFFF5B445;  // ambre
+    public static final int VEU = 0xFF59D0D6;       // turquesa
+    public static final int SOBRE_COLOR = 0xFF141416; // text sobre ambre o turquesa
+
+    public static final Typeface MITJA = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    public static final Typeface FINA = Typeface.create("sans-serif-light", Typeface.NORMAL);
 
     private Ui() {}
 
@@ -85,10 +94,23 @@ public final class Ui {
         e.apply();
     }
 
-    /** «📚 Biblioteca» o «📁 Cançó nova / Pont». */
+    /** «Biblioteca» o «Cançó nova / Pont». */
     public static String nomCarpeta(Context c, File dir) {
         String r = biblioteca(c).ruta(dir);
-        return (r == null || r.isEmpty()) ? "📚 Biblioteca" : "📁 " + r;
+        return (r == null || r.isEmpty()) ? "Biblioteca" : r;
+    }
+
+    public static int colorMode(Fitxa f) {
+        return f.esVeu() ? VEU : GUITARRA;
+    }
+
+    public static int iconaMode(Fitxa f) {
+        return f.esVeu() ? Icona.MIC : Icona.GUITARRA;
+    }
+
+    /** Color amb transparència (0..255). */
+    public static int alfa(int color, int alfa) {
+        return (color & 0x00FFFFFF) | (alfa << 24);
     }
 
     // ---------- Mides i peces ----------
@@ -102,12 +124,27 @@ public final class Ui {
         t.setText(s);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         t.setTextColor(color);
+        t.setIncludeFontPadding(false);
         return t;
     }
 
-    public static TextView titol(Context c, CharSequence s) {
-        TextView t = text(c, s, 22, TEXT);
-        t.setTypeface(Typeface.DEFAULT_BOLD);
+    public static TextView negreta(Context c, CharSequence s, float sp, int color) {
+        TextView t = text(c, s, sp, color);
+        t.setTypeface(MITJA);
+        return t;
+    }
+
+    /** Etiqueta petita en majúscules («ES DESA A»). */
+    public static TextView etiqueta(Context c, String s) {
+        TextView t = text(c, s.toUpperCase(new java.util.Locale("ca")), 11, SUAU);
+        t.setTypeface(MITJA);
+        t.setLetterSpacing(0.12f);
+        return t;
+    }
+
+    public static TextView unaLinia(TextView t) {
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
         return t;
     }
 
@@ -118,26 +155,63 @@ public final class Ui {
         return g;
     }
 
-    /** Botó en forma de pastilla. */
-    public static Button boto(Context c, CharSequence s, int fons, int colorText) {
-        Button b = new Button(c);
-        b.setText(s);
-        b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        b.setTextColor(colorText);
-        b.setStateListAnimator(null);
-        b.setMinHeight(dp(c, 44));
-        b.setMinimumHeight(dp(c, 44));
-        b.setPadding(dp(c, 16), 0, dp(c, 16), 0);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), rodo(fons, dp(c, 22)), null));
-        return b;
+    public static GradientDrawable rodoVora(int color, int vora, float radiPx, int gruixPx) {
+        GradientDrawable g = rodo(color, radiPx);
+        g.setStroke(gruixPx, vora);
+        return g;
     }
 
-    /** Botó només de text, sense fons. */
-    public static Button botoText(Context c, CharSequence s, int colorText) {
-        Button b = boto(c, s, 0x00000000, colorText);
-        b.setPadding(dp(c, 8), 0, dp(c, 8), 0);
-        return b;
+    public static RippleDrawable tocable(int color, float radiPx) {
+        return new RippleDrawable(ColorStateList.valueOf(0x22FFFFFF), rodo(color, radiPx), rodo(0xFFFFFFFF, radiPx));
+    }
+
+    public static ImageView imatge(Context c, int icona, int color, int midaDp) {
+        ImageView i = new ImageView(c);
+        i.setImageDrawable(new Icona(icona, color, dp(c, midaDp)));
+        i.setScaleType(ImageView.ScaleType.CENTER);
+        return i;
+    }
+
+    /** Botó rodó només amb icona. */
+    public static FrameLayout botoIcona(Context c, int icona, int color, int fons, int midaDp, int iconaDp, String descripcio) {
+        FrameLayout f = new FrameLayout(c);
+        f.setBackground(tocable(fons, dp(c, midaDp / 2f)));
+        f.setClickable(true);
+        f.setFocusable(true);
+        f.setContentDescription(descripcio);
+        ImageView i = imatge(c, icona, color, iconaDp);
+        f.addView(i, new FrameLayout.LayoutParams(dp(c, midaDp), dp(c, midaDp), Gravity.CENTER));
+        f.setLayoutParams(new LinearLayout.LayoutParams(dp(c, midaDp), dp(c, midaDp)));
+        return f;
+    }
+
+    public static void colorIcona(FrameLayout boto, int color) {
+        ImageView i = (ImageView) boto.getChildAt(0);
+        ((Icona) i.getDrawable()).setColor(color);
+    }
+
+    public static void canviaIcona(FrameLayout boto, int icona, int color, int iconaDp) {
+        ImageView i = (ImageView) boto.getChildAt(0);
+        i.setImageDrawable(new Icona(icona, color, dp(boto.getContext(), iconaDp)));
+    }
+
+    /** Botó en forma de pastilla, amb icona opcional (0 = sense). */
+    public static LinearLayout pastilla(Context c, int icona, String s, int fons, int colorText) {
+        LinearLayout l = fila(c);
+        l.setGravity(Gravity.CENTER);
+        l.setBackground(tocable(fons, dp(c, 24)));
+        l.setPadding(dp(c, 18), 0, dp(c, 18), 0);
+        l.setMinimumHeight(dp(c, 48));
+        l.setClickable(true);
+        l.setFocusable(true);
+        if (icona != 0) {
+            ImageView i = imatge(c, icona, colorText, 20);
+            l.addView(i, new LinearLayout.LayoutParams(dp(c, 20), dp(c, 20)));
+            l.addView(espai(c, 8));
+        }
+        TextView t = negreta(c, s, 15, colorText);
+        l.addView(t);
+        return l;
     }
 
     public static LinearLayout fila(Context c) {
@@ -153,11 +227,24 @@ public final class Ui {
         return l;
     }
 
+    /** Fila tocable de llista: rajola amb icona, textos i el que s'hi afegeixi a la dreta. */
     public static LinearLayout targeta(Context c) {
-        LinearLayout l = columna(c);
-        l.setBackground(new RippleDrawable(ColorStateList.valueOf(0x22FFFFFF), rodo(TARGETA, dp(c, 14)), null));
-        l.setPadding(dp(c, 14), dp(c, 12), dp(c, 14), dp(c, 12));
+        LinearLayout l = fila(c);
+        l.setBackground(tocable(SUPERFICIE, dp(c, 16)));
+        l.setPadding(dp(c, 12), dp(c, 12), dp(c, 12), dp(c, 12));
+        l.setClickable(true);
+        l.setFocusable(true);
         return l;
+    }
+
+    /** Rajola quadrada arrodonida amb una icona (per a les llistes). */
+    public static FrameLayout rajola(Context c, int icona, int colorIcona, int fons, int midaDp) {
+        FrameLayout f = new FrameLayout(c);
+        f.setBackground(rodo(fons, dp(c, 12)));
+        f.addView(imatge(c, icona, colorIcona, Math.round(midaDp * 0.5f)),
+                new FrameLayout.LayoutParams(dp(c, midaDp), dp(c, midaDp), Gravity.CENTER));
+        f.setLayoutParams(new LinearLayout.LayoutParams(dp(c, midaDp), dp(c, midaDp)));
+        return f;
     }
 
     public static LinearLayout.LayoutParams ample(Context c, int margeDalt) {
@@ -171,9 +258,31 @@ public final class Ui {
         return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, pes);
     }
 
+    /** Espai fix (quadrat). */
     public static View espai(Context c, int dps) {
         View v = new View(c);
         v.setLayoutParams(new LinearLayout.LayoutParams(dp(c, dps), dp(c, dps)));
+        return v;
+    }
+
+    /** Espai que s'estira dins una fila (horitzontal). Alçada fixa d'1 px: no estira la fila. */
+    public static View mollaH(Context c) {
+        View v = new View(c);
+        v.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
+        return v;
+    }
+
+    /** Espai que s'estira dins una columna (vertical). Amplada fixa d'1 px. */
+    public static View mollaV(Context c, float pes) {
+        View v = new View(c);
+        v.setLayoutParams(new LinearLayout.LayoutParams(1, 0, pes));
+        return v;
+    }
+
+    public static View separador(Context c) {
+        View v = new View(c);
+        v.setBackgroundColor(LINIA);
+        v.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1));
         return v;
     }
 
@@ -181,9 +290,9 @@ public final class Ui {
         EditText e = new EditText(c);
         e.setHint(pista);
         e.setTextColor(TEXT);
-        e.setHintTextColor(0xFF6E655C);
-        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
-        e.setBackground(rodo(TARGETA, dp(c, 12)));
+        e.setHintTextColor(APAGAT);
+        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        e.setBackground(rodoVora(SUPERFICIE, LINIA, dp(c, 14), 1));
         e.setPadding(dp(c, 14), dp(c, 12), dp(c, 14), dp(c, 12));
         if (multilinia) {
             e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -197,19 +306,29 @@ public final class Ui {
         return e;
     }
 
-    /** Capçalera estàndard: «← Enrere», títol i (opcional) un botó a la dreta. */
-    public static LinearLayout capcalera(Activity a, CharSequence titol, View dreta) {
+    /** Pantalla amb fons fosc i marges laterals. */
+    public static LinearLayout pantalla(Activity a) {
+        LinearLayout arrel = columna(a);
+        arrel.setBackgroundColor(FONS);
+        return arrel;
+    }
+
+    /**
+     * Barra de dalt de les pantalles secundàries: fletxa enrere, títol i, a la dreta, el que es vulgui.
+     */
+    public static LinearLayout barraEnrere(Activity a, CharSequence titol, View... dreta) {
         LinearLayout cap = fila(a);
-        Button enrere = botoText(a, "← Enrere", ACCENT);
+        cap.setPadding(dp(a, 4), dp(a, 8), dp(a, 8), dp(a, 8));
+        FrameLayout enrere = botoIcona(a, Icona.ENRERE, TEXT, 0x00000000, 44, 24, "Enrere");
         enrere.setOnClickListener(v -> a.finish());
         cap.addView(enrere);
-        TextView t = titol(a, titol);
-        t.setGravity(Gravity.CENTER);
-        t.setSingleLine(true);
-        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        cap.addView(t, pes(1));
-        if (dreta != null) cap.addView(dreta);
-        else cap.addView(espai(a, 72));
+        TextView t = unaLinia(negreta(a, titol, 18, TEXT));
+        LinearLayout.LayoutParams lp = pes(1);
+        lp.leftMargin = dp(a, 4);
+        cap.addView(t, lp);
+        for (View v : dreta) {
+            cap.addView(v);
+        }
         return cap;
     }
 
@@ -227,6 +346,10 @@ public final class Ui {
         void fet(File carpeta);
     }
 
+    public static AlertDialog.Builder dialeg(Activity a) {
+        return new AlertDialog.Builder(a, android.R.style.Theme_DeviceDefault_Dialog_Alert);
+    }
+
     /** Demana un text (per exemple el nom d'una carpeta). */
     public static void demanaText(Activity a, String titol, String inicial, String boto, AmbText fet) {
         EditText e = camp(a, "Nom", false);
@@ -235,7 +358,7 @@ public final class Ui {
         FrameLayout marc = new FrameLayout(a);
         marc.setPadding(dp(a, 20), dp(a, 8), dp(a, 20), 0);
         marc.addView(e);
-        AlertDialog d = new AlertDialog.Builder(a)
+        AlertDialog d = dialeg(a)
                 .setTitle(titol)
                 .setView(marc)
                 .setPositiveButton(boto, (dd, w) -> fet.fet(e.getText().toString()))
@@ -252,18 +375,19 @@ public final class Ui {
         List<Biblioteca.Carpeta> arbre = b.arbre();
         List<String> noms = new ArrayList<>();
         for (Biblioteca.Carpeta c : arbre) {
-            String marca = (actual != null && c.dir.equals(actual)) ? "  ✓" : "";
+            String marca = (actual != null && c.dir.equals(actual)) ? "   ✓" : "";
             if (c.nivell == 0) {
-                noms.add("📚 Biblioteca (sense carpeta)" + marca);
+                noms.add("Biblioteca (sense carpeta)" + marca);
             } else {
                 StringBuilder s = new StringBuilder();
-                for (int i = 1; i < c.nivell; i++) s.append("      ");
-                s.append("📁 ").append(c.dir.getName()).append(marca);
+                for (int i = 1; i < c.nivell; i++) s.append("     ");
+                if (c.nivell > 1) s.append("└ ");
+                s.append(c.dir.getName()).append(marca);
                 noms.add(s.toString());
             }
         }
-        noms.add("＋ Carpeta nova…");
-        new AlertDialog.Builder(a)
+        noms.add("+  Carpeta nova…");
+        dialeg(a)
                 .setTitle(titol)
                 .setItems(noms.toArray(new String[0]), (d, i) -> {
                     if (i < arbre.size()) {
@@ -272,7 +396,7 @@ public final class Ui {
                         demanaText(a, "Carpeta nova", "", "Crea", nom -> {
                             try {
                                 File c = b.creaCarpeta(b.arrel, nom);
-                                historial(a, "📁 Carpeta nova: «" + c.getName() + "»");
+                                historial(a, "Carpeta nova: «" + c.getName() + "»");
                                 fet.fet(c);
                             } catch (IllegalArgumentException ex) {
                                 avis(a, ex.getMessage());
@@ -285,7 +409,7 @@ public final class Ui {
     }
 
     public static void confirma(Activity a, String titol, String missatge, String boto, Runnable fet) {
-        new AlertDialog.Builder(a)
+        dialeg(a)
                 .setTitle(titol)
                 .setMessage(missatge)
                 .setPositiveButton(boto, (d, w) -> fet.run())

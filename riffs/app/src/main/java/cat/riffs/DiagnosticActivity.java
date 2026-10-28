@@ -14,7 +14,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -35,7 +34,8 @@ public class DiagnosticActivity extends Activity {
     private final Handler h = new Handler(Looper.getMainLooper());
     private final Gravadora gravadora = new Gravadora();
     private TextView estat, resultat;
-    private Button prova, escolta;
+    private LinearLayout prova, escolta;
+    private TextView textProva;
     private MediaPlayer mp;
     private String resultatProva = "(cap prova feta)";
     private File fitxerProva;
@@ -45,31 +45,29 @@ public class DiagnosticActivity extends Activity {
         super.onCreate(savedInstanceState);
         fitxerProva = new File(getCacheDir(), "prova.wav");
 
-        LinearLayout arrel = Ui.columna(this);
-        arrel.setBackgroundColor(Ui.FONS);
-        arrel.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), 0);
-        arrel.addView(Ui.capcalera(this, "🔧 Diagnòstic", null));
+        LinearLayout arrel = Ui.pantalla(this);
+        arrel.addView(Ui.barraEnrere(this, "Diagnòstic i micròfon"));
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout cos = Ui.columna(this);
-        cos.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), Ui.dp(this, 24));
+        cos.setPadding(Ui.dp(this, 20), 0, Ui.dp(this, 20), Ui.dp(this, 32));
 
-        estat = Ui.text(this, "", 14, Ui.TEXT);
-        estat.setTextIsSelectable(true);
-        estat.setLineSpacing(0, 1.2f);
-        cos.addView(estat, Ui.ample(this, 8));
-
-        cos.addView(Ui.text(this, "Font del micròfon", 18, Ui.TEXT), Ui.ample(this, 20));
-        cos.addView(Ui.text(this, "Si les gravacions sonen massa fluixes, saturades o «aspirades», prova una altra font amb el botó de prova i queda't la que soni millor.", 13, Ui.SUAU), Ui.ample(this, 4));
+        cos.addView(Ui.etiqueta(this, "Font del micròfon"), Ui.ample(this, 8));
+        TextView ajuda = Ui.text(this, "Si les gravacions sonen massa fluixes, saturades o «aspirades», prova una altra font i queda't la que soni millor.", 14, Ui.SUAU);
+        ajuda.setLineSpacing(0, 1.2f);
+        cos.addView(ajuda, Ui.ample(this, 8));
 
         RadioGroup grup = new RadioGroup(this);
+        grup.setBackground(Ui.rodo(Ui.SUPERFICIE, Ui.dp(this, 16)));
+        grup.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6));
         String actual = Ui.prefs(this).getString("font", Gravadora.AUTO);
         for (int i = 0; i < Gravadora.FONTS.length; i++) {
             RadioButton r = new RadioButton(this);
             r.setId(100 + i);
             r.setText(Gravadora.NOMS_FONTS[i]);
             r.setTextColor(Ui.TEXT);
-            r.setTextSize(16);
+            r.setTextSize(15);
+            r.setMinHeight(Ui.dp(this, 46));
             grup.addView(r);
             if (Gravadora.FONTS[i].equals(actual)) r.setChecked(true);
         }
@@ -80,29 +78,40 @@ public class DiagnosticActivity extends Activity {
                 omple();
             }
         });
-        cos.addView(grup, Ui.ample(this, 6));
+        cos.addView(grup, Ui.ample(this, 12));
 
         LinearLayout fila = Ui.fila(this);
-        prova = Ui.boto(this, "🎙 Prova 3 segons", Ui.ACCENT, 0xFFFFFFFF);
+        prova = Ui.pastilla(this, Icona.MIC, "Prova 3 segons", Ui.ACCENT, 0xFFFFFFFF);
+        textProva = (TextView) prova.getChildAt(2);
         prova.setOnClickListener(v -> provaMic());
         fila.addView(prova, Ui.pes(1));
         fila.addView(Ui.espai(this, 8));
-        escolta = Ui.boto(this, "▶ Escolta-la", Ui.TARGETA, Ui.TEXT);
+        escolta = Ui.pastilla(this, Icona.PLAY, "Escolta-la", Ui.SUPERFICIE, Ui.TEXT);
         escolta.setEnabled(false);
+        escolta.setAlpha(0.4f);
         escolta.setOnClickListener(v -> escoltaProva());
         fila.addView(escolta, Ui.pes(1));
-        cos.addView(fila, Ui.ample(this, 10));
+        cos.addView(fila, Ui.ample(this, 12));
 
         resultat = Ui.text(this, "Toca «Prova» i toca la guitarra o canta fort, com quan graves.", 14, Ui.SUAU);
-        cos.addView(resultat, Ui.ample(this, 8));
+        resultat.setLineSpacing(0, 1.2f);
+        cos.addView(resultat, Ui.ample(this, 12));
 
-        Button copia = Ui.boto(this, "📋 Copia el diagnòstic", Ui.TARGETA, Ui.TEXT);
+        cos.addView(Ui.etiqueta(this, "Estat"), Ui.ample(this, 28));
+        estat = Ui.text(this, "", 13, Ui.TEXT);
+        estat.setTextIsSelectable(true);
+        estat.setLineSpacing(0, 1.35f);
+        estat.setBackground(Ui.rodo(Ui.SUPERFICIE, Ui.dp(this, 16)));
+        estat.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
+        cos.addView(estat, Ui.ample(this, 8));
+
+        LinearLayout copia = Ui.pastilla(this, 0, "Copia el diagnòstic", Ui.SUPERFICIE, Ui.TEXT);
         copia.setOnClickListener(v -> {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("Diagnòstic Riffs", textDiagnostic()));
             Ui.avis(this, "Copiat. Enganxa'l al xat.");
         });
-        cos.addView(copia, Ui.ample(this, 24));
+        cos.addView(copia, Ui.ample(this, 12));
 
         scroll.addView(cos);
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -161,13 +170,13 @@ public class DiagnosticActivity extends Activity {
             return;
         }
         prova.setEnabled(false);
-        prova.setText("Gravant…");
+        textProva.setText("Gravant…");
         resultat.setText("Toca o canta ara…");
         resultat.setTextColor(Ui.ACCENT);
         h.postDelayed(() -> {
             gravadora.atura();
             prova.setEnabled(true);
-            prova.setText("🎙 Prova 3 segons");
+            textProva.setText("Prova 3 segons");
             double pic = gravadora.picDb();
             double mitja = gravadora.mitjaDb();
             String valoracio;
@@ -179,6 +188,7 @@ public class DiagnosticActivity extends Activity {
             resultat.setText(String.format(new Locale("ca"), "Pic: %.1f dB · Mitjà: %.1f dB\n%s", pic, mitja, valoracio));
             resultat.setTextColor(Ui.TEXT);
             escolta.setEnabled(true);
+            escolta.setAlpha(1f);
             omple();
         }, 3000);
     }
@@ -222,7 +232,7 @@ public class DiagnosticActivity extends Activity {
         if (gravadora.grava()) {
             gravadora.atura();
             prova.setEnabled(true);
-            prova.setText("🎙 Prova 3 segons");
+            textProva.setText("Prova 3 segons");
         }
         aturaEscolta();
     }

@@ -26,7 +26,7 @@ public final class Accions {
                 File nou = b.mou(wav, desti);
                 actualitzaUltima(a, wav, nou);
                 if (!nou.equals(wav)) {
-                    Ui.historial(a, "↪ Mogut «" + titol + "» a " + Ui.nomCarpeta(a, desti));
+                    Ui.historial(a, "Mogut «" + titol + "» a " + Ui.nomCarpeta(a, desti));
                     Ui.avis(a, "Mogut a " + Ui.nomCarpeta(a, desti));
                 }
                 fet.fet(nou);
@@ -43,7 +43,7 @@ public final class Accions {
         Ui.confirma(a, "Vols esborrar «" + titol + "»?", "S'esborrarà el so i la lletra. No es pot desfer.", "Esborra", () -> {
             b.esborra(wav);
             actualitzaUltima(a, wav, null);
-            Ui.historial(a, "🗑 Esborrat «" + titol + "»");
+            Ui.historial(a, "Esborrat «" + titol + "»");
             fet.run();
         });
     }
@@ -63,7 +63,7 @@ public final class Accions {
         i.setClipData(ClipData.newRawUri(g.fitxa.titol, uri));
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         a.startActivity(Intent.createChooser(i, "Comparteix «" + g.fitxa.titol + "»"));
-        Ui.historial(a, "↗ Compartit «" + g.fitxa.titol + "»");
+        Ui.historial(a, "Compartit «" + g.fitxa.titol + "»");
     }
 
     /** Si la gravació moguda o esborrada era «l'última», actualitza-ho. */

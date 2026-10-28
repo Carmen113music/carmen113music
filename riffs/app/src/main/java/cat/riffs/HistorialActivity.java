@@ -3,7 +3,7 @@ package cat.riffs;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -18,21 +18,19 @@ public class HistorialActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LinearLayout arrel = Ui.columna(this);
-        arrel.setBackgroundColor(Ui.FONS);
-        arrel.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), 0);
+        LinearLayout arrel = Ui.pantalla(this);
 
-        Button esborra = Ui.botoText(this, "Esborra", Ui.SUAU);
+        FrameLayout esborra = Ui.botoIcona(this, Icona.PAPERERA, Ui.SUAU, 0x00000000, 44, 22, "Esborra l'historial");
         esborra.setOnClickListener(v -> Ui.confirma(this, "Vols esborrar tot l'historial?",
                 "Només s'esborra aquesta llista. Les gravacions no es toquen.", "Esborra", () -> {
                     Historial.esborra(Ui.fitxerHistorial(this));
                     omple();
                 }));
-        arrel.addView(Ui.capcalera(this, "Historial", esborra));
+        arrel.addView(Ui.barraEnrere(this, "Historial", esborra));
 
         ScrollView scroll = new ScrollView(this);
         llista = Ui.columna(this);
-        llista.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 24));
+        llista.setPadding(Ui.dp(this, 16), Ui.dp(this, 4), Ui.dp(this, 16), Ui.dp(this, 24));
         scroll.addView(llista);
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(arrel);
@@ -43,21 +41,24 @@ public class HistorialActivity extends Activity {
         llista.removeAllViews();
         List<Historial.Entrada> entrades = Historial.llegeix(Ui.fitxerHistorial(this));
         if (entrades.isEmpty()) {
-            TextView buit = Ui.text(this, "Encara no hi ha res.", 16, Ui.SUAU);
+            TextView buit = Ui.text(this, "Encara no hi ha res.", 15, Ui.SUAU);
             buit.setGravity(Gravity.CENTER);
-            buit.setPadding(0, Ui.dp(this, 48), 0, 0);
-            llista.addView(buit);
+            llista.addView(buit, Ui.ample(this, 48));
             return;
         }
-        for (Historial.Entrada e : entrades) {
+        LinearLayout grup = Ui.columna(this);
+        grup.setBackground(Ui.rodo(Ui.SUPERFICIE, Ui.dp(this, 16)));
+        for (int k = 0; k < entrades.size(); k++) {
+            Historial.Entrada e = entrades.get(k);
             LinearLayout t = Ui.columna(this);
-            t.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 10));
-            t.addView(Ui.text(this, Biblioteca.data(e.quan), 12, Ui.SUAU));
-            t.addView(Ui.text(this, e.text, 16, Ui.TEXT));
-            llista.addView(t);
-            android.view.View linia = new android.view.View(this);
-            linia.setBackgroundColor(Ui.LINIA);
-            llista.addView(linia, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1));
+            t.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+            TextView text = Ui.text(this, e.text, 15, Ui.TEXT);
+            text.setLineSpacing(0, 1.15f);
+            t.addView(text);
+            t.addView(Ui.text(this, Biblioteca.data(e.quan), 12, Ui.SUAU), Ui.ample(this, 4));
+            grup.addView(t);
+            if (k < entrades.size() - 1) grup.addView(Ui.separador(this));
         }
+        llista.addView(grup, Ui.ample(this, 4));
     }
 }

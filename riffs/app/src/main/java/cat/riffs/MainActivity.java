@@ -2,10 +2,9 @@ package cat.riffs;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Typeface;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,14 +13,15 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 
-/** Pantalla principal: el botó gran per gravar. */
+/** Pantalla principal: gravar. */
 public class MainActivity extends Activity {
 
     private static final int PERMIS_MIC = 1;
@@ -30,130 +30,144 @@ public class MainActivity extends Activity {
     private final Handler h = new Handler(Looper.getMainLooper());
 
     private BotoGravar boto;
-    private TextView rellotge, estat, carpeta;
-    private Button botoGuitarra, botoVeu, botoCarpeta;
+    private OnaView ona;
+    private TextView rellotge, estat, textCarpeta;
+    private LinearLayout segGuitarra, segVeu, filaCarpeta;
     private LinearLayout targetaUltima;
-    private TextView textUltima;
+    private TextView titolUltima, infoUltima;
+    private FrameLayout rajolaUltima, playUltima;
 
     private String mode = Fitxa.GUITARRA;
     private File wavActual;
     private Fitxa fitxaActual;
     private File ultima;
+    private MediaPlayer mp;
 
     private final Runnable rellotgeTic = new Runnable() {
         @Override
         public void run() {
             if (!gravadora.grava()) return;
-            rellotge.setText(Biblioteca.durada(gravadora.duradaMs()));
-            h.postDelayed(this, 200);
+            rellotge.setText(tempsAmbDecimes(gravadora.duradaMs()));
+            h.postDelayed(this, 100);
         }
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setNavigationBarColor(Ui.SUPERFICIE);
         mode = Ui.prefs(this).getString("mode", Fitxa.GUITARRA);
         construeix();
 
         // Si l'app es va tancar de cop mentre gravava, arregla aquell fitxer
         new Thread(() -> {
-            int n = Ui.biblioteca(this).reparaTot(Ui.biblioteca(this).arrel);
-            if (n > 0) Ui.historial(this, "🔧 Recuperades " + n + " gravacions que s'havien quedat a mitges");
+            Biblioteca b = Ui.biblioteca(this);
+            int n = b.reparaTot(b.arrel);
+            if (n > 0) Ui.historial(this, "Recuperades " + n + " gravacions que s'havien quedat a mitges");
         }).start();
     }
 
     private void construeix() {
-        LinearLayout arrel = Ui.columna(this);
-        arrel.setBackgroundColor(Ui.FONS);
-        arrel.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 16));
+        LinearLayout arrel = Ui.pantalla(this);
+        LinearLayout cos = Ui.columna(this);
+        cos.setPadding(Ui.dp(this, 20), Ui.dp(this, 8), Ui.dp(this, 20), Ui.dp(this, 12));
 
-        // Barra de dalt: Biblioteca · Historial · Diagnòstic
+        // ---- Barra de dalt ----
         LinearLayout dalt = Ui.fila(this);
-        Button biblio = Ui.boto(this, "📁 Biblioteca", Ui.TARGETA, Ui.TEXT);
-        biblio.setOnClickListener(v -> obreBiblioteca());
-        dalt.addView(biblio);
-        dalt.addView(new View(this), Ui.pes(1));
-        Button hist = Ui.botoText(this, "🕘", Ui.TEXT);
-        hist.setTextSize(22);
-        hist.setContentDescription("Historial");
+        TextView nom = Ui.negreta(this, "Riffs", 26, Ui.TEXT);
+        dalt.addView(nom);
+        dalt.addView(Ui.mollaH(this));
+        FrameLayout hist = Ui.botoIcona(this, Icona.HISTORIAL, Ui.TEXT, Ui.SUPERFICIE, 42, 21, "Historial");
         hist.setOnClickListener(v -> { if (!gravadora.grava()) startActivity(new Intent(this, HistorialActivity.class)); });
         dalt.addView(hist);
-        Button diag = Ui.botoText(this, "🔧", Ui.TEXT);
-        diag.setTextSize(22);
-        diag.setContentDescription("Diagnòstic");
+        dalt.addView(Ui.espai(this, 8));
+        FrameLayout diag = Ui.botoIcona(this, Icona.AJUSTOS, Ui.TEXT, Ui.SUPERFICIE, 42, 21, "Diagnòstic i ajustos");
         diag.setOnClickListener(v -> { if (!gravadora.grava()) startActivity(new Intent(this, DiagnosticActivity.class)); });
         dalt.addView(diag);
-        arrel.addView(dalt);
+        cos.addView(dalt, Ui.ample(this, 4));
 
-        TextView titol = Ui.text(this, "Llibreta de riffs", 28, Ui.TEXT);
-        titol.setTypeface(Typeface.DEFAULT_BOLD);
-        arrel.addView(titol, Ui.ample(this, 12));
+        // ---- Guitarra / Veu (control segmentat) ----
+        LinearLayout seg = Ui.fila(this);
+        seg.setBackground(Ui.rodo(Ui.SUPERFICIE, Ui.dp(this, 26)));
+        seg.setPadding(Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4));
+        segGuitarra = Ui.pastilla(this, Icona.GUITARRA, "Guitarra", 0x00000000, Ui.TEXT);
+        segVeu = Ui.pastilla(this, Icona.MIC, "Veu", 0x00000000, Ui.TEXT);
+        segGuitarra.setOnClickListener(v -> triaMode(Fitxa.GUITARRA));
+        segVeu.setOnClickListener(v -> triaMode(Fitxa.VEU));
+        seg.addView(segGuitarra, Ui.pes(1));
+        seg.addView(segVeu, Ui.pes(1));
+        cos.addView(seg, Ui.ample(this, 16));
 
-        // On es desa
-        botoCarpeta = Ui.boto(this, "", Ui.TARGETA, Ui.TEXT);
-        botoCarpeta.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        botoCarpeta.setOnClickListener(v -> {
+        // ---- On es desa ----
+        cos.addView(Ui.etiqueta(this, "Es desa a"), Ui.ample(this, 16));
+        filaCarpeta = Ui.targeta(this);
+        filaCarpeta.addView(Ui.rajola(this, Icona.CARPETA, Ui.TEXT, Ui.SUPERFICIE2, 38));
+        textCarpeta = Ui.unaLinia(Ui.negreta(this, "", 16, Ui.TEXT));
+        LinearLayout.LayoutParams lpc = Ui.pes(1);
+        lpc.leftMargin = Ui.dp(this, 12);
+        filaCarpeta.addView(textCarpeta, lpc);
+        filaCarpeta.addView(Ui.imatge(this, Icona.XEVRO, Ui.SUAU, 20), new LinearLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24)));
+        filaCarpeta.setOnClickListener(v -> {
             if (gravadora.grava()) return;
             Ui.triaCarpeta(this, "On es desen les gravacions?", Ui.carpetaActual(this), c -> {
                 Ui.posaCarpetaActual(this, c);
                 mostraCarpeta();
             });
         });
-        carpeta = Ui.text(this, "Es desa a:", 13, Ui.SUAU);
-        arrel.addView(carpeta, Ui.ample(this, 16));
-        arrel.addView(botoCarpeta, Ui.ample(this, 4));
+        cos.addView(filaCarpeta, Ui.ample(this, 8));
 
-        // Guitarra o veu
-        TextView quin = Ui.text(this, "Què graves?", 13, Ui.SUAU);
-        arrel.addView(quin, Ui.ample(this, 16));
-        LinearLayout modes = Ui.fila(this);
-        botoGuitarra = Ui.boto(this, "🎸  Guitarra", Ui.TARGETA, Ui.TEXT);
-        botoVeu = Ui.boto(this, "🎤  Veu", Ui.TARGETA, Ui.TEXT);
-        botoGuitarra.setOnClickListener(v -> triaMode(Fitxa.GUITARRA));
-        botoVeu.setOnClickListener(v -> triaMode(Fitxa.VEU));
-        modes.addView(botoGuitarra, Ui.pes(1));
-        modes.addView(Ui.espai(this, 10));
-        modes.addView(botoVeu, Ui.pes(1));
-        arrel.addView(modes, Ui.ample(this, 4));
+        // ---- Ona, rellotge i botó ----
+        cos.addView(Ui.mollaV(this, 1));
+        ona = new OnaView(this);
+        ona.setBarres(Ui.dp(this, 3), Ui.dp(this, 2.5f));
+        ona.setColors(Ui.ACCENT, Ui.LINIA_FORTA);
+        ona.comencaDirecte();
+        cos.addView(ona, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 96)));
 
-        // Botó gran
-        arrel.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
+        rellotge = Ui.text(this, "0:00.0", 48, Ui.TEXT);
+        rellotge.setTypeface(Ui.FINA);
+        rellotge.setFontFeatureSettings("tnum");
+        rellotge.setGravity(Gravity.CENTER);
+        cos.addView(rellotge, Ui.ample(this, 12));
+
+        estat = Ui.text(this, "Preparat per gravar", 14, Ui.SUAU);
+        estat.setGravity(Gravity.CENTER);
+        cos.addView(estat, Ui.ample(this, 8));
+
         boto = new BotoGravar(this);
         boto.setOnClickListener(v -> premBoto());
-        LinearLayout.LayoutParams pb = new LinearLayout.LayoutParams(Ui.dp(this, 210), Ui.dp(this, 210));
+        LinearLayout.LayoutParams pb = new LinearLayout.LayoutParams(Ui.dp(this, 92), Ui.dp(this, 92));
         pb.gravity = Gravity.CENTER_HORIZONTAL;
-        arrel.addView(boto, pb);
+        pb.topMargin = Ui.dp(this, 18);
+        cos.addView(boto, pb);
+        cos.addView(Ui.mollaV(this, 1));
 
-        rellotge = Ui.text(this, "0:00", 44, Ui.TEXT);
-        rellotge.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
-        rellotge.setGravity(Gravity.CENTER);
-        arrel.addView(rellotge, Ui.ample(this, 4));
-
-        estat = Ui.text(this, "Toca el botó per gravar", 16, Ui.SUAU);
-        estat.setGravity(Gravity.CENTER);
-        arrel.addView(estat, Ui.ample(this, 2));
-        arrel.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
-
-        // Última gravació
+        // ---- Última gravació ----
         targetaUltima = Ui.targeta(this);
-        TextView etiqueta = Ui.text(this, "Última gravació", 12, Ui.SUAU);
-        targetaUltima.addView(etiqueta);
-        LinearLayout fu = Ui.fila(this);
-        textUltima = Ui.text(this, "", 16, Ui.TEXT);
-        textUltima.setSingleLine(true);
-        textUltima.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        fu.addView(textUltima, Ui.pes(1));
-        fu.addView(Ui.text(this, "  Obre ›", 15, Ui.ACCENT));
-        targetaUltima.addView(fu);
+        rajolaUltima = Ui.rajola(this, Icona.GUITARRA, Ui.GUITARRA, Ui.alfa(Ui.GUITARRA, 40), 42);
+        targetaUltima.addView(rajolaUltima);
+        LinearLayout textos = Ui.columna(this);
+        textos.addView(Ui.etiqueta(this, "Última gravació"));
+        titolUltima = Ui.unaLinia(Ui.negreta(this, "", 15, Ui.TEXT));
+        textos.addView(titolUltima, Ui.ample(this, 4));
+        infoUltima = Ui.unaLinia(Ui.text(this, "", 13, Ui.SUAU));
+        textos.addView(infoUltima, Ui.ample(this, 3));
+        LinearLayout.LayoutParams lpt = Ui.pes(1);
+        lpt.leftMargin = Ui.dp(this, 12);
+        targetaUltima.addView(textos, lpt);
+        playUltima = Ui.botoIcona(this, Icona.PLAY, Ui.TEXT, Ui.SUPERFICIE2, 44, 18, "Escolta");
+        playUltima.setOnClickListener(v -> alternaUltima());
+        targetaUltima.addView(playUltima);
         targetaUltima.setOnClickListener(v -> {
             if (ultima != null && ultima.exists() && !gravadora.grava()) obreFitxa(ultima);
         });
-        arrel.addView(targetaUltima, Ui.ample(this, 12));
+        cos.addView(targetaUltima, Ui.ample(this, 0));
 
+        arrel.addView(cos, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        arrel.addView(Nav.barra(this, Nav.GRAVAR));
         setContentView(arrel);
         mostraMode();
         mostraCarpeta();
-        mostraUltima();
     }
 
     @Override
@@ -166,10 +180,21 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        aturaUltima();
+    }
+
+    @Override
     protected void onStop() {
         super.onStop();
         // Si l'app passa a segon pla mentre grava, s'atura i es desa el que hi ha
-        if (gravadora.grava()) atura("S'ha aturat perquè l'app ha passat a segon pla.");
+        if (gravadora.grava()) atura("S'ha aturat perquè l'app ha passat a segon pla");
+    }
+
+    private static String tempsAmbDecimes(long ms) {
+        long d = ms / 100;
+        return String.format(Locale.ROOT, "%d:%02d.%d", d / 600, (d / 10) % 60, d % 10);
     }
 
     // ---------- Mode i carpeta ----------
@@ -181,26 +206,68 @@ public class MainActivity extends Activity {
         mostraMode();
     }
 
+    private void pintaSegment(LinearLayout s, boolean actiu, int color) {
+        s.setBackground(Ui.tocable(actiu ? color : 0x00000000, Ui.dp(this, 22)));
+        int c = actiu ? Ui.SOBRE_COLOR : Ui.SUAU;
+        android.widget.ImageView i = (android.widget.ImageView) s.getChildAt(0);
+        ((Icona) i.getDrawable()).setColor(c);
+        ((TextView) s.getChildAt(2)).setTextColor(c);
+    }
+
     private void mostraMode() {
         boolean veu = Fitxa.VEU.equals(mode);
-        botoGuitarra.setBackground(Ui.rodo(veu ? Ui.TARGETA : Ui.GUITARRA, Ui.dp(this, 22)));
-        botoGuitarra.setTextColor(veu ? Ui.TEXT : 0xFF1A1714);
-        botoVeu.setBackground(Ui.rodo(veu ? Ui.VEU : Ui.TARGETA, Ui.dp(this, 22)));
-        botoVeu.setTextColor(veu ? 0xFF1A1714 : Ui.TEXT);
+        pintaSegment(segGuitarra, !veu, Ui.GUITARRA);
+        pintaSegment(segVeu, veu, Ui.VEU);
     }
 
     private void mostraCarpeta() {
-        botoCarpeta.setText(Ui.nomCarpeta(this, Ui.carpetaActual(this)) + "   ▾");
+        textCarpeta.setText(Ui.nomCarpeta(this, Ui.carpetaActual(this)));
     }
 
     private void mostraUltima() {
         if (ultima == null || !ultima.exists()) {
-            targetaUltima.setVisibility(View.GONE);
+            targetaUltima.setVisibility(View.INVISIBLE);
             return;
         }
         Biblioteca.Gravacio g = Ui.biblioteca(this).gravacio(ultima);
-        textUltima.setText(g.fitxa.emoji() + "  " + g.fitxa.titol + "  ·  " + Biblioteca.durada(g.fitxa.duradaMs));
+        int color = Ui.colorMode(g.fitxa);
+        rajolaUltima.setBackground(Ui.rodo(Ui.alfa(color, 40), Ui.dp(this, 12)));
+        android.widget.ImageView i = (android.widget.ImageView) rajolaUltima.getChildAt(0);
+        i.setImageDrawable(new Icona(Ui.iconaMode(g.fitxa), color, Ui.dp(this, 21)));
+        titolUltima.setText(g.fitxa.titol);
+        infoUltima.setText(Biblioteca.durada(g.fitxa.duradaMs) + "  ·  " + Ui.nomCarpeta(this, ultima.getParentFile()));
         targetaUltima.setVisibility(View.VISIBLE);
+    }
+
+    private void alternaUltima() {
+        if (gravadora.grava() || ultima == null || !ultima.exists()) return;
+        if (mp != null) {
+            aturaUltima();
+            return;
+        }
+        try {
+            mp = new MediaPlayer();
+            mp.setDataSource(ultima.getAbsolutePath());
+            mp.setOnCompletionListener(m -> aturaUltima());
+            mp.prepare();
+            mp.start();
+            Ui.canviaIcona(playUltima, Icona.STOP, Ui.TEXT, 18);
+        } catch (IOException | RuntimeException e) {
+            aturaUltima();
+            Ui.avis(this, "No puc reproduir la gravació.");
+        }
+    }
+
+    private void aturaUltima() {
+        if (mp != null) {
+            try {
+                mp.stop();
+            } catch (IllegalStateException ignored) {
+            }
+            mp.release();
+            mp = null;
+        }
+        if (playUltima != null) Ui.canviaIcona(playUltima, Icona.PLAY, Ui.TEXT, 18);
     }
 
     // ---------- Gravar ----------
@@ -224,20 +291,18 @@ public class MainActivity extends Activity {
         if (resultats.length > 0 && resultats[0] == PackageManager.PERMISSION_GRANTED) {
             comenca();
         } else {
-            new AlertDialog.Builder(this)
+            Ui.dialeg(this)
                     .setTitle("Cal permís de micròfon")
                     .setMessage("Sense el micròfon l'app no pot gravar. Dona-li permís a Configuració → Aplicacions → Riffs → Permisos → Micròfon.")
-                    .setPositiveButton("Obre la configuració", (d, w) -> {
-                        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", getPackageName(), null));
-                        startActivity(i);
-                    })
+                    .setPositiveButton("Obre la configuració", (d, w) -> startActivity(new Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null))))
                     .setNegativeButton("Ara no", null)
                     .show();
         }
     }
 
     private void comenca() {
+        aturaUltima();
         Biblioteca b = Ui.biblioteca(this);
         File dir = Ui.carpetaActual(this);
         long ara = System.currentTimeMillis();
@@ -249,7 +314,8 @@ public class MainActivity extends Activity {
         try {
             fitxaActual.desa(Biblioteca.fitxaDe(wavActual));
         } catch (IOException e) {
-            estat.setText("No puc desar al mòbil. Potser està ple?");
+            wavActual = null;
+            mostraEstat("No puc desar al mòbil. Potser està ple?", Ui.ACCENT);
             return;
         }
 
@@ -257,7 +323,7 @@ public class MainActivity extends Activity {
         String error = gravadora.comenca(this, wavActual, font, new Gravadora.Oient() {
             @Override
             public void nivell(float pic) {
-                runOnUiThread(() -> boto.setNivell(pic));
+                runOnUiThread(() -> ona.afegeix(pic));
             }
 
             @Override
@@ -268,19 +334,32 @@ public class MainActivity extends Activity {
         if (error != null) {
             b.esborra(wavActual);
             wavActual = null;
-            estat.setText(error);
-            estat.setTextColor(Ui.ACCENT);
+            mostraEstat(error, Ui.ACCENT);
             return;
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         boto.setGravant(true);
-        estat.setText("Gravant… toca per aturar");
-        estat.setTextColor(Ui.ACCENT);
-        rellotge.setText("0:00");
+        ona.comencaDirecte();
+        mostraEstat("● Gravant", Ui.ACCENT);
+        rellotge.setText("0:00.0");
         h.post(rellotgeTic);
-        botoCarpeta.setEnabled(false);
-        botoGuitarra.setEnabled(false);
-        botoVeu.setEnabled(false);
+        bloqueja(true);
+    }
+
+    private void bloqueja(boolean b) {
+        float a = b ? 0.4f : 1f;
+        filaCarpeta.setEnabled(!b);
+        filaCarpeta.setAlpha(a);
+        segGuitarra.setEnabled(!b);
+        segVeu.setEnabled(!b);
+        ((View) segGuitarra.getParent()).setAlpha(a);
+        targetaUltima.setEnabled(!b);
+        targetaUltima.setAlpha(a);
+    }
+
+    private void mostraEstat(String s, int color) {
+        estat.setText(s);
+        estat.setTextColor(color);
     }
 
     private void atura(String motiu) {
@@ -289,18 +368,16 @@ public class MainActivity extends Activity {
         h.removeCallbacks(rellotgeTic);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         boto.setGravant(false);
-        botoCarpeta.setEnabled(true);
-        botoGuitarra.setEnabled(true);
-        botoVeu.setEnabled(true);
+        bloqueja(false);
 
         Biblioteca b = Ui.biblioteca(this);
         File wav = wavActual;
         wavActual = null;
         if (durada < 700) {
             b.esborra(wav);
-            rellotge.setText("0:00");
-            estat.setText(motiu != null ? motiu : "Massa curta: no l'he desada.");
-            estat.setTextColor(Ui.SUAU);
+            rellotge.setText("0:00.0");
+            ona.comencaDirecte();
+            mostraEstat(motiu != null ? motiu : "Massa curta: no s'ha desat", Ui.SUAU);
             return;
         }
         fitxaActual.duradaMs = durada;
@@ -311,19 +388,13 @@ public class MainActivity extends Activity {
         }
         ultima = wav;
         Ui.prefs(this).edit().putString("ultima", wav.getAbsolutePath()).apply();
-        Ui.historial(this, fitxaActual.emoji() + " Gravat «" + fitxaActual.titol + "» (" + Biblioteca.durada(durada)
-                + ") a " + Ui.nomCarpeta(this, wav.getParentFile()));
-        rellotge.setText(Biblioteca.durada(durada));
-        estat.setText(motiu != null ? motiu : "Desada ✓  Toca per gravar una altra");
-        estat.setTextColor(motiu != null ? Ui.ACCENT : Ui.SUAU);
+        Ui.historial(this, "Gravat «" + fitxaActual.titol + "» (" + (fitxaActual.esVeu() ? "veu" : "guitarra") + ", "
+                + Biblioteca.durada(durada) + ") a " + Ui.nomCarpeta(this, wav.getParentFile()));
+        rellotge.setText(tempsAmbDecimes(durada));
+        mostraEstat(motiu != null ? motiu : "Desada ✓", motiu != null ? Ui.ACCENT : Ui.SUAU);
         mostraUltima();
-    }
-
-    // ---------- Navegació ----------
-
-    private void obreBiblioteca() {
-        if (gravadora.grava()) return;
-        startActivity(new Intent(this, BibliotecaActivity.class));
+        // prepara l'ona per a la biblioteca sense fer esperar
+        new Thread(() -> Ona.pics(wav)).start();
     }
 
     private void obreFitxa(File wav) {
