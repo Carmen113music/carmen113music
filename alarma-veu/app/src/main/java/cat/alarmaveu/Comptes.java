@@ -39,12 +39,11 @@ final class Comptes {
                 new String[]{tipus}, explicacio, null, null, null);
     }
 
-    /** Demana pujar ara mateix els canvis del calendari d'aquest compte. */
+    /** Demana sincronitzar ara el calendari d'aquest compte (només des del botó del diagnòstic). */
     static void pujaAra(String nom, String tipus) {
         Bundle extres = new Bundle();
+        // Només «manual», igual que el botó «Sincronitza ara» de Configuració → Comptes
         extres.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
-        extres.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-        extres.putBoolean(ContentResolver.SYNC_EXTRAS_UPLOAD, true);
         ContentResolver.requestSync(new Account(nom, tipus), CalendarContract.AUTHORITY, extres);
     }
 }

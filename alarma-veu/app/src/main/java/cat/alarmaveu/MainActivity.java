@@ -92,7 +92,6 @@ public class MainActivity extends Activity {
                 ambPermisCalendari(() -> triaCalendari(true, null, c ->
                         mostra(getString(R.string.agenda_desada), c.curt(), null, false)), null));
         actualitzaBotoCalendari();
-        sincronitzaCalendariTriat();
 
         if (savedInstanceState == null) escolta();
     }
@@ -101,7 +100,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        sincronitzaCalendariTriat();
         escolta();
     }
 
@@ -620,7 +618,9 @@ public class MainActivity extends Activity {
 
     /** Sincronització manual (passa per sobre de la sincronització automàtica desactivada). */
     private static void demanaSincronitzacio(Account compte) {
-        Comptes.pujaAra(compte.name, compte.type);
+        // Desactivat a la 3.2: les peticions forçades (manual + urgent + pujada) semblaven deixar la
+        // sincronització de Google encallada en «pendent». Ara deixem que el mòbil sincronitzi pel seu compte,
+        // com a les primeres versions.
     }
 
     /**
