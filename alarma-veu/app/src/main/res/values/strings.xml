@@ -4,7 +4,7 @@
     <string name="parla">Parla per posar una alarma</string>
     <string name="indicacio_veu">Digues quan i què t\'he de recordar</string>
     <string name="toca_per_parlar">Toca i parla</string>
-    <string name="exemple">Per exemple: «a les 7 i mitja, portar el cotxe al taller», «divendres sopar a les 8» o «què tinc dissabte?»</string>
+    <string name="exemple">Per exemple: «a les 7 i mitja, portar el cotxe al taller», «divendres sopar a les 8», «què tinc dissabte?» o «quin dia tinc metge?»</string>
     <string name="no_t_he_sentit">No t\'he sentit</string>
     <string name="no_ho_he_entes">No ho he entès</string>
     <string name="he_sentit">He sentit: «%1$s»</string>
@@ -36,6 +36,9 @@
     <string name="agenda_desada">A partir d\'ara s\'apunta a:</string>
     <string name="no_hi_es_el_compte">No hi és el compte que vull…</string>
     <string name="no_hi_es_el_compte_detall">Perquè un compte surti a la llista, ha de tenir el calendari sincronitzat al mòbil: Configuració → Comptes → (el compte de Gmail) → Sincronitza → activa «Calendari». Després torna a tocar el botó «Agenda» de sota.</string>
+    <string name="cerca_buida">No he trobat res amb «%1$s» a l\'agenda dels pròxims 12 mesos.</string>
+    <string name="apuntat_amb_avis">Apuntat, però…</string>
+    <string name="ja_apuntat">Això ja està apuntat</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>

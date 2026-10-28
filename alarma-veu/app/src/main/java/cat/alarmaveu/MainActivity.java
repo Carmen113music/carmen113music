@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
                 ambPermisCalendari(() -> triaCalendari(true, null, c ->
                         mostra(getString(R.string.agenda_desada), c.curt(), null, false)), null));
         actualitzaBotoCalendari();
+        sincronitzaCalendariTriat();
 
         if (savedInstanceState == null) escolta();
     }
@@ -83,6 +84,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        sincronitzaCalendariTriat();
         escolta();
     }
 
@@ -131,6 +133,12 @@ public class MainActivity extends Activity {
         if (diaPreguntat != null) {
             String frase = frases.get(0);
             ambPermisCalendari(() -> mostraDia(diaPreguntat, frase), frase);
+            return;
+        }
+        String terme = ParserAlarma.termeCerca(frases.get(0));
+        if (terme != null) {
+            String frase = frases.get(0);
+            ambPermisCalendari(() -> mostraCerca(terme, frase), frase);
             return;
         }
 
@@ -244,6 +252,20 @@ public class MainActivity extends Activity {
             desaEsdeveniment(r, frase);
             return;
         }
+        // Ja està apuntat exactament igual? (sol passar quan es torna a dir perquè encara no surt a Google)
+        String mateix = ParserAlarma.normalitza(r.horaText() + " · " + r.titol);
+        for (String c : coses) {
+            if (ParserAlarma.normalitza(c).equals(mateix)) {
+                mostra(getString(R.string.ja_apuntat), "El " + ParserAlarma.nomDia(r.quan.toLocalDate())
+                        + " a les " + r.horaText() + " ja hi ha «" + r.titol + "».\n\n"
+                        + "Si no el veus a Google Calendar, és que encara s'està pujant: no cal tornar-ho a apuntar.",
+                        frase, true);
+                filaDubte.setVisibility(View.VISIBLE);
+                findViewById(R.id.boto_si).setOnClickListener(v -> desaEsdeveniment(r, frase));
+                findViewById(R.id.boto_no).setOnClickListener(v -> acaba("✕ Ja estava apuntat: " + r.titol, frase));
+                return;
+            }
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("El ").append(ParserAlarma.nomDia(r.quan.toLocalDate())).append(" ja tens:\n");
         for (String c : coses) sb.append("• ").append(c).append("\n");
@@ -274,6 +296,73 @@ public class MainActivity extends Activity {
         for (String c : coses) {
             if (sb.length() > 0) sb.append("\n");
             sb.append(c);
+        }
+        mostra(nom, sb.toString(), frase, false);
+    }
+
+    /** Resposta a "quin dia tinc metge?": les properes coses de l'agenda que hi coincideixen (12 mesos). */
+    private void mostraCerca(String terme, String frase) {
+        List<String> trobats = new ArrayList<>();
+        try {
+            ZoneId zona = ZoneId.systemDefault();
+            LocalDate avui = LocalDate.now();
+            long ara = System.currentTimeMillis();
+            long inici = avui.atStartOfDay(zona).toInstant().toEpochMilli();
+            long fi = avui.plusYears(1).atStartOfDay(zona).toInstant().toEpochMilli();
+            Uri.Builder b = CalendarContract.Instances.CONTENT_URI.buildUpon();
+            ContentUris.appendId(b, inici);
+            ContentUris.appendId(b, fi);
+            String[] camps = {
+                    CalendarContract.Instances.TITLE,
+                    CalendarContract.Instances.BEGIN,
+                    CalendarContract.Instances.END,
+                    CalendarContract.Instances.ALL_DAY,
+                    CalendarContract.Instances.EVENT_LOCATION,
+            };
+            Cursor c;
+            try {
+                c = getContentResolver().query(b.build(), camps, CalendarContract.Instances.VISIBLE + " = 1",
+                        null, CalendarContract.Instances.BEGIN + " ASC");
+            } catch (RuntimeException e) {
+                c = getContentResolver().query(b.build(), camps, null, null, CalendarContract.Instances.BEGIN + " ASC");
+            }
+            if (c != null) {
+                try {
+                    while (c.moveToNext() && trobats.size() < 8) {
+                        String titol = c.getString(0) == null ? "" : c.getString(0);
+                        String lloc = c.getString(4) == null ? "" : c.getString(4);
+                        if (!ParserAlarma.coincideix(titol + " " + lloc, terme)) continue;
+                        long ini = c.getLong(1), end = c.getLong(2);
+                        if (c.getInt(3) == 1) {
+                            LocalDate d = Instant.ofEpochMilli(ini).atZone(ZoneOffset.UTC).toLocalDate();
+                            if (d.isBefore(avui)) continue;
+                            trobats.add(ParserAlarma.nomDia(d) + " · tot el dia · " + titol);
+                        } else {
+                            if (end < ara) continue; // ja ha passat
+                            LocalDateTime h = Instant.ofEpochMilli(ini).atZone(zona).toLocalDateTime();
+                            trobats.add(ParserAlarma.nomDia(h.toLocalDate())
+                                    + String.format(Locale.ROOT, " · %02d:%02d · ", h.getHour(), h.getMinute()) + titol);
+                        }
+                    }
+                } finally {
+                    c.close();
+                }
+            }
+        } catch (RuntimeException e) {
+            mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
+            return;
+        }
+        String nom = terme.substring(0, 1).toUpperCase(Locale.ROOT) + terme.substring(1);
+        if (trobats.isEmpty()) {
+            Historial.afegeix(this, frase, "🔎 " + nom + ": no trobat");
+            mostra(nom, getString(R.string.cerca_buida, terme), frase, false);
+            return;
+        }
+        Historial.afegeix(this, frase, "🔎 " + nom + ": " + trobats.get(0));
+        StringBuilder sb = new StringBuilder();
+        for (String t : trobats) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(t);
         }
         mostra(nom, sb.toString(), frase, false);
     }
@@ -365,11 +454,17 @@ public class MainActivity extends Activity {
                 getContentResolver().insert(CalendarContract.Reminders.CONTENT_URI, avis);
             }
 
-            String sincro = sincronitza(cal);
-
-            acaba("📅 " + r.titol + "\n" + r.dataText()
+            String avisSincro = sincronitza(cal);
+            String fet = "📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
-                    + "\nAgenda: " + cal.curt() + sincro, frase);
+                    + "\nAgenda: " + cal.curt();
+            if (avisSincro.isEmpty()) {
+                acaba(fet, frase);
+            } else {
+                // Apuntat, però amb un problema de sincronització: l'app es queda oberta perquè es pugui llegir
+                Historial.afegeix(this, frase, fet);
+                mostra(getString(R.string.apuntat_amb_avis), fet + "\n\n⚠ " + avisSincro, frase, false);
+            }
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
@@ -383,24 +478,59 @@ public class MainActivity extends Activity {
      * Retorna un avís per a la confirmació si el calendari és només del telèfon.
      */
     private String sincronitza(Calendari cal) {
-        boolean local = cal.tipus == null || cal.tipus.toLowerCase(Locale.ROOT).contains("local")
-                || cal.tipus.toLowerCase(Locale.ROOT).contains("samsung");
-        if (local) return "\n⚠ Aquest calendari és només del telèfon: no es veurà a Google Calendar.";
+        if (esLocal(cal)) return "Aquest calendari és només del telèfon: no es veurà a Google Calendar. "
+                + "Tria el de Gmail amb el botó «Agenda» de sota.";
+        String avis = "";
         try {
+            Account compte = new Account(cal.compte, cal.tipus);
+            if (!ContentResolver.getMasterSyncAutomatically()) {
+                avis = "La sincronització automàtica del mòbil està desactivada, i per això Google tarda a rebre-ho. "
+                        + "Activa-la a Configuració → Comptes i còpia de seguretat → Gestiona els comptes → "
+                        + "«Sincronitza dades automàticament».";
+            } else if (!ContentResolver.getSyncAutomatically(compte, CalendarContract.AUTHORITY)) {
+                avis = "El compte " + cal.compte + " té la sincronització del Calendari desactivada. "
+                        + "Activa-la a Configuració → Comptes → " + cal.compte + " → Sincronitza el compte → Calendari.";
+            }
             if (!cal.sincronitza) {
                 ContentValues v = new ContentValues();
                 v.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
                 getContentResolver().update(
                         ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, cal.id), v, null, null);
             }
-            Bundle extres = new Bundle();
-            extres.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
-            extres.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-            ContentResolver.requestSync(new Account(cal.compte, cal.tipus), CalendarContract.AUTHORITY, extres);
+            demanaSincronitzacio(compte);
         } catch (RuntimeException ignorat) {
             // si no es pot forçar, ja es sincronitzarà quan el mòbil ho faci
         }
-        return "";
+        return avis;
+    }
+
+    private static boolean esLocal(Calendari cal) {
+        String t = cal.tipus == null ? "local" : cal.tipus.toLowerCase(Locale.ROOT);
+        return t.contains("local") || (t.contains("samsung") && !t.equals("com.osp.app.signin"));
+    }
+
+    /** Sincronització manual (passa per sobre de la sincronització automàtica desactivada). */
+    private static void demanaSincronitzacio(Account compte) {
+        Bundle extres = new Bundle();
+        extres.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+        extres.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+        ContentResolver.requestSync(compte, CalendarContract.AUTHORITY, extres);
+    }
+
+    /**
+     * Cada cop que s'obre l'app, demana pujar el calendari triat. Així, si alguna cosa s'havia quedat
+     * pendent de pujar a Google, s'acaba enviant.
+     */
+    private void sincronitzaCalendariTriat() {
+        if (checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            long desat = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(CLAU_CALENDARI, -1);
+            for (Calendari c : calendaris()) {
+                if (c.id == desat && !esLocal(c)) demanaSincronitzacio(new Account(c.compte, c.tipus));
+            }
+        } catch (RuntimeException ignorat) {
+            // no és imprescindible
+        }
     }
 
     // ---------------- Triar el calendari ----------------
@@ -604,7 +734,7 @@ public class MainActivity extends Activity {
 
     private void mostra(String titol, String text, String frase, boolean error) {
         filaDubte.setVisibility(View.GONE);
-        if (error && frase != null && !titol.equals(getString(R.string.compte))) {
+        if (error && frase != null && !titol.equals(getString(R.string.compte)) && !titol.equals(getString(R.string.ja_apuntat))) {
             Historial.afegeix(this, frase, "⚠ " + titol + (text != null ? ": " + text : ""));
         }
         estat.setText(titol);

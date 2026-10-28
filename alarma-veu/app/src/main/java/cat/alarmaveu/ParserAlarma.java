@@ -365,6 +365,55 @@ public final class ParserAlarma {
         return ara.toLocalDate();
     }
 
+    // ---------------- Cerques: "quin dia tinc metge?" ----------------
+
+    private static final Pattern CERCA = Pattern.compile(
+            "^\\s*(?:i\\s+)?(?:quin\\s+dia|quina\\s+data|quan|a\\s+quina\\s+hora|per\\s+quan)\\s+"
+                    + "(?:tinc|tenim|té|és|serà|hi\\s+ha|he\\s+d'anar|hem\\s+d'anar|haig\\s+d'anar|vaig|anem|toca|em\\s+toca|ens\\s+toca|era|eren|son|són)"
+                    + "\\s+(?<t>.+?)[\\s?¿!.]*$", F);
+    private static final Pattern ARTICLE_INICI = Pattern.compile(
+            "^(?:(?:a\\s+l'|l'|d')\\s*|(?:a\\s+la|a\\s+les|als|al|el|la|els|les|un|una|uns|unes|de|del|que)\\s+)", F);
+
+    /**
+     * Si la frase pregunta quan hi ha alguna cosa ("quin dia tinc metge?", "quan és el sopar dels Puig?"),
+     * retorna el que cal buscar ("metge", "sopar dels Puig"). Si no, null.
+     */
+    public static String termeCerca(String text) {
+        if (text == null) return null;
+        String s = text.replace('’', '\'').replace('‘', '\'').trim();
+        Matcher m = CERCA.matcher(s);
+        if (!m.find()) return null;
+        String t = m.group("t").trim();
+        String abans;
+        do {
+            abans = t;
+            t = ARTICLE_INICI.matcher(t).replaceFirst("").trim();
+        } while (!t.equals(abans));
+        return t.isEmpty() ? null : t;
+    }
+
+    /** Minúscules i sense accents, per comparar "Metge" amb "metge" o "Revisió" amb "revisio". */
+    public static String normalitza(String s) {
+        if (s == null) return "";
+        String n = java.text.Normalizer.normalize(s.toLowerCase(Locale.ROOT), java.text.Normalizer.Form.NFD);
+        return n.replaceAll("\\p{M}+", "").replace('’', '\'');
+    }
+
+    private static final java.util.Set<String> PARAULES_BUIDES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "de", "del", "dels", "la", "el", "els", "les", "a", "al", "als", "amb", "i", "per", "pel", "un", "una", "l", "d", "en"));
+
+    /** true si el text conté totes les paraules significatives del terme buscat. */
+    public static boolean coincideix(String text, String terme) {
+        String t = normalitza(text);
+        boolean alguna = false;
+        for (String p : normalitza(terme).split("[^\\p{L}\\p{N}]+")) {
+            if (p.isEmpty() || PARAULES_BUIDES.contains(p)) continue;
+            alguna = true;
+            if (!t.contains(p)) return false;
+        }
+        return alguna;
+    }
+
     // ---------------- Avisos de l'agenda ----------------
 
     /**
