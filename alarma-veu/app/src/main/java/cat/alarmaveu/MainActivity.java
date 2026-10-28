@@ -14,6 +14,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -272,6 +273,8 @@ public class MainActivity extends Activity {
                         + "Si no el veus a Google Calendar, és que encara s'està pujant: no cal tornar-ho a apuntar.",
                         frase, true);
                 filaDubte.setVisibility(View.VISIBLE);
+                ((Button) findViewById(R.id.boto_si)).setText(R.string.apunta_igualment);
+                ((Button) findViewById(R.id.boto_no)).setText(R.string.no_deixa_ho);
                 findViewById(R.id.boto_si).setOnClickListener(v -> desaEsdeveniment(r, frase));
                 findViewById(R.id.boto_no).setOnClickListener(v -> acaba("✕ Ja estava apuntat: " + r.titol, frase));
                 return;
@@ -283,6 +286,8 @@ public class MainActivity extends Activity {
         sb.append("\nVols apuntar «").append(r.titol).append("» a les ").append(r.horaText()).append(" igualment?");
         mostra(getString(R.string.compte), sb.toString(), frase, true);
         filaDubte.setVisibility(View.VISIBLE);
+        ((Button) findViewById(R.id.boto_si)).setText(R.string.apunta_igualment);
+        ((Button) findViewById(R.id.boto_no)).setText(R.string.no_deixa_ho);
         findViewById(R.id.boto_si).setOnClickListener(v -> desaEsdeveniment(r, frase));
         findViewById(R.id.boto_no).setOnClickListener(v -> acaba("✕ No s'ha apuntat: " + r.titol, frase));
     }
@@ -465,17 +470,12 @@ public class MainActivity extends Activity {
                 getContentResolver().insert(CalendarContract.Reminders.CONTENT_URI, avis);
             }
 
-            String avisSincro = sincronitza(cal);
+            EstatSincro estat = sincronitza(cal);
             String fet = "📅 " + r.titol + "\n" + r.dataText()
                     + "\nAvisos: " + ParserAlarma.descriuAvisos(avisos, r.quan)
                     + "\nAgenda: " + cal.curt();
-            if (avisSincro.isEmpty()) {
-                acaba(fet, frase);
-            } else {
-                // Apuntat, però amb un problema de sincronització: l'app es queda oberta perquè es pugui llegir
-                Historial.afegeix(this, frase, fet);
-                mostra(getString(R.string.apuntat_amb_avis), fet + "\n\n⚠ " + avisSincro, frase, false);
-            }
+            if (estat == EstatSincro.OK) acaba(fet, frase);
+            else mostraAvisSincro(fet, cal, estat, frase);
         } catch (RuntimeException e) {
             mostra(getString(R.string.sense_calendari), "Error: " + e.getMessage(), frase, true);
         }
@@ -488,31 +488,87 @@ public class MainActivity extends Activity {
      * - demana una sincronització immediata d'aquell compte.
      * Retorna un avís per a la confirmació si el calendari és només del telèfon.
      */
-    private String sincronitza(Calendari cal) {
-        if (esLocal(cal)) return "Aquest calendari és només del telèfon: no es veurà a Google Calendar. "
-                + "Tria el de Gmail amb el botó «Agenda» de sota.";
-        String avis = "";
+    private enum EstatSincro { OK, LOCAL, MOBIL_DESACTIVAT, COMPTE_DESACTIVAT }
+
+    /** Mira si el calendari es pujarà sol a Google. */
+    private EstatSincro estatSincro(Calendari cal) {
+        if (esLocal(cal)) return EstatSincro.LOCAL;
         try {
-            Account compte = new Account(cal.compte, cal.tipus);
-            if (!ContentResolver.getMasterSyncAutomatically()) {
-                avis = "La sincronització automàtica del mòbil està desactivada, i per això Google tarda a rebre-ho. "
-                        + "Activa-la a Configuració → Comptes i còpia de seguretat → Gestiona els comptes → "
-                        + "«Sincronitza dades automàticament».";
-            } else if (!ContentResolver.getSyncAutomatically(compte, CalendarContract.AUTHORITY)) {
-                avis = "El compte " + cal.compte + " té la sincronització del Calendari desactivada. "
-                        + "Activa-la a Configuració → Comptes → " + cal.compte + " → Sincronitza el compte → Calendari.";
-            }
+            if (!ContentResolver.getMasterSyncAutomatically()) return EstatSincro.MOBIL_DESACTIVAT;
+            if (!ContentResolver.getSyncAutomatically(new Account(cal.compte, cal.tipus), CalendarContract.AUTHORITY))
+                return EstatSincro.COMPTE_DESACTIVAT;
+        } catch (RuntimeException ignorat) {
+            // si no es pot saber, suposem que sí
+        }
+        return EstatSincro.OK;
+    }
+
+    /** Assegura que el calendari se sincronitza i demana pujar-lo ara mateix. */
+    private EstatSincro sincronitza(Calendari cal) {
+        EstatSincro estat = estatSincro(cal);
+        if (estat == EstatSincro.LOCAL) return estat;
+        try {
             if (!cal.sincronitza) {
                 ContentValues v = new ContentValues();
                 v.put(CalendarContract.Calendars.SYNC_EVENTS, 1);
                 getContentResolver().update(
                         ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, cal.id), v, null, null);
             }
-            demanaSincronitzacio(compte);
+            demanaSincronitzacio(new Account(cal.compte, cal.tipus));
         } catch (RuntimeException ignorat) {
             // si no es pot forçar, ja es sincronitzarà quan el mòbil ho faci
         }
-        return avis;
+        return estat;
+    }
+
+    /** Activa la sincronització automàtica del mòbil i del calendari d'aquest compte. Retorna true si ha funcionat. */
+    private boolean activaSincro(Calendari cal) {
+        try {
+            Account compte = new Account(cal.compte, cal.tipus);
+            ContentResolver.setMasterSyncAutomatically(true);
+            if (ContentResolver.getIsSyncable(compte, CalendarContract.AUTHORITY) <= 0) {
+                ContentResolver.setIsSyncable(compte, CalendarContract.AUTHORITY, 1);
+            }
+            ContentResolver.setSyncAutomatically(compte, CalendarContract.AUTHORITY, true);
+            demanaSincronitzacio(compte);
+        } catch (RuntimeException ignorat) {
+            // el mòbil no ho permet: caldrà fer-ho des de Configuració
+        }
+        return estatSincro(cal) == EstatSincro.OK;
+    }
+
+    /** Pantalla «Apuntat, però…» amb el botó per activar la sincronització des de l'app. */
+    private void mostraAvisSincro(String fet, Calendari cal, EstatSincro estat, String frase) {
+        Historial.afegeix(this, frase, fet);
+        if (estat == EstatSincro.LOCAL) {
+            mostra(getString(R.string.apuntat_amb_avis), fet + "\n\n⚠ " + getString(R.string.sincro_local), frase, false);
+            return;
+        }
+        String que = estat == EstatSincro.MOBIL_DESACTIVAT
+                ? getString(R.string.sincro_mobil_off)
+                : getString(R.string.sincro_compte_off, cal.compte);
+        mostra(getString(R.string.apuntat_amb_avis), fet + "\n\n⚠ " + que, frase, false);
+        Button si = findViewById(R.id.boto_si);
+        Button no = findViewById(R.id.boto_no);
+        si.setText(R.string.activa_sincro);
+        no.setText(R.string.ara_no);
+        filaDubte.setVisibility(View.VISIBLE);
+        no.setOnClickListener(v -> acaba(fet, null));
+        si.setOnClickListener(v -> {
+            if (activaSincro(cal)) {
+                acaba(fet + "\n🔄 " + getString(R.string.sincro_activada), null);
+            } else {
+                // No s'ha pogut des de l'app: obrim la pantalla de sincronització del mòbil
+                mostra(getString(R.string.sincro_no_puc), getString(R.string.sincro_no_puc_detall), null, false);
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_SYNC_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (ActivityNotFoundException e) {
+                    startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                }
+            }
+        });
     }
 
     /** Calendaris que només són al telèfon (no es pugen a cap compte en línia). */
@@ -898,7 +954,7 @@ public class MainActivity extends Activity {
 
     /** Missatge breu de confirmació i tancar l'app. */
     private void acaba(String missatge, String frase) {
-        Historial.afegeix(this, frase, missatge);
+        if (frase != null) Historial.afegeix(this, frase, missatge);
         Toast.makeText(getApplicationContext(), missatge, Toast.LENGTH_LONG).show();
         // Esperem una mica abans de tancar perquè el Rellotge tingui temps de desar l'alarma.
         estat.postDelayed(this::finish, 1500);

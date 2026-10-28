@@ -10,6 +10,8 @@
 
     <!-- Per saber si la sincronització amb Google està activada (s'atorga automàticament) -->
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+    <!-- Per poder activar la sincronització des de l'app (s'atorga automàticament) -->
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
 
     <!-- Per poder mostrar la icona de l'app de cada calendari -->
     <queries>

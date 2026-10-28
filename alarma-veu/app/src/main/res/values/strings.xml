@@ -42,6 +42,14 @@
     <string name="mostra_altres">▸ Altres calendaris del telèfon (%1$d)</string>
     <string name="amaga_altres">▾ Altres calendaris del telèfon (%1$d)</string>
     <string name="altres_nota">Aquests només són al mòbil: no es veuen a Google Calendar.</string>
+    <string name="activa_sincro">Activa-la</string>
+    <string name="ara_no">Ara no</string>
+    <string name="sincro_mobil_off">La sincronització automàtica del mòbil està desactivada. Per això Google tarda a rebre el que apuntes. Vols que l\'activi?</string>
+    <string name="sincro_compte_off">La sincronització del Calendari del compte %1$s està desactivada. Per això Google tarda a rebre el que apuntes. Vols que l\'activi?</string>
+    <string name="sincro_local">Aquest calendari és només del telèfon: no es veurà a Google Calendar. Tria el de Gmail amb el botó «Agenda» de sota.</string>
+    <string name="sincro_activada">Sincronització activada</string>
+    <string name="sincro_no_puc">No l\'he pogut activar</string>
+    <string name="sincro_no_puc_detall">El mòbil no deixa que l\'app la canviï. T\'obro la pantalla de sincronització: activa «Sincronització automàtica de dades» i, dins el compte de Gmail, «Calendari».</string>
     <string name="sense_rellotge">No trobo l\'app de Rellotge</string>
     <string name="sense_rellotge_detall">Comprova que el mòbil té una app de rellotge amb alarmes.</string>
 </resources>
