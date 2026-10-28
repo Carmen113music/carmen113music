@@ -19,7 +19,6 @@ public final class Metronom {
     public static final int MOSTREIG = 44100;
 
     public static final String SO_AURICULARS = "auriculars";
-    public static final String SO_SEMPRE = "sempre";
     public static final String SO_MAI = "mai";
 
     // ---------- Configuració (desada a les preferències) ----------
@@ -38,7 +37,8 @@ public final class Metronom {
             k.bpm = Ritme.limita(p.getFloat("met_bpm", 100f));
             k.compas = p.getInt("met_compas", 4);
             k.compteEnrere = p.getInt("met_compte", 1);
-            k.so = p.getString("met_so", SO_AURICULARS);
+            // «sempre» ja no existeix: el clic per l'altaveu es gravaria
+            k.so = SO_MAI.equals(p.getString("met_so", SO_AURICULARS)) ? SO_MAI : SO_AURICULARS;
             return k;
         }
 
@@ -82,7 +82,6 @@ public final class Metronom {
 
     /** Si amb aquesta configuració el clic ha de sonar ara. */
     public static boolean ambSo(Context c, Config k) {
-        if (SO_SEMPRE.equals(k.so)) return true;
         if (SO_MAI.equals(k.so)) return false;
         return auriculars(c);
     }
@@ -92,7 +91,7 @@ public final class Metronom {
     private final double bpm;
     private final int compas;
     private final int tempsCompte;     // temps del compte enrere
-    private final boolean soActiu;
+    private volatile boolean soActiu;
     private final double mostresPerTemps;
     private final short[] clicFort, clicFluix;
 
@@ -112,6 +111,15 @@ public final class Metronom {
         this.mostresPerTemps = MOSTREIG * 60.0 / this.bpm;
         clicFort = clic(1760, 0.55);
         clicFluix = clic(1175, 0.38);
+    }
+
+    /** Apaga el clic a l'instant (per exemple, si es desconnecten els auriculars). */
+    public void silencia() {
+        soActiu = false;
+    }
+
+    public boolean ambSo() {
+        return soActiu;
     }
 
     public double bpm() {
@@ -235,7 +243,30 @@ public final class Metronom {
         return actiu;
     }
 
+    private AudioManager gestorSo;
+    private android.media.AudioDeviceCallback vigilant;
+
+    /** Si es desconnecten els auriculars mentre sona, apaga el clic perquè no passi a l'altaveu. */
+    public void vigilaAuriculars(Context c, Runnable enSilenciar) {
+        gestorSo = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+        if (gestorSo == null) return;
+        vigilant = new android.media.AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesRemoved(AudioDeviceInfo[] trets) {
+                if (soActiu && !auriculars(c)) {
+                    silencia();
+                    if (enSilenciar != null) enSilenciar.run();
+                }
+            }
+        };
+        gestorSo.registerAudioDeviceCallback(vigilant, new android.os.Handler(android.os.Looper.getMainLooper()));
+    }
+
     public void atura() {
+        if (gestorSo != null && vigilant != null) {
+            gestorSo.unregisterAudioDeviceCallback(vigilant);
+            vigilant = null;
+        }
         actiu = false;
         if (fil != null) {
             try {

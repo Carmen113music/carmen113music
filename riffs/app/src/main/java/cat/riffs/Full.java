@@ -334,22 +334,22 @@ public final class Full {
                 i -> k.compteEnrere = i), Ui.ample(a, 8));
 
         opcions.addView(Ui.etiqueta(a, "Clic"), Ui.ample(a, 18));
-        String[] sons = {Metronom.SO_AURICULARS, Metronom.SO_SEMPRE, Metronom.SO_MAI};
-        int iso = k.so.equals(Metronom.SO_SEMPRE) ? 1 : k.so.equals(Metronom.SO_MAI) ? 2 : 0;
-        opcions.addView(Ui.segmentat(a, new String[]{"Amb auriculars", "Sempre", "Només visual"}, iso, Ui.TEXT,
+        String[] sons = {Metronom.SO_AURICULARS, Metronom.SO_MAI};
+        int iso = k.so.equals(Metronom.SO_MAI) ? 1 : 0;
+        opcions.addView(Ui.segmentat(a, new String[]{"Amb auriculars", "Només visual"}, iso, Ui.TEXT,
                 i -> k.so = sons[i]), Ui.ample(a, 8));
-        TextView nota = Ui.text(a, "Si el clic sona per l'altaveu, també queda gravat. Amb «Amb auriculars», sona només si en tens connectats; si no, els temps es marquen a la pantalla.", 12, Ui.SUAU);
+        TextView nota = Ui.text(a, "El clic no sona mai per l'altaveu, perquè es gravaria. Amb «Amb auriculars» sona només si en tens connectats; si no (o si els desconnectes), la pantalla fa pampallugues a cada temps.", 12, Ui.SUAU);
         nota.setLineSpacing(0, 1.2f);
         opcions.addView(nota, Ui.ample(a, 8));
 
         Metronom[] prova = new Metronom[1];
-        LinearLayout escolta = Ui.pastilla(a, Icona.PLAY, "Escolta el tempo", Ui.SUPERFICIE2, Ui.TEXT);
+        LinearLayout escolta = Ui.pastilla(a, Icona.PLAY, "Escolta el tempo (per l'altaveu)", Ui.SUPERFICIE2, Ui.TEXT);
         TextView textEscolta = (TextView) escolta.getChildAt(2);
         escolta.setOnClickListener(v -> {
             if (prova[0] != null) {
                 prova[0].atura();
                 prova[0] = null;
-                textEscolta.setText("Escolta el tempo");
+                textEscolta.setText("Escolta el tempo (per l'altaveu)");
             } else {
                 prova[0] = new Metronom(k.bpm, k.compas, 0, true);
                 if (prova[0].comenca()) textEscolta.setText("Atura");

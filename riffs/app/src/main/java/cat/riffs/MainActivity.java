@@ -35,6 +35,8 @@ public class MainActivity extends Activity {
     private LinearLayout rajolaMet;
     private PuntsTemps punts;
     private Metronom metronom;
+    private View pampalluga;
+    private long darrerTemps = Long.MIN_VALUE;
     private LinearLayout segGuitarra, segVeu, filaCarpeta;
     private LinearLayout targetaUltima;
     private TextView titolUltima, infoUltima;
@@ -56,6 +58,14 @@ public class MainActivity extends Activity {
         }
     };
 
+    /** Pampalluga de tota la pantalla: més forta al primer temps del compàs. */
+    private void pampallugueja(boolean primer, boolean compteEnrere) {
+        pampalluga.animate().cancel();
+        pampalluga.setBackgroundColor(compteEnrere ? Ui.GUITARRA : Ui.ACCENT);
+        pampalluga.setAlpha(primer ? 0.32f : 0.14f);
+        pampalluga.animate().alpha(0f).setDuration(primer ? 220 : 150).start();
+    }
+
     /** Punts del compàs i compte enrere mentre grava amb metrònom. */
     private void mostraTemps() {
         long t = metronom.tempsAra();
@@ -66,6 +76,10 @@ public class MainActivity extends Activity {
             return;
         }
         int dins = (int) (t % metronom.compas());
+        if (t != darrerTemps) {
+            darrerTemps = t;
+            if (!metronom.ambSo()) pampallugueja(dins == 0, t < compte);
+        }
         if (t < compte) {
             punts.setActiu(dins, Ui.GUITARRA);
             mostraEstat("Compte enrere · " + (compte - t), Ui.GUITARRA);
@@ -159,7 +173,7 @@ public class MainActivity extends Activity {
         cos.addView(rellotge, Ui.ample(this, 12));
 
         punts = new PuntsTemps(this);
-        cos.addView(punts, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 14)));
+        cos.addView(punts, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 20)));
         ((LinearLayout.LayoutParams) punts.getLayoutParams()).topMargin = Ui.dp(this, 10);
 
         estat = Ui.text(this, "Preparat per gravar", 14, Ui.SUAU);
@@ -197,7 +211,16 @@ public class MainActivity extends Activity {
 
         arrel.addView(cos, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         arrel.addView(Nav.barra(this, Nav.GRAVAR));
-        setContentView(arrel);
+
+        // Capa per a les pampallugues del metrònom visual (no captura tocs)
+        FrameLayout marc = new FrameLayout(this);
+        marc.addView(arrel);
+        pampalluga = new View(this);
+        pampalluga.setAlpha(0f);
+        pampalluga.setClickable(false);
+        pampalluga.setFocusable(false);
+        marc.addView(pampalluga, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(marc);
         mostraMode();
         mostraCarpeta();
         mostraMetronom();
@@ -412,6 +435,11 @@ public class MainActivity extends Activity {
                 fitxaActual.compas = metronom.compas();
                 fitxaActual.claqueta = true;
                 punts.setCompas(metronom.compas());
+                darrerTemps = Long.MIN_VALUE;
+                if (metronom.ambSo()) {
+                    metronom.vigilaAuriculars(this, () ->
+                            Ui.avis(this, "Auriculars desconnectats: el clic passa a ser visual"));
+                }
             }
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

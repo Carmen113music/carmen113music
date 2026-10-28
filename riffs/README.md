@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 1.3:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 1.4:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Pròximes fases: detecció automàtica de BPM i to, estudi multipista (mini DAW), gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -16,7 +16,7 @@ A baix hi ha tres pestanyes: **Gravar**, **Biblioteca** i **Estudi**.
 4. A sota surt l'**última gravació**: ▶ per escoltar-la, o toca la targeta per obrir-la.
 
 ### Metrònom (claqueta)
-- La rajola **Metrònom** (al costat de «Es desa a») obre els ajustos: activar-lo, **BPM** amb − i + (mantenint premut va ràpid) o **Tap** tocant al ritme, **compàs** (2/4, 3/4, 4/4, 6/8), **compte enrere** (cap, 1 o 2 compassos), i quan ha de sonar el **clic**: *Amb auriculars* (per defecte: si no n'hi ha, només es veu), *Sempre* o *Només visual*. «Escolta el tempo» el fa sonar per provar-lo.
+- La rajola **Metrònom** (al costat de «Es desa a») obre els ajustos: activar-lo, **BPM** amb − i + (mantenint premut va ràpid) o **Tap** tocant al ritme, **compàs** (2/4, 3/4, 4/4, 6/8), **compte enrere** (cap, 1 o 2 compassos), i com vols el **clic**: *Amb auriculars* (per defecte) o *Només visual*. **El clic no sona mai per l'altaveu**, perquè quedaria gravat: si no hi ha auriculars, o si es desconnecten enmig de la gravació, la pantalla fa **pampallugues** a cada temps (més fortes al primer temps del compàs). «Escolta el tempo (per l'altaveu)» només serveix per provar el tempo als ajustos, quan no s'està gravant.
 - Mentre graves, els **punts** de sota el rellotge marquen cada temps (ambre durant el compte enrere, vermell gravant) i el text diu el compte enrere i el compàs.
 - El compte enrere **també es grava**: si hi ha una anacrusi no es perd.
 - En aturar, la gravació es desa amb el seu tempo i amb la **bandera del primer temps**: l'app calcula quan va sonar el primer temps (tenint en compte el retard del mòbil) i l'enganxa a l'atac més proper de la guitarra o la veu.
@@ -60,6 +60,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **1.4** (28/10/2026) — Corregit: el clic del metrònom ja no pot sonar mai per l'altaveu (es gravava). Només amb auriculars o visual; si es desconnecten els auriculars, el clic s'apaga a l'instant. Pampallugues a tota la pantalla a cada temps i punts més grans.
 - **1.3** (28/10/2026) — Metrònom per gravar (BPM, tap, compàs, compte enrere, clic amb auriculars, sempre o visual) i punts de temps a la pantalla. Bandera del primer temps automàtica i ajustable, tempo de cada gravació, graella de temps i compassos sobre l'ona, BPM a la biblioteca.
 - **1.2** (28/10/2026) — L'ona de la biblioteca s'il·lumina mentre sona. Panell d'opcions nou amb l'estil de l'app (icones grans, sense «Obre»). Nova opció per canviar el nom d'una gravació. Triar carpeta, confirmar i escriure un nom també tenen l'estil de l'app.
 - **1.1** (28/10/2026) — Corregit: la pantalla principal sortia buida (un espai invisible de la barra de dalt ocupava tota l'alçada). Disseny nou: tema fosc d'estudi, icones pròpies en lloc d'emojis, botó de gravar professional, ona en directe i rellotge amb dècimes, navegació a baix (Gravar · Biblioteca · Estudi), ona a cada gravació de la biblioteca, ona tocable per saltar a la fitxa, pestanya Estudi.
