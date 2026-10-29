@@ -26,16 +26,16 @@ public final class Mesclador {
         boolean solo = p.hiHaSolo();
         for (Projecte.Pista t : p.pistes) {
             if (t.mut || (solo && !t.solo)) continue;
-            short[] so = audio.get(t.wav);
-            if (so == null) continue;
             double volum = lineal(t.volumDb);
             if (volum <= 0) continue;
             for (Projecte.Clip k : t.clips) {
+                short[] so = audio.get(k.wav);
+                if (so == null) continue;
                 double guany = lineal(k.guanyDb) * volum;
                 if (guany <= 0) continue;
                 long pos = msAMostra(k.posMs);
                 long ini = msAMostra(k.iniciMs);
-                long fi = Math.min(msAMostra(k.fiMs), so.length);
+                long fi = msAMostra(k.fiMs);            // pot passar del final del so: allà és silenci
                 long fIn = msAMostra(k.fadeInMs);
                 long fOut = msAMostra(k.fadeOutMs);
                 // tros de la sortida on sona aquest clip
@@ -43,7 +43,7 @@ public final class Mesclador {
                 long fins = Math.min(n, pos + fi - inici);
                 for (long i = des; i < fins; i++) {
                     long f = inici + i - pos;              // mostra dins el fitxer
-                    if (f < ini || f >= fi || f < 0 || f >= so.length) continue;
+                    if (f < ini || f >= fi || f < 0 || f >= so.length) continue; // fora del so: silenci
                     double env = 1;
                     if (fIn > 0 && f < ini + fIn) env = (f - ini) / (double) fIn;
                     if (fOut > 0 && f > fi - fOut) env = Math.min(env, (fi - f) / (double) fOut);

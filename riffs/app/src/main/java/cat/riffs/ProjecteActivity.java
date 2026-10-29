@@ -1,6 +1,11 @@
 package cat.riffs;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -14,6 +19,8 @@ import android.widget.TextView;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -37,7 +44,18 @@ public class ProjecteActivity extends Activity {
     private FrameLayout botoPlay;
     private TextView textPosicio, textInfo, textTempo;
     private LinearLayout accions;
-    private TextView textTriats;
+    private TextView textTriats, etPistes;
+
+    // gravar des de l'Estudi
+    private static final int PERMIS_MIC = 7;
+    private final Gravadora gravadora = new Gravadora();
+    private boolean gravant = false;
+    private File wavGravant;
+    private Fitxa fitxaGravant;
+    private Projecte.Pista pistaGravant;     // null = pista nova
+    private long entradaMs;
+    private AudioManager gestorSo;
+    private AudioDeviceCallback vigilant;
     private int altPista;
 
     private final Runnable segueix = new Runnable() {
@@ -52,7 +70,17 @@ public class ProjecteActivity extends Activity {
             if (w > 0 && (x > w * 0.85f || x < 0)) {
                 vista.iniciMs = ms - (w * 0.15f) / vista.pxPerMs;
             }
-            if (ms > projecte.finalMs() + 800) {
+            if (gravant) {
+                // compte enrere d'un compàs i després «Gravant»
+                if (ms < entradaMs) {
+                    long falten = (long) Math.ceil((entradaMs - ms) / projecte.msPerTemps());
+                    textInfo.setTextColor(Ui.GUITARRA);
+                    textInfo.setText("Compte: " + Math.max(1, falten));
+                } else {
+                    textInfo.setTextColor(Ui.ACCENT);
+                    textInfo.setText("● Gravant");
+                }
+            } else if (ms > projecte.finalMs() + 800) {
                 atura();
                 return;
             }
@@ -148,6 +176,7 @@ public class ProjecteActivity extends Activity {
         FrameLayout inici = Ui.botoIcona(this, Icona.ENRERE5, Ui.TEXT, Ui.SUPERFICIE, 40, 20, "Torna a l'inici");
         Ui.canviaIcona(inici, Icona.ENRERE, Ui.TEXT, 20);
         inici.setOnClickListener(v -> {
+            if (gravant) return;
             boolean sonava = motor != null && motor.sona();
             atura();
             vista.capcalMs = 0;
@@ -159,8 +188,14 @@ public class ProjecteActivity extends Activity {
         dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.TEXT, 44, 20, "Reprodueix");
         botoPlay.setOnClickListener(v -> {
-            if (motor != null && motor.sona()) atura();
+            if (gravant) aturaGravacio(null);
+            else if (motor != null && motor.sona()) atura();
             else play();
+        });
+        // mantenir premut el play: gravar
+        botoPlay.setOnLongClickListener(v -> {
+            if (!gravant) triaPistaGravar();
+            return true;
         });
         dalt.addView(botoPlay);
         arrel.addView(dalt);
@@ -169,7 +204,8 @@ public class ProjecteActivity extends Activity {
         // ---- Regla ----
         int ampleCap = Ui.dp(this, 176);
         LinearLayout filaRegle = Ui.fila(this);
-        TextView etPistes = Ui.etiqueta(this, projecte.pistes.size() == 1 ? "1 pista" : projecte.pistes.size() + " pistes");
+        etPistes = Ui.etiqueta(this, "");
+        posaEtiquetaPistes();
         etPistes.setPadding(Ui.dp(this, 14), 0, 0, 0);
         etPistes.setGravity(Gravity.CENTER_VERTICAL);
         etPistes.setBackgroundColor(Ui.SUPERFICIE);
@@ -229,8 +265,8 @@ public class ProjecteActivity extends Activity {
             }
 
             @Override
-            public void bandera(int i) {
-                desaBandera(i);
+            public void bandera(String wav) {
+                desaBandera(wav);
             }
 
             @Override
@@ -281,7 +317,7 @@ public class ProjecteActivity extends Activity {
                 Full.confirma(this, "Tornar a posar «" + t.nom + "»?",
                         "La pista no té cap clip. Es tornarà a posar la gravació sencera.", "Posa", false, () -> {
                             synchronized (projecte) {
-                                t.clips.add(projecte.clipSencer(t));
+                                t.clips.add(projecte.clipSencer(t.wav));
                             }
                             vista.tria(i, t.clips.get(0));
                             desa();
@@ -441,20 +477,212 @@ public class ProjecteActivity extends Activity {
     }
 
     /** Desa la bandera nova a la fitxa de la gravació (és d'ella, no només del projecte). */
-    private void desaBandera(int i) {
-        if (i < 0 || i >= projecte.pistes.size()) return;
-        Projecte.Pista t = projecte.pistes.get(i);
-        File wav = new File(projecte.carpeta, t.wav);
-        File fx = Biblioteca.fitxaDe(wav);
+    private void desaBandera(String wav) {
+        Projecte.Presa pr = projecte.preses.get(wav);
+        if (pr == null) return;
+        File fx = Biblioteca.fitxaDe(new File(projecte.carpeta, wav));
         Fitxa f = Fitxa.llegeix(fx);
         long abans = f.primerTempsMs;
-        f.primerTempsMs = t.primerMs;
+        f.primerTempsMs = pr.primerMs;
         try {
             f.desa(fx);
-            Ui.historial(this, "Bandera de «" + t.nom + "» moguda a l'Estudi ("
-                    + String.format(Locale.ROOT, "%+d ms", t.primerMs - abans) + ")");
+            Ui.historial(this, "Bandera de «" + pr.nom + "» moguda a l'Estudi ("
+                    + String.format(Locale.ROOT, "%+d ms", pr.primerMs - abans) + ")");
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar la bandera.");
+        }
+    }
+
+    // ---------- Gravar des de l'Estudi ----------
+
+    /** Mantenir premut el play: tria on es grava (una pista o una de nova). */
+    private void triaPistaGravar() {
+        if (!carregat || motor == null) return;
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+            return;
+        }
+        atura();
+        long entrada = projecte.entradaGravacio(vista.capcalMs);
+        long compas = Math.round(entrada / projecte.msPerCompas()) + 1;
+        String sub = "Entra al compàs " + compas + ", amb un compàs de compte abans.";
+        if (!Metronom.auriculars(this)) {
+            sub += " Sense auriculars el compte és visual, i el que sona per l'altaveu també quedarà gravat.";
+        }
+        List<Full.Accio> ops = new ArrayList<>();
+        for (Projecte.Pista t : projecte.pistes) {
+            ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nom, false, () -> comencaGravacio(t, t.veu)));
+        }
+        ops.add(new Full.Accio(Icona.MES, "Pista nova · guitarra", false, () -> comencaGravacio(null, false)));
+        ops.add(new Full.Accio(Icona.MES, "Pista nova · veu", false, () -> comencaGravacio(null, true)));
+        Full.llista(this, "Gravar a…", sub, ops);
+    }
+
+    private void comencaGravacio(Projecte.Pista pista, boolean veu) {
+        if (gravant || motor == null) return;
+        atura();
+        entradaMs = projecte.entradaGravacio(vista.capcalMs);
+        long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
+        Biblioteca b = Ui.biblioteca(this);
+        long ara = System.currentTimeMillis();
+        wavGravant = b.nouWav(projecte.carpeta, ara);
+        fitxaGravant = new Fitxa();
+        fitxaGravant.mode = veu ? Fitxa.VEU : Fitxa.GUITARRA;
+        fitxaGravant.data = ara;
+        fitxaGravant.titol = Biblioteca.titolPerDefecte(ara);
+        fitxaGravant.bpm = projecte.bpm;
+        fitxaGravant.compas = projecte.compas;
+        fitxaGravant.claqueta = true;
+        try {
+            fitxaGravant.desa(Biblioteca.fitxaDe(wavGravant));
+        } catch (IOException e) {
+            Ui.avis(this, "No puc desar al mòbil. Potser està ple?");
+            return;
+        }
+        pistaGravant = pista;
+        String font = Ui.prefs(this).getString("font", Gravadora.AUTO);
+        // Igual que a Gravar: primer el micròfon i just després el so
+        String error = gravadora.comenca(this, wavGravant, font, new Gravadora.Oient() {
+            @Override
+            public void nivell(float pic) {
+            }
+
+            @Override
+            public void error(String missatge) {
+                runOnUiThread(() -> aturaGravacio(missatge));
+            }
+        });
+        if (error != null) {
+            b.esborra(wavGravant);
+            Ui.avis(this, error);
+            return;
+        }
+        // el clic només sona si hi ha auriculars (per l'altaveu quedaria gravat)
+        motor.posaClic(Metronom.auriculars(this));
+        if (!motor.comenca(iniciMs)) {
+            gravadora.atura();
+            b.esborra(wavGravant);
+            motor.posaClic(false);
+            Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
+            return;
+        }
+        vigilaAuriculars();
+        gravant = true;
+        vista.tria(-1, null);
+        actualitzaAccions();
+        vista.capcalMs = iniciMs;
+        Ui.canviaIcona(botoPlay, Icona.STOP, Ui.ACCENT, 20);
+        pistes.removeCallbacks(segueix);
+        pistes.postOnAnimation(segueix);
+    }
+
+    /** Si es desconnecten els auriculars mentre es grava, el clic s'apaga perquè no passi a l'altaveu. */
+    private void vigilaAuriculars() {
+        gestorSo = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (gestorSo == null) return;
+        vigilant = new AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesRemoved(AudioDeviceInfo[] trets) {
+                if (gravant && motor != null && !Metronom.auriculars(ProjecteActivity.this)) {
+                    motor.posaClic(false);
+                    Ui.avis(ProjecteActivity.this, "Auriculars desconnectats: s'ha apagat el clic");
+                }
+            }
+        };
+        gestorSo.registerAudioDeviceCallback(vigilant, new android.os.Handler(android.os.Looper.getMainLooper()));
+    }
+
+    private void aturaGravacio(String motiu) {
+        if (!gravant) return;
+        gravant = false;
+        // on ha quedat el primer temps (l'entrada) dins la gravació, abans d'aturar res
+        long nano = motor.nanoDeLinia(entradaMs);
+        String sortida = motor.tipusSortida();
+        long primer = gravadora.msDelMoment(nano);
+        long correccio = 0;
+        double r = DiagnosticActivity.retardDesat(this, sortida);
+        if (!Double.isNaN(r)) {
+            correccio = Math.round(r);
+            primer += correccio;
+        }
+        long durada = gravadora.atura();
+        motor.posaClic(false);
+        motor.atura();
+        if (gestorSo != null && vigilant != null) {
+            gestorSo.unregisterAudioDeviceCallback(vigilant);
+            vigilant = null;
+        }
+        pistes.removeCallbacks(segueix);
+        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 20);
+        textInfo.setTextColor(Ui.GUITARRA);
+        File wav = wavGravant;
+        wavGravant = null;
+        Biblioteca b = Ui.biblioteca(this);
+        if (durada < primer + 300) {
+            b.esborra(wav);
+            textInfo.setText(motiu != null ? motiu : "Aturat abans d'entrar: no s'ha desat");
+            vista.capcalMs = entradaMs;
+            refresca();
+            return;
+        }
+        fitxaGravant.duradaMs = durada;
+        fitxaGravant.primerTempsMs = primer;
+        try {
+            fitxaGravant.desa(Biblioteca.fitxaDe(wav));
+        } catch (IOException ignored) {
+            // el so ja és desat
+        }
+        boolean nova = pistaGravant == null;
+        Projecte.Clip clip;
+        synchronized (projecte) {
+            clip = projecte.afegeixPresa(pistaGravant, wav.getName(), fitxaGravant.titol, fitxaGravant.esVeu(),
+                    durada, primer, entradaMs);
+        }
+        desa();
+        int ip = projecte.pistaDe(clip);
+        String nomPista = ip >= 0 ? projecte.pistes.get(ip).nom : "";
+        long compas = Math.round(entradaMs / projecte.msPerCompas()) + 1;
+        Ui.historial(this, "Gravat a l'Estudi «" + fitxaGravant.titol + "» (" + Biblioteca.durada(durada) + ") a "
+                + (nova ? "una pista nova" : "la pista «" + nomPista + "»") + ", entra al compàs " + compas
+                + (correccio != 0 ? " · retard corregit " + correccio + " ms (" + sortida + ")" : ""));
+        if (nova) {
+            ompleCapcaleres();
+            posaEtiquetaPistes();
+            pistes.requestLayout();
+        }
+        vista.tria(ip, clip);
+        actualitzaAccions();
+        vista.capcalMs = entradaMs;
+        textInfo.setText(motiu != null ? motiu : "Desada");
+        // carrega el so nou per poder-lo escoltar
+        new Thread(() -> {
+            short[] so = Wav.llegeixMostres(wav);
+            float[] pics = Ona.pics(wav);
+            runOnUiThread(() -> {
+                if (so != null) {
+                    synchronized (projecte) {
+                        audio.put(wav.getName(), so);
+                    }
+                }
+                if (pics != null) pistes.posaOna(wav.getName(), pics);
+            });
+        }).start();
+        vista.avisa();
+        refresca();
+    }
+
+    private void posaEtiquetaPistes() {
+        int n = projecte.pistes.size();
+        etPistes.setText(n == 1 ? "1 pista" : n + " pistes");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int codi, String[] permisos, int[] resultats) {
+        super.onRequestPermissionsResult(codi, permisos, resultats);
+        if (codi == PERMIS_MIC && resultats.length > 0 && resultats[0] == PackageManager.PERMISSION_GRANTED) {
+            triaPistaGravar();
+        } else if (codi == PERMIS_MIC) {
+            Ui.avis(this, "Cal permís de micròfon per gravar.");
         }
     }
 
@@ -486,12 +714,17 @@ public class ProjecteActivity extends Activity {
         textInfo.setText("Carregant les pistes…");
         new Thread(() -> {
             Map<String, short[]> llegit = new HashMap<>();
-            for (Projecte.Pista t : projecte.pistes) {
-                File f = new File(projecte.carpeta, t.wav);
+            java.util.Set<String> wavs;
+            synchronized (projecte) {
+                wavs = new java.util.LinkedHashSet<>(projecte.presesEnUs());
+                for (Projecte.Pista t : projecte.pistes) wavs.add(t.wav);
+            }
+            for (String w : wavs) {
+                File f = new File(projecte.carpeta, w);
                 short[] so = Wav.llegeixMostres(f);
-                if (so != null) llegit.put(t.wav, so);
+                if (so != null) llegit.put(w, so);
                 float[] pics = Ona.pics(f);
-                if (pics != null) runOnUiThread(() -> pistes.posaOna(t.wav, pics));
+                if (pics != null) runOnUiThread(() -> pistes.posaOna(w, pics));
             }
             runOnUiThread(() -> {
                 audio.putAll(llegit);
@@ -503,7 +736,8 @@ public class ProjecteActivity extends Activity {
     }
 
     private void play() {
-        if (!carregat || motor == null) return;
+        if (!carregat || motor == null || gravant) return;
+        motor.posaClic(false);
         if (!motor.comenca(vista.capcalMs)) {
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
@@ -556,6 +790,7 @@ public class ProjecteActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (gravant) aturaGravacio("S'ha aturat la gravació (l'app ha passat a segon pla)");
         if (projecte != null) {
             atura();
             desa();

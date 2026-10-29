@@ -166,6 +166,44 @@ public final class Full {
         d[0].show();
     }
 
+    /** Panell amb un títol i una llista d'opcions (una per fila, amb icona). */
+    public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions) {
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 6), Ui.dp(a, 20), 0);
+        cos.addView(Ui.negreta(a, titol, 17, Ui.TEXT));
+        if (subtitol != null && !subtitol.isEmpty()) {
+            TextView st = Ui.text(a, subtitol, 13, Ui.SUAU);
+            st.setLineSpacing(0, 1.2f);
+            cos.addView(st, Ui.ample(a, 4));
+        }
+        Dialog[] d = new Dialog[1];
+        LinearLayout files = Ui.columna(a);
+        for (Accio ac : opcions) {
+            LinearLayout f = Ui.fila(a);
+            f.setClickable(true);
+            f.setFocusable(true);
+            f.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(a, 14)));
+            f.setPadding(Ui.dp(a, 14), 0, Ui.dp(a, 14), 0);
+            f.setMinimumHeight(Ui.dp(a, 52));
+            int c = ac.perill ? Ui.ACCENT : Ui.TEXT;
+            f.addView(Ui.imatge(a, ac.icona, c, 20), new LinearLayout.LayoutParams(Ui.dp(a, 22), Ui.dp(a, 22)));
+            f.addView(Ui.espai(a, 12));
+            f.addView(Ui.unaLinia(Ui.negreta(a, ac.nom, 15, c)), Ui.pes(1));
+            f.setOnClickListener(v -> {
+                d[0].dismiss();
+                ac.fet.run();
+            });
+            files.addView(f, Ui.ample(a, 8));
+        }
+        ScrollView sc = new ScrollView(a);
+        sc.addView(files);
+        LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.min(Ui.dp(a, 60) * opcions.size() + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.55f)));
+        cos.addView(sc, ls);
+        d[0] = panellBaix(a, cos);
+        d[0].show();
+    }
+
     // ---------- Confirmar ----------
 
     public static void confirma(Activity a, String titol, String missatge, String boto, boolean perill, Runnable fet) {

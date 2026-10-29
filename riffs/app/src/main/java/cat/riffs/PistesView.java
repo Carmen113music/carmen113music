@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * Les pistes de l'Estudi, una sota l'altra; cada pista pot tenir diversos clips del mateix fitxer.
- * Clip triat: cantonades de baix = retallar, cantonades de dalt = fades, punt de dalt al mig = volum del clip.
+ * Clip triat: cantonades de baix = retallar o allargar (més enllà del so és silenci), cantonades de dalt = fades, punt de dalt al mig = volum del clip.
  * Arrossegar un clip el mou (amb snap); en mode Lliure la bandera es queda quieta i l'àudio llisca per sota.
  * Mantenir premut un clip i, sense aixecar el dit, arrossegar a dreta o esquerra tria clips consecutius;
  * arrossegar qualsevol clip triat mou tot el grup. Dos dits = desplaçar i zoom.
@@ -36,8 +36,8 @@ public class PistesView extends View {
         /** Desplaçament vertical amb dos dits (per passar per les pistes). */
         void desplacaVertical(int dy);
 
-        /** La bandera del primer temps d'aquesta pista ha canviat (mode Lliure): cal desar-la a la fitxa. */
-        void bandera(int pista);
+        /** La bandera del primer temps d'aquesta presa ha canviat (mode Lliure): cal desar-la a la fitxa. */
+        void bandera(String wav);
 
         /** Han canviat els clips triats. */
         void seleccio();
@@ -175,9 +175,10 @@ public class PistesView extends View {
         ple.setColor(Ui.alfa(color, triat ? 70 : 46));
         c.drawRoundRect(r, rad, rad, ple);
 
-        // ona (escalada pel volum del clip)
-        float[] pics = ones.get(t.wav);
-        if (pics != null && t.duradaMs > 0) {
+        // ona (escalada pel volum del clip); fora del so (si s'ha allargat la finestra) no n'hi ha
+        float[] pics = ones.get(k.wav);
+        long durada = projecte.duradaDe(k);
+        if (pics != null && durada > 0) {
             double g = Mesclador.lineal(k.guanyDb);
             barra.setColor(Ui.alfa(color, sona ? 220 : 120));
             float pas = dp(2.5f);
@@ -187,8 +188,9 @@ public class PistesView extends View {
             for (float x = desde; x < fins; x += pas) {
                 double ms = vista.ms(x) - k.posMs;          // dins el fitxer
                 double ms2 = vista.ms(x + pas) - k.posMs;
-                int a = (int) Math.max(0, ms / t.duradaMs * pics.length);
-                int b = (int) Math.min(pics.length, Math.ceil(ms2 / t.duradaMs * pics.length));
+                if (ms2 < 0 || ms > durada) continue;
+                int a = (int) Math.max(0, ms / durada * pics.length);
+                int b = (int) Math.min(pics.length, Math.ceil(ms2 / durada * pics.length));
                 float v = 0;
                 for (int q = a; q < b; q++) v = Math.max(v, pics[q]);
                 if (b <= a && a < pics.length) v = pics[a];
@@ -235,8 +237,8 @@ public class PistesView extends View {
         }
 
         // bandera del primer temps
-        if (t.banderaVisible(k)) {
-            float xp = vista.x(k.posMs + t.primerMs);
+        if (projecte.banderaVisible(k)) {
+            float xp = vista.x(k.posMs + projecte.primerDe(k));
             linia.setColor(Ui.ACCENT);
             linia.setStrokeWidth(dp(1.5f));
             c.drawLine(xp, top, xp, baix, linia);
@@ -349,7 +351,7 @@ public class PistesView extends View {
                 clip.fadeInMs = fadeIn0;
                 clip.fadeOutMs = fadeOut0;
                 clip.guanyDb = guany0;
-                projecte.pistes.get(pista).primerMs = primer0;
+                projecte.presa(clip).primerMs = primer0;
             }
             if (oient != null) {
                 oient.info(null);
@@ -445,7 +447,7 @@ public class PistesView extends View {
         posGrup0 = new long[grup.size()];
         for (int i = 0; i < grup.size(); i++) posGrup0[i] = grup.get(i).posMs;
         // en mode Lliure, si es mou un sol clip i la bandera s'hi veu, la bandera es queda quieta
-        banderaFixa = vista.snap == Projecte.SNAP_LLIURE && grup.size() == 1 && t.banderaVisible(k);
+        banderaFixa = vista.snap == Projecte.SNAP_LLIURE && grup.size() == 1 && projecte.banderaVisible(k);
         getParent().requestDisallowInterceptTouchEvent(true);
         postDelayed(premut, TEMPS_PREMUT);
     }
@@ -458,8 +460,8 @@ public class PistesView extends View {
         fadeIn0 = k.fadeInMs;
         fadeOut0 = k.fadeOutMs;
         guany0 = k.guanyDb;
-        primer0 = t.primerMs;
-        snap0 = t.puntSnap(k);
+        primer0 = projecte.primerDe(k);
+        snap0 = projecte.puntSnap(k);
         visIni0 = k.iniciVisible();
         visFi0 = k.fiVisible();
     }
@@ -503,9 +505,10 @@ public class PistesView extends View {
                     long delta = nou - snap0;
                     for (int i = 0; i < grup.size(); i++) grup.get(i).posMs = posGrup0[i] + delta;
                     if (banderaFixa) {
-                        t.primerMs = Projecte.primerAmbBanderaFixa(k, pos0, primer0);
+                        long pr = Projecte.primerAmbBanderaFixa(k, pos0, primer0);
+                        projecte.presa(k).primerMs = pr;
                         if (oient != null) {
-                            if (t.primerMs == primer0 && k.posMs != pos0) {
+                            if (pr == primer0 && k.posMs != pos0) {
                                 oient.info("La bandera quedaria fora del clip: es mou amb l'àudio");
                             } else {
                                 oient.info(String.format(java.util.Locale.ROOT, "Bandera fixa · àudio %+d ms", k.posMs - pos0));
@@ -513,35 +516,37 @@ public class PistesView extends View {
                         }
                     } else if (oient != null) {
                         String quants = grup.size() > 1 ? grup.size() + " clips · " : "";
-                        oient.info(quants + "Compàs " + textCompas(t.puntSnap(k)));
+                        oient.info(quants + "Compàs " + textCompas(projecte.puntSnap(k)));
                     }
                     break;
                 }
                 case RETALL_I: {
+                    // es pot allargar abans de l'inici del so (silenci)
                     long abs = projecte.enganxa(visIni0 + dms, vista.snap);
-                    k.iniciMs = Math.max(0, Math.min(abs - k.posMs, k.fiMs - 50));
-                    k.normalitza(t.duradaMs);
+                    k.iniciMs = Math.min(abs - k.posMs, k.fiMs - 50);
+                    k.normalitza(projecte.duradaDe(k));
                     if (oient != null) oient.info("Inici " + textCompas(k.iniciVisible()));
                     break;
                 }
                 case RETALL_F: {
+                    // es pot allargar més enllà del final del so (silenci)
                     long abs = projecte.enganxa(visFi0 + dms, vista.snap);
-                    k.fiMs = Math.min(t.duradaMs, Math.max(abs - k.posMs, k.iniciMs + 50));
-                    k.normalitza(t.duradaMs);
+                    k.fiMs = Math.max(abs - k.posMs, k.iniciMs + 50);
+                    k.normalitza(projecte.duradaDe(k));
                     if (oient != null) oient.info("Final " + textCompas(k.fiVisible()));
                     break;
                 }
                 case FADE_IN: {
                     double ms = vista.ms(x);
                     k.fadeInMs = Math.max(0, Math.round(ms - k.iniciVisible()));
-                    k.normalitza(t.duradaMs);
+                    k.normalitza(projecte.duradaDe(k));
                     if (oient != null) oient.info("Fade in " + segons(k.fadeInMs));
                     break;
                 }
                 case FADE_OUT: {
                     double ms = vista.ms(x);
                     k.fadeOutMs = Math.max(0, Math.round(k.fiVisible() - ms));
-                    k.normalitza(t.duradaMs);
+                    k.normalitza(projecte.duradaDe(k));
                     if (oient != null) oient.info("Fade out " + segons(k.fadeOutMs));
                     break;
                 }
@@ -604,9 +609,8 @@ public class PistesView extends View {
             }
         } else if (mode >= MOU && mode <= GUANY && oient != null) {
             ordena();
-            if (mode == MOU && pista >= 0 && pista < projecte.pistes.size()
-                    && projecte.pistes.get(pista).primerMs != primer0) {
-                oient.bandera(pista);
+            if (mode == MOU && clip != null && projecte.primerDe(clip) != primer0) {
+                oient.bandera(clip.wav);
             }
             oient.editat(true);
             oient.info(null);

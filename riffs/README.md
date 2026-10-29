@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.4:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.5:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Pròximes fases: marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -48,9 +48,12 @@ El primer cop l'app demana permís de micròfon.
 - **Snap**: *Compàs*, *Temps* o *Lliure*. En moure un clip, el que s'enganxa a la graella és la seva bandera (o l'inici, si no en té).
 - **Afinar la bandera (mode Lliure)**: en mode *Lliure*, quan mous un clip que té la bandera visible, **la bandera es queda quieta** i l'àudio llisca per sota. Posa el cop de l'ona just sota la bandera i deixa anar: la bandera queda marcant aquell punt de l'àudio, també a la fitxa de la gravació. A dalt es veu quant has mogut l'àudio. Si la bandera quedés fora de la part que sona, es mou amb el clip com abans.
 - **Gestos**: **un dit edita** (arrossegar un clip el mou; tocar un espai buit hi posa el capçal). **Dos dits mouen la pantalla**: arrossegar en horitzontal recorre la cançó, en vertical passa per les pistes, i obrir o tancar els dits fa zoom. Si poses un segon dit mentre mous un clip, el clip torna on era.
-- **Clip triat** (toca'l): les **cantonades de baix** retallen o allarguen el que sona (el fitxer no es toca mai); les **cantonades de dalt** fan el **fade in** i el **fade out** (línia de silenci a 0 dB); el **punt del mig** baixa el **volum del clip** de 0 a -24 dB. Mentre arrossegues, a dalt es veu el valor.
+- **Clip triat** (toca'l): les **cantonades de baix** retallen o allarguen la finestra, fins i tot més enllà del principi o del final del so (aquella part és silenci), per quadrar-la a compàs; el fitxer no es toca mai; les **cantonades de dalt** fan el **fade in** i el **fade out** (línia de silenci a 0 dB); el **punt del mig** baixa el **volum del clip** de 0 a -24 dB. Mentre arrossegues, a dalt es veu el valor.
 - **Triar diversos clips**: mantén premut un clip (el mòbil vibra) i, sense aixecar el dit, arrossega a dreta o esquerra: es van triant els clips consecutius de la pista. Tocar la capçalera d'una pista tria tots els seus clips. Per moure el grup, arrossega qualsevol dels clips triats. Les manetes (retall, fades, volum) només surten quan hi ha un sol clip triat; tocar un clip d'un grup el deixa triat sol.
 - **Duplicar**: amb clips triats, a dalt surten **Duplica** i **Treu**. Duplica posa una còpia just a continuació i deixa triada la còpia: si el clip dura un compàs exacte, cada toc afegeix un compàs més al loop. Treu els treu del projecte (la gravació no s'esborra). Si una pista es queda sense clips, toca la seva capçalera per tornar-hi a posar la gravació sencera.
+- **Gravar des de l'Estudi**: **mantén premut el play**. Tria a quina pista vols gravar, o *Pista nova · guitarra* / *Pista nova · veu*. La gravació entra a l'inici del compàs més proper al capçal (com a mínim el compàs 2): l'Estudi comença a sonar **un compàs abans** amb el compte («Compte: 4, 3, 2, 1» a dalt) i després surt «● Gravant». Mentrestant sonen les altres pistes. Toca el botó (ara és un quadrat vermell) per aturar. La gravació nova queda amb la **bandera al primer temps del compàs d'entrada**, ja col·locada al seu lloc i corregida amb el retard mesurat al diagnòstic. També es desa a la biblioteca, dins la carpeta de la cançó.
+- El **clic** només sona amb auriculars (si es desconnecten, s'apaga). Sense auriculars el compte és visual, i el que sona per l'altaveu també queda gravat.
+- Una pista pot tenir clips de gravacions diferents (les que s'hi han gravat a sobre). La pista pren el nom i el color de la seva gravació principal.
 - **Capçalera de cada pista**: **M** (silenci), **S** (solo) i el **fader** de volum (de -∞ a +6 dB; s'enganxa a 0 dB).
 - Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
 
@@ -73,6 +76,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.5** (29/10/2026) — Estudi: gravar mantenint premut el play, a una pista existent o a una de nova, amb un compàs de compte i les altres pistes sonant; la bandera queda al primer temps del compàs d'entrada, corregida amb el retard mesurat. Les finestres dels clips es poden allargar més enllà del so (silenci) per quadrar-les a compàs. Una pista pot tenir clips de gravacions diferents.
 - **2.4** (29/10/2026) — Estudi: diversos clips per pista, cadascun amb el seu retall, fades, volum i posició. Mantenir premut i arrossegar tria clips consecutius; el grup es mou de cop. Botons Duplica (just a continuació, per fer loops) i Treu. Els projectes antics s'obren igual.
 - **2.3** (29/10/2026) — La bandera del primer temps es corregeix sola amb el retard mesurat al diagnòstic (per a cada sortida i font de micròfon). Estudi: en mode Lliure la bandera es queda quieta i l'àudio llisca per sota, per afinar-la a ull; el canvi es desa a la fitxa.
 - **2.2** (29/10/2026) — Diagnòstic: prova de **retard del so**. Mesura quant arriba tard el clic del metrònom a la gravació (amb l'altaveu o amb auriculars) i si el retard és fix o variable. Desa totes les mesures per decidir com corregir la bandera del primer temps.
