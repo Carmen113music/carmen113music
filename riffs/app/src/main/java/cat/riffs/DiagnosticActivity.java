@@ -184,6 +184,7 @@ public class DiagnosticActivity extends Activity {
                 .append(" · auriculars: ").append(Metronom.auriculars(this) ? "sí" : "no").append('\n');
         s.append("Es desa a: ").append(Ui.nomCarpeta(this, Ui.carpetaActual(this))).append('\n');
         s.append("Darrera prova: ").append(resultatProva).append('\n');
+        s.append("Correcció de la bandera: ").append(textCorreccio()).append('\n');
         s.append("Mesures de retard (la més recent a dalt):\n").append(historialRetard().isEmpty() ? "(cap)" : historialRetard());
         return s.toString();
     }
@@ -255,6 +256,39 @@ public class DiagnosticActivity extends Activity {
 
     // ---------- Prova de retard ----------
 
+    /**
+     * Retard mesurat (ms) per a aquesta sortida («altaveu», «bluetooth»…) i la font de micròfon triada.
+     * Si no n'hi ha per a aquesta font, fa la mitjana de les altres fonts amb la mateixa sortida.
+     * Torna NaN si no s'ha mesurat mai.
+     */
+    public static double retardDesat(Context c, String sortida) {
+        if (sortida == null) sortida = "altaveu";
+        android.content.SharedPreferences p = Ui.prefs(c);
+        String font = p.getString("font", Gravadora.AUTO);
+        String clau = "retard_" + sortida + "_" + font;
+        if (p.contains(clau)) return p.getFloat(clau, 0f);
+        double suma = 0;
+        int n = 0;
+        for (java.util.Map.Entry<String, ?> e : p.getAll().entrySet()) {
+            if (e.getKey().startsWith("retard_" + sortida + "_") && e.getValue() instanceof Float) {
+                suma += (Float) e.getValue();
+                n++;
+            }
+        }
+        return n == 0 ? Double.NaN : suma / n;
+    }
+
+    private String textCorreccio() {
+        StringBuilder s = new StringBuilder();
+        for (String sortida : new String[]{"altaveu", "bluetooth", "cable"}) {
+            double r = retardDesat(this, sortida);
+            if (s.length() > 0) s.append(" · ");
+            s.append(nomSortida(sortida, "")).append(": ")
+                    .append(Double.isNaN(r) ? "sense mesura" : Math.round(r) + " ms");
+        }
+        return s.toString();
+    }
+
     private void posaAjudaRetard() {
         if (ajudaRetard == null) return;
         String text = "L'app fa sonar 12 clics i els grava. Així sabem quant tarda el so a arribar a la gravació i si "
@@ -265,7 +299,9 @@ public class DiagnosticActivity extends Activity {
         } else {
             text += "\n\nSense auriculars: el clic sonarà per l'altaveu. Deixa el mòbil sobre la taula.";
         }
-        text += "\n\nFes-la uns quants cops, amb cada font de micròfon i amb i sense auriculars.";
+        text += "\n\nFes-la uns quants cops, amb cada font de micròfon i amb i sense auriculars. "
+                + "En gravar amb metrònom, la bandera del primer temps es corregeix sola amb el retard mesurat "
+                + "per a la sortida i la font que facis servir.\n\nAra: " + textCorreccio() + ".";
         ajudaRetard.setText(text);
     }
 
@@ -366,6 +402,7 @@ public class DiagnosticActivity extends Activity {
                             r.minim, r.maxim, r.errors.size(), r.clics, r.valoracio());
                 }
                 mostraResultatRetard(text, r.valida() ? Ui.TEXT : Ui.ACCENT);
+                posaAjudaRetard();
                 mostraMesures();
                 omple();
             });

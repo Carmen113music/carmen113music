@@ -475,7 +475,18 @@ public class MainActivity extends Activity {
         long primerEsperat = -1;
         Metronom met = metronom;
         metronom = null;
-        if (met != null) primerEsperat = gravadora.msDelMoment(met.nanoPrimerTemps());
+        String sortida = null;
+        long correccio = 0;
+        if (met != null) {
+            primerEsperat = gravadora.msDelMoment(met.nanoPrimerTemps());
+            // el so arriba a la gravació més tard del que diu el mòbil: hi sumem el retard mesurat
+            sortida = met.tipusSortida();
+            double r = DiagnosticActivity.retardDesat(this, sortida);
+            if (!Double.isNaN(r)) {
+                correccio = Math.round(r);
+                primerEsperat += correccio;
+            }
+        }
         long durada = gravadora.atura();
         if (met != null) met.atura();
         punts.setActiu(-1, Ui.ACCENT);
@@ -512,7 +523,8 @@ public class MainActivity extends Activity {
         Ui.prefs(this).edit().putString("ultima", wav.getAbsolutePath()).apply();
         Ui.historial(this, "Gravat «" + fitxaActual.titol + "» (" + (fitxaActual.esVeu() ? "veu" : "guitarra") + ", "
                 + Biblioteca.durada(durada) + (fitxaActual.claqueta ? ", " + fitxaActual.textTempo() : "")
-                + ") a " + Ui.nomCarpeta(this, wav.getParentFile()));
+                + ") a " + Ui.nomCarpeta(this, wav.getParentFile())
+                + (met != null && correccio != 0 ? " · bandera corregida " + correccio + " ms (" + sortida + ")" : ""));
         rellotge.setText(tempsAmbDecimes(durada));
         mostraEstat(motiu != null ? motiu : "Desada ✓", motiu != null ? Ui.ACCENT : Ui.SUAU);
         mostraUltima();

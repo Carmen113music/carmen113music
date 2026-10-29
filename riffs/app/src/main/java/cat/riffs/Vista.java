@@ -16,7 +16,9 @@ public final class Vista {
     public float pxPerMs = 0.12f;   // zoom
     public double iniciMs = -200;   // moment que queda a l'esquerra de tot
     public long capcalMs = 0;
-    public int triada = -1;         // pista del clip triat (-1 = cap)
+    public int triada = -1;         // pista dels clips triats (-1 = cap)
+    /** Clips triats (tots de la pista {@code triada}, consecutius). */
+    public final List<Projecte.Clip> triats = new ArrayList<>();
     public int snap = Projecte.SNAP_TEMPS;
 
     private final List<Oient> oients = new ArrayList<>();
@@ -27,6 +29,22 @@ public final class Vista {
 
     public void avisa() {
         for (Oient o : oients) o.canvi();
+    }
+
+    /** Tria un sol clip (o cap, si {@code c} és null). */
+    public void tria(int pista, Projecte.Clip c) {
+        triats.clear();
+        if (c == null) {
+            triada = -1;
+        } else {
+            triada = pista;
+            triats.add(c);
+        }
+    }
+
+    /** El clip triat si n'hi ha exactament un (llavors es veuen les manetes), o null. */
+    public Projecte.Clip unic() {
+        return triats.size() == 1 ? triats.get(0) : null;
     }
 
     public float x(double ms) {

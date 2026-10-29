@@ -36,6 +36,8 @@ public class ProjecteActivity extends Activity {
     private LinearLayout capcaleres;
     private FrameLayout botoPlay;
     private TextView textPosicio, textInfo, textTempo;
+    private LinearLayout accions;
+    private TextView textTriats;
     private int altPista;
 
     private final Runnable segueix = new Runnable() {
@@ -114,6 +116,23 @@ public class ProjecteActivity extends Activity {
         dalt.addView(snap, new LinearLayout.LayoutParams(Ui.dp(this, 210), LinearLayout.LayoutParams.WRAP_CONTENT));
 
         dalt.addView(Ui.mollaH(this));
+
+        // accions dels clips triats (només es veuen si n'hi ha)
+        accions = Ui.fila(this);
+        textTriats = Ui.text(this, "", 12, Ui.SUAU);
+        accions.addView(textTriats);
+        accions.addView(Ui.espai(this, 6));
+        FrameLayout duplica = Ui.botoIcona(this, Icona.DUPLICA, Ui.TEXT, Ui.SUPERFICIE, 40, 20, "Duplica");
+        duplica.setOnClickListener(v -> duplica());
+        accions.addView(duplica);
+        accions.addView(Ui.espai(this, 6));
+        FrameLayout esborra = Ui.botoIcona(this, Icona.PAPERERA, Ui.ACCENT, Ui.SUPERFICIE, 40, 20, "Treu del projecte");
+        esborra.setOnClickListener(v -> esborra());
+        accions.addView(esborra);
+        accions.addView(Ui.espai(this, 12));
+        accions.setVisibility(View.GONE);
+        dalt.addView(accions);
+
         textInfo = Ui.unaLinia(Ui.text(this, "", 13, Ui.GUITARRA));
         dalt.addView(textInfo);
         dalt.addView(Ui.espai(this, 12));
@@ -208,6 +227,16 @@ public class ProjecteActivity extends Activity {
             public void desplacaVertical(int dy) {
                 scroll.scrollBy(0, dy);
             }
+
+            @Override
+            public void bandera(int i) {
+                desaBandera(i);
+            }
+
+            @Override
+            public void seleccio() {
+                actualitzaAccions();
+            }
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         scroll.addView(fila);
@@ -247,7 +276,28 @@ public class ProjecteActivity extends Activity {
         c.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 4));
         c.setClickable(true);
         c.setOnClickListener(v -> {
-            vista.triada = i;
+            if (t.clips.isEmpty()) {
+                // pista buida: es pot tornar a posar la gravació sencera
+                Full.confirma(this, "Tornar a posar «" + t.nom + "»?",
+                        "La pista no té cap clip. Es tornarà a posar la gravació sencera.", "Posa", false, () -> {
+                            synchronized (projecte) {
+                                t.clips.add(projecte.clipSencer(t));
+                            }
+                            vista.tria(i, t.clips.get(0));
+                            desa();
+                            actualitzaAccions();
+                            vista.avisa();
+                            refresca();
+                        });
+                return;
+            }
+            // tocar la capçalera tria tots els clips de la pista
+            vista.tria(-1, null);
+            if (!t.clips.isEmpty()) {
+                vista.triada = i;
+                vista.triats.addAll(t.clips);
+            }
+            actualitzaAccions();
             vista.avisa();
         });
 
@@ -331,6 +381,81 @@ public class ProjecteActivity extends Activity {
     private void pintaMS(TextView t, boolean actiu, int color) {
         t.setBackground(Ui.tocable(actiu ? color : Ui.SUPERFICIE2, Ui.dp(this, 6)));
         t.setTextColor(actiu ? Ui.SOBRE_COLOR : Ui.SUAU);
+    }
+
+    // ---------- Clips triats ----------
+
+    private void actualitzaAccions() {
+        int n = vista.triats.size();
+        accions.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
+        textTriats.setText(n == 1 ? "1 clip" : n + " clips");
+    }
+
+    /** Duplica els clips triats just a continuació, i queden triats els nous (tornant a tocar, el loop creix). */
+    private void duplica() {
+        int i = vista.triada;
+        if (i < 0 || i >= projecte.pistes.size() || vista.triats.isEmpty()) return;
+        Projecte.Pista t = projecte.pistes.get(i);
+        java.util.List<Projecte.Clip> nous;
+        synchronized (projecte) {
+            nous = Projecte.duplica(t, new java.util.ArrayList<>(vista.triats));
+        }
+        vista.triats.clear();
+        vista.triats.addAll(nous);
+        desa();
+        actualitzaAccions();
+        textInfo.setText(nous.size() == 1 ? "Clip duplicat" : nous.size() + " clips duplicats");
+        // que es vegin els nous
+        long fi = 0;
+        for (Projecte.Clip k : nous) fi = Math.max(fi, k.fiVisible());
+        float w = pistes.getWidth();
+        if (w > 0 && vista.x(fi) > w) vista.iniciMs = fi - (w * 0.85f) / vista.pxPerMs;
+        vista.avisa();
+        refresca();
+    }
+
+    /** Treu els clips triats del projecte (la gravació no es toca). */
+    private void esborra() {
+        int i = vista.triada;
+        if (i < 0 || i >= projecte.pistes.size() || vista.triats.isEmpty()) return;
+        Projecte.Pista t = projecte.pistes.get(i);
+        int n = vista.triats.size();
+        Runnable fes = () -> {
+            synchronized (projecte) {
+                Projecte.esborra(t, new java.util.ArrayList<>(vista.triats));
+            }
+            vista.tria(-1, null);
+            desa();
+            actualitzaAccions();
+            textInfo.setText(n == 1 ? "Clip tret" : n + " clips trets");
+            vista.avisa();
+            refresca();
+        };
+        if (n == 1) {
+            fes.run();
+        } else {
+            Full.confirma(this, "Treure " + n + " clips?",
+                    "Només es treuen del projecte. La gravació no s'esborra i continua a la biblioteca.",
+                    "Treu", true, fes);
+        }
+    }
+
+    /** Desa la bandera nova a la fitxa de la gravació (és d'ella, no només del projecte). */
+    private void desaBandera(int i) {
+        if (i < 0 || i >= projecte.pistes.size()) return;
+        Projecte.Pista t = projecte.pistes.get(i);
+        File wav = new File(projecte.carpeta, t.wav);
+        File fx = Biblioteca.fitxaDe(wav);
+        Fitxa f = Fitxa.llegeix(fx);
+        long abans = f.primerTempsMs;
+        f.primerTempsMs = t.primerMs;
+        try {
+            f.desa(fx);
+            Ui.historial(this, "Bandera de «" + t.nom + "» moguda a l'Estudi ("
+                    + String.format(Locale.ROOT, "%+d ms", t.primerMs - abans) + ")");
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut desar la bandera.");
+        }
     }
 
     // ---------- Tempo ----------

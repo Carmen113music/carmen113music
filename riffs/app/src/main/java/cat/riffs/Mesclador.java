@@ -28,24 +28,27 @@ public final class Mesclador {
             if (t.mut || (solo && !t.solo)) continue;
             short[] so = audio.get(t.wav);
             if (so == null) continue;
-            double guany = lineal(t.guanyDb) * lineal(t.volumDb);
-            if (guany <= 0) continue;
-
-            long pos = msAMostra(t.posMs);
-            long ini = msAMostra(t.iniciMs);
-            long fi = Math.min(msAMostra(t.fiMs), so.length);
-            long fIn = msAMostra(t.fadeInMs);
-            long fOut = msAMostra(t.fadeOutMs);
-            // tros de la sortida on sona aquest clip
-            long des = Math.max(0, pos + ini - inici);
-            long fins = Math.min(n, pos + fi - inici);
-            for (long i = des; i < fins; i++) {
-                long f = inici + i - pos;              // mostra dins el fitxer
-                if (f < ini || f >= fi || f < 0 || f >= so.length) continue;
-                double env = 1;
-                if (fIn > 0 && f < ini + fIn) env = (f - ini) / (double) fIn;
-                if (fOut > 0 && f > fi - fOut) env = Math.min(env, (fi - f) / (double) fOut);
-                sortida[(int) i] += (float) (so[(int) f] / 32768.0 * guany * env);
+            double volum = lineal(t.volumDb);
+            if (volum <= 0) continue;
+            for (Projecte.Clip k : t.clips) {
+                double guany = lineal(k.guanyDb) * volum;
+                if (guany <= 0) continue;
+                long pos = msAMostra(k.posMs);
+                long ini = msAMostra(k.iniciMs);
+                long fi = Math.min(msAMostra(k.fiMs), so.length);
+                long fIn = msAMostra(k.fadeInMs);
+                long fOut = msAMostra(k.fadeOutMs);
+                // tros de la sortida on sona aquest clip
+                long des = Math.max(0, pos + ini - inici);
+                long fins = Math.min(n, pos + fi - inici);
+                for (long i = des; i < fins; i++) {
+                    long f = inici + i - pos;              // mostra dins el fitxer
+                    if (f < ini || f >= fi || f < 0 || f >= so.length) continue;
+                    double env = 1;
+                    if (fIn > 0 && f < ini + fIn) env = (f - ini) / (double) fIn;
+                    if (fOut > 0 && f > fi - fOut) env = Math.min(env, (fi - f) / (double) fOut);
+                    sortida[(int) i] += (float) (so[(int) f] / 32768.0 * guany * env);
+                }
             }
         }
     }

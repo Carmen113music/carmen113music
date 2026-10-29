@@ -5,16 +5,21 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Les pistes de l'Estudi, una sota l'altra, amb el clip de cada take.
+ * Les pistes de l'Estudi, una sota l'altra; cada pista pot tenir diversos clips del mateix fitxer.
  * Clip triat: cantonades de baix = retallar, cantonades de dalt = fades, punt de dalt al mig = volum del clip.
- * Arrossegar el clip el mou (amb snap); arrossegar un espai buit desplaça la vista; dos dits = zoom.
+ * Arrossegar un clip el mou (amb snap); en mode Lliure la bandera es queda quieta i l'àudio llisca per sota.
+ * Mantenir premut un clip i, sense aixecar el dit, arrossegar a dreta o esquerra tria clips consecutius;
+ * arrossegar qualsevol clip triat mou tot el grup. Dos dits = desplaçar i zoom.
  */
 public class PistesView extends View {
 
@@ -30,9 +35,17 @@ public class PistesView extends View {
 
         /** Desplaçament vertical amb dos dits (per passar per les pistes). */
         void desplacaVertical(int dy);
+
+        /** La bandera del primer temps d'aquesta pista ha canviat (mode Lliure): cal desar-la a la fitxa. */
+        void bandera(int pista);
+
+        /** Han canviat els clips triats. */
+        void seleccio();
     }
 
-    private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6, BUIT = 7, DOS_DITS = 8;
+    private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6,
+            BUIT = 7, DOS_DITS = 8, TRIA = 9;
+    private static final long TEMPS_PREMUT = 400;
 
     private final Projecte projecte;
     private final Vista vista;
@@ -53,11 +66,17 @@ public class PistesView extends View {
     // estat de l'arrossegament
     private int mode = CAP;
     private int pista = -1;
+    private Projecte.Clip clip;                       // el clip tocat
+    private final List<Projecte.Clip> grup = new ArrayList<>(); // els que es mouen
+    private long[] posGrup0 = new long[0];
+    private boolean triatAbans;                       // el clip tocat ja era dins d'un grup triat
     private float x0, y0;
     private boolean mogut;
-    private double iniciVista0;
-    private long pos0, ini0, fi0, snap0, visIni0, visFi0, fadeIn0, fadeOut0;
+    private long pos0, ini0, fi0, snap0, visIni0, visFi0, fadeIn0, fadeOut0, primer0;
     private double guany0;
+    private boolean banderaFixa;
+
+    private final Runnable premut = this::comencaTria;
 
     public PistesView(Context c, Projecte p, Vista v, int altPistaPx) {
         super(c);
@@ -103,7 +122,14 @@ public class PistesView extends View {
         linia.setColor(Ui.LINIA);
         for (int i = 1; i <= n; i++) c.drawLine(0, i * altPista - 0.5f, w, i * altPista - 0.5f, linia);
 
-        for (int i = 0; i < n; i++) dibuixaClip(c, i, w);
+        synchronized (projecte) {
+            for (int i = 0; i < n; i++) {
+                Projecte.Pista t = projecte.pistes.get(i);
+                // primer els no triats, i els triats a sobre
+                for (Projecte.Clip k : t.clips) if (!vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
+                for (Projecte.Clip k : t.clips) if (vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
+            }
+        }
 
         // capçal
         float xc = vista.x(vista.capcalMs);
@@ -127,47 +153,49 @@ public class PistesView extends View {
         }
     }
 
-    private void dibuixaClip(Canvas c, int i, float w) {
-        Projecte.Pista t = projecte.pistes.get(i);
+    private void dibuixaClip(Canvas c, int i, Projecte.Pista t, Projecte.Clip k, float w) {
         boolean sona = projecte.sona(t);
         int color = t.veu ? Ui.VEU : Ui.GUITARRA;
         if (!sona) color = Ui.APAGAT;
-        boolean triat = i == vista.triada;
+        boolean triat = vista.triats.contains(k);
+        boolean manetes = triat && vista.triats.size() == 1;
 
         float top = i * altPista + dp(5);
         float baix = (i + 1) * altPista - dp(5);
         float alt = baix - top;
-        float xa = vista.x(t.iniciVisible());
-        float xb = vista.x(t.fiVisible());
+        float xa = vista.x(k.iniciVisible());
+        float xb = vista.x(k.fiVisible());
         if (xb < -dp(30) || xa > w + dp(30)) return;
         float rad = dp(6);
 
-        // cos del clip
+        // cos del clip (opac, perquè si se'n trepitgen dos es vegi el de sobre)
         r.set(xa, top, xb, baix);
+        ple.setColor(i % 2 == 0 ? Ui.FONS : 0xFF121215);
+        c.drawRoundRect(r, rad, rad, ple);
         ple.setColor(Ui.alfa(color, triat ? 70 : 46));
         c.drawRoundRect(r, rad, rad, ple);
 
         // ona (escalada pel volum del clip)
         float[] pics = ones.get(t.wav);
         if (pics != null && t.duradaMs > 0) {
-            double g = Mesclador.lineal(t.guanyDb);
+            double g = Mesclador.lineal(k.guanyDb);
             barra.setColor(Ui.alfa(color, sona ? 220 : 120));
             float pas = dp(2.5f);
             float mig = top + alt / 2f;
             float desde = Math.max(xa + 1, 0);
             float fins = Math.min(xb - 1, w);
             for (float x = desde; x < fins; x += pas) {
-                double ms = vista.ms(x) - t.posMs;          // dins el fitxer
-                double ms2 = vista.ms(x + pas) - t.posMs;
+                double ms = vista.ms(x) - k.posMs;          // dins el fitxer
+                double ms2 = vista.ms(x + pas) - k.posMs;
                 int a = (int) Math.max(0, ms / t.duradaMs * pics.length);
                 int b = (int) Math.min(pics.length, Math.ceil(ms2 / t.duradaMs * pics.length));
                 float v = 0;
-                for (int k = a; k < b; k++) v = Math.max(v, pics[k]);
+                for (int q = a; q < b; q++) v = Math.max(v, pics[q]);
                 if (b <= a && a < pics.length) v = pics[a];
                 // fades
                 double env = 1;
-                if (t.fadeInMs > 0 && ms < t.iniciMs + t.fadeInMs) env = Math.max(0, (ms - t.iniciMs) / t.fadeInMs);
-                if (t.fadeOutMs > 0 && ms > t.fiMs - t.fadeOutMs) env = Math.min(env, Math.max(0, (t.fiMs - ms) / t.fadeOutMs));
+                if (k.fadeInMs > 0 && ms < k.iniciMs + k.fadeInMs) env = Math.max(0, (ms - k.iniciMs) / k.fadeInMs);
+                if (k.fadeOutMs > 0 && ms > k.fiMs - k.fadeOutMs) env = Math.min(env, Math.max(0, (k.fiMs - ms) / k.fadeOutMs));
                 float hb = (float) Math.max(dp(1), v * g * env * (alt - dp(10)));
                 c.drawRect(x, mig - hb / 2f, x + pas * 0.6f, mig + hb / 2f, barra);
             }
@@ -177,8 +205,8 @@ public class PistesView extends View {
         linia.setStrokeWidth(dp(1.5f));
         linia.setColor(Ui.TEXT);
         ple.setColor(0x88000000);
-        if (t.fadeInMs > 0) {
-            float xf = vista.x(t.iniciVisible() + t.fadeInMs);
+        if (k.fadeInMs > 0) {
+            float xf = vista.x(k.iniciVisible() + k.fadeInMs);
             cami.reset();
             cami.moveTo(xa, baix);
             cami.lineTo(xa, top);
@@ -187,8 +215,8 @@ public class PistesView extends View {
             c.drawPath(cami, ple);
             c.drawLine(xa, baix, xf, top, linia);
         }
-        if (t.fadeOutMs > 0) {
-            float xf = vista.x(t.fiVisible() - t.fadeOutMs);
+        if (k.fadeOutMs > 0) {
+            float xf = vista.x(k.fiVisible() - k.fadeOutMs);
             cami.reset();
             cami.moveTo(xb, baix);
             cami.lineTo(xb, top);
@@ -199,16 +227,16 @@ public class PistesView extends View {
         }
 
         // línia de volum del clip
-        float yg = yGuany(t, top, alt);
-        if (t.guanyDb < -0.05 || triat) {
+        float yg = yGuany(k, top, alt);
+        if (k.guanyDb < -0.05 || manetes) {
             linia.setStrokeWidth(dp(1));
-            linia.setColor(triat ? 0xCCFFFFFF : 0x77FFFFFF);
+            linia.setColor(manetes ? 0xCCFFFFFF : 0x77FFFFFF);
             c.drawLine(xa, yg, xb, yg, linia);
         }
 
         // bandera del primer temps
-        if (t.primerMs >= t.iniciMs && t.primerMs <= t.fiMs) {
-            float xp = vista.x(t.posMs + t.primerMs);
+        if (t.banderaVisible(k)) {
+            float xp = vista.x(k.posMs + t.primerMs);
             linia.setColor(Ui.ACCENT);
             linia.setStrokeWidth(dp(1.5f));
             c.drawLine(xp, top, xp, baix, linia);
@@ -240,12 +268,12 @@ public class PistesView extends View {
             c.restore();
         }
 
-        // manetes (només al clip triat)
-        if (triat) {
+        // manetes (només si hi ha un sol clip triat)
+        if (manetes) {
             float m = dp(7);
             mansa.setColor(Ui.TEXT);
-            float xfi = vista.x(t.iniciVisible() + t.fadeInMs);
-            float xfo = vista.x(t.fiVisible() - t.fadeOutMs);
+            float xfi = vista.x(k.iniciVisible() + k.fadeInMs);
+            float xfo = vista.x(k.fiVisible() - k.fadeOutMs);
             c.drawRect(xa, baix - m * 2, xa + m * 1.4f, baix, mansa);          // retall inici
             c.drawRect(xb - m * 1.4f, baix - m * 2, xb, baix, mansa);          // retall final
             c.drawRect(xfi - m * 0.7f, top, xfi + m * 0.7f, top + m * 1.4f, mansa); // fade in
@@ -257,8 +285,8 @@ public class PistesView extends View {
     }
 
     /** 0 dB a dalt del clip; -24 dB a un 80% de l'alçada. */
-    private float yGuany(Projecte.Pista t, float top, float alt) {
-        return top + dp(3) + (float) (-t.guanyDb / -Projecte.GUANY_MIN_DB) * (alt * 0.8f);
+    private float yGuany(Projecte.Clip k, float top, float alt) {
+        return top + dp(3) + (float) (-k.guanyDb / -Projecte.GUANY_MIN_DB) * (alt * 0.8f);
     }
 
     // ---------- Tocs ----------
@@ -278,18 +306,30 @@ public class PistesView extends View {
                     return true;
                 }
                 float x = e.getX(), y = e.getY();
-                if (Math.abs(x - x0) > dp(4) || Math.abs(y - y0) > dp(4)) mogut = true;
-                if (mogut && mode != BUIT && mode != CAP) arrossega(x, y);
+                if (!mogut && (Math.abs(x - x0) > dp(4) || Math.abs(y - y0) > dp(4))) {
+                    mogut = true;
+                    removeCallbacks(premut);
+                }
+                if (mode == TRIA) {
+                    estenTria(x);
+                } else if (mogut && mode != BUIT && mode != CAP) {
+                    arrossega(x, y);
+                }
                 return true;
             case MotionEvent.ACTION_POINTER_UP:
                 // en aixecar un dels dos dits, ja no es fa res fins que s'aixequin tots
                 if (mode == DOS_DITS) mode = CAP;
                 return true;
             case MotionEvent.ACTION_UP:
+                removeCallbacks(premut);
                 acaba(e.getX());
                 return true;
             case MotionEvent.ACTION_CANCEL:
-                if (mode >= MOU && mode <= GUANY && oient != null) oient.editat(true);
+                removeCallbacks(premut);
+                if (mode >= MOU && mode <= GUANY && oient != null) {
+                    ordena();
+                    oient.editat(true);
+                }
                 mode = CAP;
                 return true;
             default:
@@ -299,21 +339,24 @@ public class PistesView extends View {
 
     /** Comença el gest de dos dits. Si s'estava editant un clip, el deixa com estava. */
     private void dosDits(MotionEvent e) {
-        if (mode >= MOU && mode <= GUANY && pista >= 0 && pista < projecte.pistes.size()) {
-            Projecte.Pista t = projecte.pistes.get(pista);
+        removeCallbacks(premut);
+        if (mode >= MOU && mode <= GUANY && clip != null && pista >= 0 && pista < projecte.pistes.size()) {
             synchronized (projecte) {
-                t.posMs = pos0;
-                t.iniciMs = ini0;
-                t.fiMs = fi0;
-                t.fadeInMs = fadeIn0;
-                t.fadeOutMs = fadeOut0;
-                t.guanyDb = guany0;
+                for (int i = 0; i < grup.size(); i++) grup.get(i).posMs = posGrup0[i];
+                clip.posMs = pos0;
+                clip.iniciMs = ini0;
+                clip.fiMs = fi0;
+                clip.fadeInMs = fadeIn0;
+                clip.fadeOutMs = fadeOut0;
+                clip.guanyDb = guany0;
+                projecte.pistes.get(pista).primerMs = primer0;
             }
             if (oient != null) {
                 oient.info(null);
                 oient.editat(false);
             }
         }
+        if (mode == TRIA && oient != null) oient.info(null);
         mode = DOS_DITS;
         getParent().requestDisallowInterceptTouchEvent(true);
         focusX = (e.getX(0) + e.getX(1)) / 2f;
@@ -345,36 +388,29 @@ public class PistesView extends View {
         y0 = y;
         mogut = false;
         mode = BUIT;
+        clip = null;
+        grup.clear();
         pista = (int) (y / altPista);
         if (pista < 0 || pista >= projecte.pistes.size()) {
             pista = -1;
             return;
         }
         Projecte.Pista t = projecte.pistes.get(pista);
-        pos0 = t.posMs;
-        ini0 = t.iniciMs;
-        fi0 = t.fiMs;
-        fadeIn0 = t.fadeInMs;
-        fadeOut0 = t.fadeOutMs;
-        guany0 = t.guanyDb;
-        snap0 = t.puntSnap();
-        visIni0 = t.iniciVisible();
-        visFi0 = t.fiVisible();
-
         float top = pista * altPista + dp(5);
         float baix = (pista + 1) * altPista - dp(5);
         float alt = baix - top;
-        float xa = vista.x(t.iniciVisible());
-        float xb = vista.x(t.fiVisible());
 
-        // manetes del clip triat (la més propera dins el radi)
-        if (pista == vista.triada) {
+        // manetes del clip triat (si n'hi ha un de sol en aquesta pista; la més propera dins el radi)
+        Projecte.Clip unic = vista.unic();
+        if (unic != null && vista.triada == pista && t.clips.contains(unic)) {
+            float xa = vista.x(unic.iniciVisible());
+            float xb = vista.x(unic.fiVisible());
             float radi = dp(26);
             float[][] punts = {
                     {xa, baix, RETALL_I}, {xb, baix, RETALL_F},
-                    {vista.x(t.iniciVisible() + t.fadeInMs), top, FADE_IN},
-                    {vista.x(t.fiVisible() - t.fadeOutMs), top, FADE_OUT},
-                    {(xa + xb) / 2f, yGuany(t, top, alt), GUANY}
+                    {vista.x(unic.iniciVisible() + unic.fadeInMs), top, FADE_IN},
+                    {vista.x(unic.fiVisible() - unic.fadeOutMs), top, FADE_OUT},
+                    {(xa + xb) / 2f, yGuany(unic, top, alt), GUANY}
             };
             float millor = radi;
             int quin = CAP;
@@ -387,67 +423,135 @@ public class PistesView extends View {
             }
             if (quin != CAP) {
                 mode = quin;
+                guardaInici(t, unic);
                 getParent().requestDisallowInterceptTouchEvent(true);
                 return;
             }
         }
-        if (x >= xa && x <= xb && y >= top && y <= baix) {
-            mode = MOU;
-            if (vista.triada != pista) {
-                vista.triada = pista;
-                vista.avisa();
-            }
-            getParent().requestDisallowInterceptTouchEvent(true);
+        if (y < top || y > baix) return;
+        Projecte.Clip k = t.clipA(vista.ms(x));
+        if (k == null) return;
+
+        mode = MOU;
+        triatAbans = vista.triats.contains(k) && vista.triats.size() > 1;
+        if (!vista.triats.contains(k)) {
+            vista.tria(pista, k);
+            if (oient != null) oient.seleccio();
+            vista.avisa();
         }
+        guardaInici(t, k);
+        // es mou tot el grup triat (o només aquest clip)
+        grup.addAll(vista.triats);
+        posGrup0 = new long[grup.size()];
+        for (int i = 0; i < grup.size(); i++) posGrup0[i] = grup.get(i).posMs;
+        // en mode Lliure, si es mou un sol clip i la bandera s'hi veu, la bandera es queda quieta
+        banderaFixa = vista.snap == Projecte.SNAP_LLIURE && grup.size() == 1 && t.banderaVisible(k);
+        getParent().requestDisallowInterceptTouchEvent(true);
+        postDelayed(premut, TEMPS_PREMUT);
+    }
+
+    private void guardaInici(Projecte.Pista t, Projecte.Clip k) {
+        clip = k;
+        pos0 = k.posMs;
+        ini0 = k.iniciMs;
+        fi0 = k.fiMs;
+        fadeIn0 = k.fadeInMs;
+        fadeOut0 = k.fadeOutMs;
+        guany0 = k.guanyDb;
+        primer0 = t.primerMs;
+        snap0 = t.puntSnap(k);
+        visIni0 = k.iniciVisible();
+        visFi0 = k.fiVisible();
+    }
+
+    /** Mantenir premut sense moure: comença a triar clips consecutius. */
+    private void comencaTria() {
+        if (mode != MOU || mogut || clip == null || pista < 0) return;
+        mode = TRIA;
+        grup.clear();
+        vista.tria(pista, clip);
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        if (oient != null) {
+            oient.info("Arrossega per triar més clips");
+            oient.seleccio();
+        }
+        vista.avisa();
+    }
+
+    private void estenTria(float x) {
+        Projecte.Pista t = projecte.pistes.get(pista);
+        List<Projecte.Clip> nous = Projecte.rang(t, clip, vista.ms(x));
+        if (nous.size() == vista.triats.size() && vista.triats.containsAll(nous)) return;
+        vista.triats.clear();
+        vista.triats.addAll(nous);
+        if (oient != null) {
+            oient.info(nous.size() == 1 ? "1 clip triat" : nous.size() + " clips triats");
+            oient.seleccio();
+        }
+        vista.avisa();
     }
 
     private void arrossega(float x, float y) {
-        if (pista < 0) return;
+        if (pista < 0 || clip == null) return;
         Projecte.Pista t = projecte.pistes.get(pista);
+        Projecte.Clip k = clip;
         double dms = (x - x0) / vista.pxPerMs;
         synchronized (projecte) {
             switch (mode) {
                 case MOU: {
                     long nou = projecte.enganxa(snap0 + dms, vista.snap);
-                    t.posMs = pos0 + (nou - snap0);
-                    if (oient != null) oient.info("Compàs " + textCompas(t.puntSnap()));
+                    long delta = nou - snap0;
+                    for (int i = 0; i < grup.size(); i++) grup.get(i).posMs = posGrup0[i] + delta;
+                    if (banderaFixa) {
+                        t.primerMs = Projecte.primerAmbBanderaFixa(k, pos0, primer0);
+                        if (oient != null) {
+                            if (t.primerMs == primer0 && k.posMs != pos0) {
+                                oient.info("La bandera quedaria fora del clip: es mou amb l'àudio");
+                            } else {
+                                oient.info(String.format(java.util.Locale.ROOT, "Bandera fixa · àudio %+d ms", k.posMs - pos0));
+                            }
+                        }
+                    } else if (oient != null) {
+                        String quants = grup.size() > 1 ? grup.size() + " clips · " : "";
+                        oient.info(quants + "Compàs " + textCompas(t.puntSnap(k)));
+                    }
                     break;
                 }
                 case RETALL_I: {
                     long abs = projecte.enganxa(visIni0 + dms, vista.snap);
-                    t.iniciMs = Math.max(0, Math.min(abs - t.posMs, t.fiMs - 50));
-                    t.normalitza();
-                    if (oient != null) oient.info("Inici " + textCompas(t.iniciVisible()));
+                    k.iniciMs = Math.max(0, Math.min(abs - k.posMs, k.fiMs - 50));
+                    k.normalitza(t.duradaMs);
+                    if (oient != null) oient.info("Inici " + textCompas(k.iniciVisible()));
                     break;
                 }
                 case RETALL_F: {
                     long abs = projecte.enganxa(visFi0 + dms, vista.snap);
-                    t.fiMs = Math.min(t.duradaMs, Math.max(abs - t.posMs, t.iniciMs + 50));
-                    t.normalitza();
-                    if (oient != null) oient.info("Final " + textCompas(t.fiVisible()));
+                    k.fiMs = Math.min(t.duradaMs, Math.max(abs - k.posMs, k.iniciMs + 50));
+                    k.normalitza(t.duradaMs);
+                    if (oient != null) oient.info("Final " + textCompas(k.fiVisible()));
                     break;
                 }
                 case FADE_IN: {
                     double ms = vista.ms(x);
-                    t.fadeInMs = Math.max(0, Math.round(ms - t.iniciVisible()));
-                    t.normalitza();
-                    if (oient != null) oient.info("Fade in " + segons(t.fadeInMs));
+                    k.fadeInMs = Math.max(0, Math.round(ms - k.iniciVisible()));
+                    k.normalitza(t.duradaMs);
+                    if (oient != null) oient.info("Fade in " + segons(k.fadeInMs));
                     break;
                 }
                 case FADE_OUT: {
                     double ms = vista.ms(x);
-                    t.fadeOutMs = Math.max(0, Math.round(t.fiVisible() - ms));
-                    t.normalitza();
-                    if (oient != null) oient.info("Fade out " + segons(t.fadeOutMs));
+                    k.fadeOutMs = Math.max(0, Math.round(k.fiVisible() - ms));
+                    k.normalitza(t.duradaMs);
+                    if (oient != null) oient.info("Fade out " + segons(k.fadeOutMs));
                     break;
                 }
                 case GUANY: {
                     float top = pista * altPista + dp(5);
                     float alt = altPista - dp(10);
                     double f = (y - top - dp(3)) / (alt * 0.8f);
-                    t.guanyDb = Math.max(Projecte.GUANY_MIN_DB, Math.min(0, -f * -Projecte.GUANY_MIN_DB));
-                    if (t.guanyDb > -0.3) t.guanyDb = 0;
-                    if (oient != null) oient.info("Volum del clip " + Projecte.textDb(t.guanyDb));
+                    k.guanyDb = Math.max(Projecte.GUANY_MIN_DB, Math.min(0, -f * -Projecte.GUANY_MIN_DB));
+                    if (k.guanyDb > -0.3) k.guanyDb = 0;
+                    if (oient != null) oient.info("Volum del clip " + Projecte.textDb(k.guanyDb));
                     break;
                 }
                 default:
@@ -458,19 +562,52 @@ public class PistesView extends View {
         invalidate();
     }
 
+    private void ordena() {
+        if (pista < 0 || pista >= projecte.pistes.size()) return;
+        synchronized (projecte) {
+            projecte.pistes.get(pista).ordena();
+        }
+    }
+
     private void acaba(float x) {
         if (mode == DOS_DITS || mode == CAP) {
+            mode = CAP;
+            return;
+        }
+        if (mode == TRIA) {
+            if (oient != null) {
+                int n = vista.triats.size();
+                oient.info(n == 1 ? "1 clip triat" : n + " clips triats");
+            }
             mode = CAP;
             return;
         }
         if (!mogut) {
             if (mode == BUIT) {
                 // toc en un espai buit: treu la selecció i posa-hi el capçal
-                vista.triada = -1;
+                boolean hiHavia = !vista.triats.isEmpty();
+                vista.tria(-1, null);
+                if (hiHavia && oient != null) {
+                    oient.info(null);
+                    oient.seleccio();
+                }
                 if (oient != null) oient.capcal(Math.max(0, Math.round(vista.ms(x))));
+                vista.avisa();
+            } else if (mode == MOU && triatAbans) {
+                // toc (sense moure) dins d'un grup triat: queda triat només aquest clip
+                vista.tria(pista, clip);
+                if (oient != null) {
+                    oient.info(null);
+                    oient.seleccio();
+                }
                 vista.avisa();
             }
         } else if (mode >= MOU && mode <= GUANY && oient != null) {
+            ordena();
+            if (mode == MOU && pista >= 0 && pista < projecte.pistes.size()
+                    && projecte.pistes.get(pista).primerMs != primer0) {
+                oient.bandera(pista);
+            }
             oient.editat(true);
             oient.info(null);
         }
