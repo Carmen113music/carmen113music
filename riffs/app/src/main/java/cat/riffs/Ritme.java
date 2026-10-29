@@ -110,6 +110,18 @@ public final class Ritme {
         return llegirDesDe + millor * 5L;
     }
 
+    /** Un clic curt del metrònom: un to que s'apaga en ~35 ms. */
+    public static short[] clic(double freq, double volum, int mostreig) {
+        int n = (int) (mostreig * 0.035);
+        short[] s = new short[n];
+        for (int i = 0; i < n; i++) {
+            double env = Math.exp(-i / (mostreig * 0.007));
+            double atac = Math.min(1.0, i / 30.0);
+            s[i] = (short) (32767 * volum * env * atac * Math.sin(2 * Math.PI * freq * i / mostreig));
+        }
+        return s;
+    }
+
     /**
      * Omple un tros de so (que comença a la mostra {@code inici}) amb els clics del metrònom.
      * El primer temps de cada compàs fa servir el clic fort.

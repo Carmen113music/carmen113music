@@ -109,7 +109,7 @@ public final class Metronom {
         this.tempsCompte = Math.max(0, compteEnrereCompassos) * this.compas;
         this.soActiu = ambSo;
         this.mostresPerTemps = MOSTREIG * 60.0 / this.bpm;
-        clicFort = clic(1760, 0.55);
+        clicFort = clic(Latencia.FREQ_CLIC, 0.55);
         clicFluix = clic(1175, 0.38);
     }
 
@@ -136,14 +136,7 @@ public final class Metronom {
 
     /** Un clic curt: un to que s'apaga en ~35 ms. */
     private static short[] clic(double freq, double volum) {
-        int n = (int) (MOSTREIG * 0.035);
-        short[] s = new short[n];
-        for (int i = 0; i < n; i++) {
-            double env = Math.exp(-i / (MOSTREIG * 0.007));
-            double atac = Math.min(1.0, i / 30.0);
-            s[i] = (short) (32767 * volum * env * atac * Math.sin(2 * Math.PI * freq * i / MOSTREIG));
-        }
-        return s;
+        return Ritme.clic(freq, volum, MOSTREIG);
     }
 
     /** Engega el metrònom. Torna false si el mòbil no deixa obrir la sortida de so. */
@@ -237,6 +230,44 @@ public final class Metronom {
         if (ara < zero) return -1;
         double mostra = (ara - zero) * MOSTREIG / 1e9;
         return (long) Math.floor(mostra / mostresPerTemps);
+    }
+
+    /** Per on surt el so ara mateix: «altaveu», «bluetooth», «cable» o «altre» (null si encara no se sap). */
+    public synchronized String tipusSortida() {
+        AudioDeviceInfo d = track != null ? track.getRoutedDevice() : null;
+        return d == null ? null : tipus(d);
+    }
+
+    /** Nom del dispositiu de sortida (per exemple el dels auriculars), si el mòbil el diu. */
+    public synchronized String nomSortida() {
+        AudioDeviceInfo d = track != null ? track.getRoutedDevice() : null;
+        if (d == null || d.getProductName() == null) return "";
+        return d.getProductName().toString();
+    }
+
+    public static String tipus(AudioDeviceInfo d) {
+        switch (d.getType()) {
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+            case AudioDeviceInfo.TYPE_BUILTIN_EARPIECE:
+                return "altaveu";
+            case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
+            case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
+            case AudioDeviceInfo.TYPE_BLE_HEADSET:
+            case AudioDeviceInfo.TYPE_BLE_SPEAKER:
+                return "bluetooth";
+            case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+            case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+            case AudioDeviceInfo.TYPE_USB_HEADSET:
+            case AudioDeviceInfo.TYPE_USB_DEVICE:
+                return "cable";
+            default:
+                return "altre";
+        }
+    }
+
+    /** Si el mòbil dona marques de temps precises de la sortida (per al diagnòstic). */
+    public synchronized boolean teMarcaDeTemps() {
+        return teMarca;
     }
 
     public boolean sona() {

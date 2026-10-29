@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.1:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.2:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Pròximes fases: marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -54,6 +54,8 @@ El primer cop l'app demana permís de micròfon.
 ### Diagnòstic
 Estat del micròfon i de l'espai, i **tria de la font del micròfon**: prova-les amb «Prova 3 segons» i queda't la que soni millor. «Copia el diagnòstic» el copia per enganxar-lo al xat.
 
+**Retard del so (latència)**: «Mesura el retard» fa sonar 12 clics (per l'altaveu o pels auriculars, si n'hi ha de connectats) i els grava. Diu quant tarda el so a arribar a la gravació respecte del que l'app calcula, i si aquest retard és sempre igual o varia. Cal fer silenci i apujar el volum; amb auriculars, posa'n un tocant el micròfon del mòbil. Cada mesura queda a la llista del diagnòstic (amb la sortida, la font del micròfon i totes les mesures) i s'inclou a «Copia el diagnòstic». De moment només mesura: la correcció de la bandera vindrà quan tinguem les dades.
+
 ## Bon saber
 - Es grava en **WAV** (qualitat de CD, mono): ocupa uns **5 MB per minut**.
 - Si l'app passa a segon pla mentre grava (una trucada, canvies d'app), **s'atura i desa** el que s'ha gravat. Mentre grava, la pantalla no s'apaga.
@@ -68,6 +70,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.2** (29/10/2026) — Diagnòstic: prova de **retard del so**. Mesura quant arriba tard el clic del metrònom a la gravació (amb l'altaveu o amb auriculars) i si el retard és fix o variable. Desa totes les mesures per decidir com corregir la bandera del primer temps.
 - **2.1** (28/10/2026) — Estudi: la pantalla només es desplaça amb dos dits (horitzontal, vertical i zoom alhora); un dit és només per editar. Si entra un segon dit durant una edició, el clip torna on era.
 - **2.0** (28/10/2026) — Estudi multipista: pantalla horitzontal, regla de compassos, una pista per take encaixada per la bandera, moure amb snap (compàs, temps, lliure), retallar, fades, volum del clip, M/S/fader per pista, reproducció amb capçal que segueix, zoom amb dos dits. Llista de projectes a la pestanya Estudi i «Obre a l'Estudi» a les carpetes.
 - **1.4** (28/10/2026) — Corregit: el clic del metrònom ja no pot sonar mai per l'altaveu (es gravava). Només amb auriculars o visual; si es desconnecten els auriculars, el clic s'apaga a l'instant. Pampallugues a tota la pantalla a cada temps i punts més grans.
