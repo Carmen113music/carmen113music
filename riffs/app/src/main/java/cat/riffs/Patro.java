@@ -43,6 +43,8 @@ public final class Patro {
     public String kit = "";          // carpeta del kit triat (p. ex. «kit3»)
     public int compassos = 1;
     public int passosPerCompas = 16;
+    /** Compàs amb què es va fer (temps per compàs; 6 = 6/8). 0 = no se sap (fitxers d'abans de la 2.21). */
+    public int compas = 4;
     public final List<Fila> files = new ArrayList<>();
 
     /** Semicorxeres per compàs: 16 en 4/4, 12 en 3/4, 8 en 2/4, 12 en 6/8. */
@@ -53,6 +55,75 @@ public final class Patro {
     /** Cada quantes caselles hi ha un temps (per dibuixar la graella): 4, o 6 en 6/8. */
     public static int grupDe(int compas) {
         return compas == 6 ? 6 : 4;
+    }
+
+    /** Caselles per temps (4 = semicorxeres en x/4; 8 = fuses; 3 i 6 = tresets; en 6/8, 2 o 4). */
+    public int divisio() {
+        return Math.max(1, passosPerCompas / Math.max(1, compas));
+    }
+
+    /** Cada quantes caselles es marca una línia a la graella: cada temps, o cada mig compàs en 6/8. */
+    public int grup() {
+        return compas == 6 ? 3 * divisio() : divisio();
+    }
+
+    /** Divisions de la graella que es poden triar amb aquest compàs. */
+    public static int[] divisions(int compas) {
+        return compas == 6 ? new int[]{2, 4} : new int[]{4, 8, 3, 6};
+    }
+
+    public static String nomDivisio(int compas, int div) {
+        if (compas == 6) return div == 2 ? "2 per temps (semicorxeres)" : "4 per temps (fuses)";
+        switch (div) {
+            case 8:
+                return "8 per temps (fuses)";
+            case 3:
+                return "3 per temps (tresets de corxera)";
+            case 6:
+                return "6 per temps (tresets de semicorxera)";
+            default:
+                return "4 per temps (semicorxeres)";
+        }
+    }
+
+    /** Canvia les caselles per temps. Cada cop es queda al seu lloc (si dos cauen a la mateixa casella, queda el més fort). */
+    public void posaDivisio(int div) {
+        canviaPassos(Math.max(1, compas) * Math.max(1, div));
+    }
+
+    /** Passa la graella a {@code nouPpc} caselles per compàs mantenint cada cop al mateix lloc proporcional. */
+    private void canviaPassos(int nouPpc) {
+        if (nouPpc == passosPerCompas) return;
+        for (Fila f : files) {
+            int[] c = new int[compassos * nouPpc];
+            for (int i = 0; i < f.cops.length; i++) {
+                if (f.cops[i] == 0) continue;
+                int b = i / passosPerCompas, s = i % passosPerCompas;
+                int s2 = (int) Math.round((double) s * nouPpc / passosPerCompas);
+                if (s2 < nouPpc) c[b * nouPpc + s2] = Math.max(c[b * nouPpc + s2], f.cops[i]);
+            }
+            f.cops = c;
+        }
+        passosPerCompas = nouPpc;
+    }
+
+    /**
+     * Posa el ritme al compàs del projecte (si un fitxer antic no el sabia, suposa que és el del projecte).
+     * Torna true si ha canviat res.
+     */
+    public boolean assegura(int compasProjecte) {
+        if (compas <= 0) {
+            compas = compasProjecte;
+            if (passosPerCompas % Math.max(1, compas) != 0) {
+                ajustaCompas(compasProjecte);
+            }
+            return true;
+        }
+        if (compas != compasProjecte) {
+            ajustaCompas(compasProjecte);
+            return true;
+        }
+        return false;
     }
 
     public int passos() {
@@ -70,6 +141,7 @@ public final class Patro {
     /** Ritme nou amb les files del kit i un ritme bàsic (bombo, caixa i hihat) perquè soni de seguida. */
     public static Patro nou(Kits.Kit kit, int compas) {
         Patro p = new Patro();
+        p.compas = compas;
         p.passosPerCompas = passosDe(compas);
         if (kit != null) {
             p.kit = kit.dir.getName();
@@ -136,34 +208,30 @@ public final class Patro {
         files.sort((a, b) -> Integer.compare(Kits.ordre(a.tipus), Kits.ordre(b.tipus)));
     }
 
-    /** Canvia quants compassos té. Si en té més, es copien els que ja hi havia (perquè el ritme continuï). */
+    /** Canvia quants compassos té. Els compassos nous surten en blanc; si n'hi ha menys, es perden els del final. */
     public void posaCompassos(int n) {
         n = Math.max(1, Math.min(MAX_COMPASSOS, n));
-        int vell = passos();
         compassos = n;
         int nou = passos();
         for (Fila f : files) {
             int[] c = new int[nou];
-            for (int i = 0; i < nou; i++) c[i] = vell > 0 ? f.cops[i % vell] : 0;
+            System.arraycopy(f.cops, 0, c, 0, Math.min(nou, f.cops.length));
             f.cops = c;
         }
     }
 
-    /** El compàs del projecte ha canviat: cada cop es manté al mateix lloc proporcional dins el compàs. */
-    public void ajustaCompas(int compas) {
-        int nouPpc = passosDe(compas);
-        if (nouPpc == passosPerCompas) return;
-        for (Fila f : files) {
-            int[] c = new int[compassos * nouPpc];
-            for (int i = 0; i < f.cops.length; i++) {
-                if (f.cops[i] == 0) continue;
-                int b = i / passosPerCompas, s = i % passosPerCompas;
-                int s2 = (int) Math.round((double) s * nouPpc / passosPerCompas);
-                if (s2 < nouPpc) c[b * nouPpc + s2] = Math.max(c[b * nouPpc + s2], f.cops[i]);
-            }
-            f.cops = c;
-        }
-        passosPerCompas = nouPpc;
+    /**
+     * El compàs del projecte ha canviat: cada cop es manté al mateix lloc proporcional dins el compàs,
+     * i es conserva la finor de la graella (en passar de x/4 a 6/8 o al revés, la meitat o el doble per temps).
+     */
+    public void ajustaCompas(int nouCompas) {
+        int div;
+        if (compas <= 0 || passosPerCompas % compas != 0) div = passosDe(nouCompas) / Math.max(1, nouCompas);
+        else if ((compas == 6) == (nouCompas == 6)) div = divisio();
+        else if (nouCompas == 6) div = Math.max(1, divisio() / 2);
+        else div = divisio() * 2;
+        canviaPassos(Math.max(1, nouCompas) * div);
+        compas = nouCompas;
     }
 
     // ---------- So ----------
@@ -249,7 +317,8 @@ public final class Patro {
         Patro pt = new Patro();
         pt.kit = p.getProperty("kit", "");
         pt.compassos = Math.max(1, Math.min(MAX_COMPASSOS, enter(p.getProperty("compassos"), 1)));
-        pt.passosPerCompas = Math.max(1, Math.min(64, enter(p.getProperty("passos"), 16)));
+        pt.passosPerCompas = Math.max(1, Math.min(96, enter(p.getProperty("passos"), 16)));
+        pt.compas = enter(p.getProperty("metre"), 0);
         int nf = enter(p.getProperty("files"), 0);
         for (int i = 0; i < nf; i++) {
             String k = "f" + i + ".";
@@ -278,6 +347,7 @@ public final class Patro {
         p.setProperty("kit", kit);
         p.setProperty("compassos", Integer.toString(compassos));
         p.setProperty("passos", Integer.toString(passosPerCompas));
+        p.setProperty("metre", Integer.toString(compas));
         p.setProperty("files", Integer.toString(files.size()));
         for (int i = 0; i < files.size(); i++) {
             Fila fl = files.get(i);
@@ -290,7 +360,8 @@ public final class Patro {
             for (int c : fl.cops) sb.append((char) ('0' + c));
             p.setProperty(k + "cops", sb.toString());
         }
-        f.getParentFile().mkdirs();
+        File pare = f.getAbsoluteFile().getParentFile();
+        if (pare != null) pare.mkdirs();
         File tmp = new File(f.getPath() + ".tmp");
         try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
             p.store(w, "Ritme de bateria (Riffs)");
@@ -317,10 +388,7 @@ public final class Patro {
         File fp = fitxerDe(carpeta, wav);
         Patro p = llegeix(fp);
         if (p == null) return -1;
-        if (p.passosPerCompas != passosDe(compas)) {
-            p.ajustaCompas(compas);
-            p.desa(fp);
-        }
+        if (p.assegura(compas)) p.desa(fp);
         return p.escriuWav(carpeta, wav, bpm, compas, lectorSons(arrelKits, new HashMap<>()));
     }
 

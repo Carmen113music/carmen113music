@@ -24,6 +24,9 @@ public class GraellaView extends View {
         void prova(int fila, int forca);
 
         void fila(int fila);
+
+        /** S'ha canviat de compàs lliscant amb dos dits. */
+        default void compas(int c) {}
     }
 
     private Patro patro;
@@ -45,6 +48,9 @@ public class GraellaView extends View {
     private boolean forcant = false;
     private int forcaInicial;
     private final Runnable premut = this::comencaForca;
+    // dos dits: lliscar de costat canvia de compàs
+    private boolean dosDits = false;
+    private float xDosDits;
 
     public GraellaView(Context c, java.util.function.IntFunction<String> nomSo) {
         super(c);
@@ -55,9 +61,8 @@ public class GraellaView extends View {
         p.setTypeface(Ui.MITJA);
     }
 
-    public void posa(Patro patro, int grup, Oients o) {
+    public void posa(Patro patro, Oients o) {
         this.patro = patro;
-        this.grup = grup;
         this.oients = o;
         requestLayout();
         invalidate();
@@ -105,6 +110,7 @@ public class GraellaView extends View {
         float ah = altura();
         float ac = ampleCasella();
         int ppc = patro.passosPerCompas;
+        grup = Math.max(1, patro.grup());
         int base = compasVisible * ppc;
         float x0 = ampleNoms;
         // columna del pas que sona
@@ -170,10 +176,49 @@ public class GraellaView extends View {
 
     // ---------- Toc ----------
 
+    private static float mitjanaX(MotionEvent ev) {
+        float x = 0;
+        int n = Math.min(2, ev.getPointerCount());
+        for (int i = 0; i < n; i++) x += ev.getX(i);
+        return x / n;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (patro == null) return false;
         float ah = altura();
+        // dos dits: no s'edita res; lliscar de costat passa al compàs següent o a l'anterior
+        if (ev.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN && ev.getPointerCount() == 2) {
+            removeCallbacks(premut);
+            if (forcant && oients != null) oients.canvi(true);
+            forcant = false;
+            filaToc = -1;
+            dosDits = true;
+            xDosDits = mitjanaX(ev);
+            getParent().requestDisallowInterceptTouchEvent(true);
+            invalidate();
+            return true;
+        }
+        if (dosDits) {
+            int acc = ev.getActionMasked();
+            if (acc == MotionEvent.ACTION_MOVE && ev.getPointerCount() >= 2) {
+                float dx = mitjanaX(ev) - xDosDits;
+                if (Math.abs(dx) > 60 * d) {
+                    int nou = compasVisible + (dx < 0 ? 1 : -1);
+                    xDosDits = mitjanaX(ev);
+                    if (nou >= 0 && nou < patro.compassos) {
+                        compasVisible = nou;
+                        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                        invalidate();
+                        if (oients != null) oients.compas(nou);
+                    }
+                }
+            } else if (acc == MotionEvent.ACTION_UP || acc == MotionEvent.ACTION_CANCEL) {
+                dosDits = false;
+                getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return true;
+        }
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_DOWN: {
                 int fila = (int) (ev.getY() / ah);

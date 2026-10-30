@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.19:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.21:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17). Pròximes fases: bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -67,8 +67,8 @@ El primer cop l'app demana permís de micròfon.
 - **Mantén premut** en un espai buit de la fila de la bateria (vibra): hi apareix una **finestra amb un ritme d'un compàs**, a l'inici del compàs on tens el dit. La primera porta un ritme bàsic (bombo, caixa i hihat); les següents són una **còpia del ritme de la finestra d'abans**, per continuar-lo i fer-ne variacions sense tocar l'altra.
 - **Doble toc a una finestra** obre el **drumpad** amb el seu ritme. També: mantén premut el nom de la pista i deixa'l anar → *Obre el drumpad* (obre la finestra triada, o la primera).
 - Les finestres es mouen, es retallen i tenen fades com els altres clips. **Duplica** fa còpies **independents**: cada còpia té el seu propi ritme, i si n'edites una, les altres no canvien.
-- **Drumpad** (en horitzontal): una fila per cada tipus de so del kit (Kick, Snare, Hihat…) i una casella per semicorxera (16 en 4/4, 12 en 3/4 i 6/8). **Toca una casella** per posar o treure un cop (sona). **Mantén-la premuda i arrossega amunt o avall** per canviar-ne la força (suau, normal, fort: es veu per la intensitat del color i les barretes). **Toca el nom d'una fila**: *Tria el so* (variants d'aquell tipus de tots els kits), *Volum*, *Silencia* i *Treu els cops*.
-- A dalt: el **kit** (canviar-lo manté els cops), la **llargada** del ritme (1 a 4 compassos; si l'allargues es copien els compassos que ja hi havia; amb més d'un compàs surten pestanyes per anar de l'un a l'altre) i el **play**, que fa sonar el ritme en bucle (es pot editar mentre sona).
+- **Drumpad** (en horitzontal): una fila per cada tipus de so del kit (Kick, Snare, Hihat…) i, per defecte, una casella per semicorxera (16 en 4/4, 12 en 3/4 i 6/8). El botó **Graella** (a dalt) canvia quantes caselles té cada temps: **4** (semicorxeres), **8** (fuses, més fina), **3** o **6** (tresets); en 6/8, 2 o 4. Els cops que ja hi ha es queden al seu lloc. **Toca una casella** per posar o treure un cop (sona). **Mantén-la premuda i arrossega amunt o avall** per canviar-ne la força (suau, normal, fort: es veu per la intensitat del color i les barretes). **Toca el nom d'una fila**: *Tria el so* (variants d'aquell tipus de tots els kits: cada so que toques **sona** i queda triat, i el panell no es tanca fins que toques *Fet*), *Volum*, *Silencia* i *Treu els cops*.
+- A dalt: el **kit** (canviar-lo manté els cops), la **llargada** del ritme (1 a 4 compassos; els compassos nous surten **en blanc**; amb més d'un compàs surten pestanyes per anar de l'un a l'altre, o **llisca amb dos dits de costat** per passar al compàs següent o a l'anterior) i el **play**, que fa sonar el ritme en bucle (es pot editar mentre sona). La columna que s'il·lumina segueix el so que surt de debò per l'altaveu o els auriculars.
 - En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria no tenen botó de gravar.
 - Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
 
@@ -102,6 +102,8 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.21** (30/10/2026) — Drumpad: la columna que s'il·lumina va sincronitzada amb el que sona (abans anava per davant pel retard del mòbil). Botó **Graella** per triar 4, 8, 3 o 6 caselles per temps (2 o 4 en 6/8).
+- **2.20** (30/10/2026) — Drumpad: en triar el so d'una fila, cada so que toques sona i el panell es queda obert (*Fet* per tancar). Els compassos nous surten en blanc. Dos dits de costat sobre la graella per canviar de compàs.
 - **2.19** (30/10/2026) — Bateria: **Duplica** fa còpies independents de les finestres (cada una amb el seu ritme), per poder canviar-ne una sense tocar les altres.
 - **2.18** (30/10/2026) — La pista de bateria es crea **buida**: **mantenir premut** un espai buit de la fila hi posa una **finestra d'un compàs** (la primera amb un ritme bàsic, les altres amb una còpia del ritme d'abans) i el **doble toc** a una finestra obre el seu drumpad. Ja no s'omple sola fins al final.
 - **2.17** (30/10/2026) — **Pistes de bateria**: «+ Pista nova» pregunta Àudio o Bateria. La bateria (lila) es crea amb un ritme bàsic i s'edita amb el **drumpad** (graella de semicorxeres, força per cop, so, volum i silenci per fila, kit, 1–4 compassos, bucle). Doble toc al nom de la pista per obrir-lo. Segueix els canvis de tempo i compàs del projecte.

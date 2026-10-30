@@ -48,25 +48,27 @@ public class DrumpadActivity extends Activity {
 
     private GraellaView graella;
     private LinearLayout filaCompassos;
-    private TextView textKit, textCompassos;
+    private TextView textKit, textCompassos, textDivisio;
+    private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
     private FrameLayout botoPlay;
 
     // so
     private AudioTrack bucle;
     private int llargBucle;
+    private int iniciBucle;   // on ha començat a sonar (en reprendre'l després d'un canvi)
     private AudioTrack prova;
 
     private final Runnable segueix = new Runnable() {
         @Override
         public void run() {
             if (bucle == null || llargBucle <= 0) return;
-            int pos;
-            try {
-                pos = bucle.getPlaybackHeadPosition() % llargBucle;
-            } catch (RuntimeException e) {
-                return;
+            long pos = posicioQueSona();
+            if (pos < 0) {
+                graella.posaPasSonant(-1);
+            } else {
+                pos %= llargBucle;
+                graella.posaPasSonant((int) (pos * patro.passos() / llargBucle));
             }
-            graella.posaPasSonant((int) ((long) pos * patro.passos() / llargBucle));
             graella.postOnAnimation(this);
         }
     };
@@ -94,8 +96,7 @@ public class DrumpadActivity extends Activity {
         if (patro == null) {
             patro = Patro.nou(kits.isEmpty() ? null : kits.get(0), compas);
             canviat = true;
-        } else if (patro.passosPerCompas != Patro.passosDe(compas)) {
-            patro.ajustaCompas(compas);
+        } else if (patro.assegura(compas)) {
             canviat = true;
         }
 
@@ -126,6 +127,11 @@ public class DrumpadActivity extends Activity {
         comp.setOnClickListener(v -> triaCompassos());
         dalt.addView(comp, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
+        LinearLayout div = Ui.pastilla(this, Icona.GRAELLA, "", Ui.SUPERFICIE2, Ui.TEXT);
+        textDivisio = (TextView) div.getChildAt(div.getChildCount() - 1);
+        div.setOnClickListener(v -> triaDivisio());
+        dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.BATERIA, 44, 20, "Escolta el ritme");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
@@ -139,7 +145,7 @@ public class DrumpadActivity extends Activity {
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         filaCompassos = Ui.fila(this);
         segona.addView(filaCompassos);
-        TextView ajuda = Ui.text(this, "Toca per posar o treure un cop · mantén premut i arrossega amunt o avall per la força · toca el nom per triar el so", 11, Ui.APAGAT);
+        TextView ajuda = Ui.text(this, "Toca per posar o treure un cop · mantén premut i arrossega amunt o avall per la força · toca el nom per triar el so · dos dits de costat per canviar de compàs", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);
         la.leftMargin = Ui.dp(this, 12);
@@ -158,7 +164,7 @@ public class DrumpadActivity extends Activity {
         arrel.addView(sc, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(arrel);
 
-        graella.posa(patro, Patro.grupDe(compas), new GraellaView.Oients() {
+        graella.posa(patro, new GraellaView.Oients() {
             @Override
             public void canvi(boolean acabat) {
                 canviat = true;
@@ -177,6 +183,11 @@ public class DrumpadActivity extends Activity {
             public void fila(int fila) {
                 opcionsFila(fila);
             }
+
+            @Override
+            public void compas(int c) {
+                actualitzaCapcalera();
+            }
         });
         actualitzaCapcalera();
 
@@ -192,6 +203,7 @@ public class DrumpadActivity extends Activity {
         for (Kits.Kit k : kits) if (k.dir.getName().equals(patro.kit)) nk = k.nom;
         textKit.setText(nk);
         textCompassos.setText(patro.compassos == 1 ? "1 compàs" : patro.compassos + " compassos");
+        textDivisio.setText(patro.divisio() + "/temps");
         filaCompassos.removeAllViews();
         if (patro.compassos > 1) {
             String[] ops = new String[patro.compassos];
@@ -238,7 +250,24 @@ public class DrumpadActivity extends Activity {
                 if (bucle != null) reprenBucle();
             }));
         }
-        Full.llista(this, "Llargada del ritme", "Si l'allargues, es copien els compassos que ja tens. A l'Estudi, la finestra s'allarga o s'escurça (mira que no trepitgi la del costat).", ops);
+        Full.llista(this, "Llargada del ritme", "Els compassos nous surten en blanc; si l'escurces, es perden els del final. A l'Estudi, la finestra s'allarga o s'escurça (mira que no trepitgi la del costat).", ops);
+    }
+
+    private void triaDivisio() {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int dv : Patro.divisions(compas)) {
+            boolean ara = dv == patro.divisio();
+            ops.add(new Full.Accio(Icona.GRAELLA, Patro.nomDivisio(compas, dv) + (ara ? "  (ara)" : ""), false, () -> {
+                if (dv == patro.divisio()) return;
+                patro.posaDivisio(dv);
+                canviat = true;
+                desaPatro();
+                actualitzaCapcalera();
+                if (bucle != null) reprenBucle();
+            }));
+        }
+        Full.llista(this, "Graella", "En quantes caselles es parteix cada temps. Els cops que ja hi ha es queden al seu lloc "
+                + "(si en fas una de més gruixuda, els que cauen a la mateixa casella s'ajunten).", ops);
     }
 
     private void opcionsFila(int i) {
@@ -272,26 +301,28 @@ public class DrumpadActivity extends Activity {
     }
 
     private void triaSo(Patro.Fila f) {
-        List<Full.Accio> ops = new ArrayList<>();
+        List<String> refs = new ArrayList<>();
+        List<String> noms = new ArrayList<>();
         for (Kits.Kit k : kits) {
             for (Kits.So s : k.delTipus(f.tipus)) {
-                String ref = Patro.ref(k, s);
-                boolean ara = ref.equals(f.so);
-                ops.add(new Full.Accio(ara ? Icona.BATERIA : Icona.PLAY, s.nom + " · " + k.nom + (ara ? "  (ara)" : ""), false, () -> {
-                    f.so = ref;
+                refs.add(Patro.ref(k, s));
+                noms.add(s.nom + " · " + k.nom);
+            }
+        }
+        if (refs.isEmpty()) {
+            Ui.avis(this, "No hi ha cap so d'aquest tipus als kits");
+            return;
+        }
+        Full.triaAmbProva(this, Kits.nomTipus(f.tipus), "Toca un so per escoltar-lo; queda triat. «Fet» per tancar.",
+                noms.toArray(new String[0]), refs.indexOf(f.so), Ui.BATERIA,
+                i -> provaRef(refs.get(i), f.volumDb, 2),
+                i -> {
+                    f.so = refs.get(i);
                     canviat = true;
                     desaPatro();
                     graella.invalidate();
                     if (bucle != null) reprenBucle();
-                    else provaSo(f, 2);
-                }));
-            }
-        }
-        if (ops.isEmpty()) {
-            Ui.avis(this, "No hi ha cap so d'aquest tipus als kits");
-            return;
-        }
-        Full.llista(this, Kits.nomTipus(f.tipus), "Sons d'aquest tipus de tots els teus kits. En triar-ne un, sona.", ops);
+                });
     }
 
     // ---------- So ----------
@@ -315,9 +346,14 @@ public class DrumpadActivity extends Activity {
     }
 
     private void provaSo(Patro.Fila f, int forca) {
-        short[] s = sons.apply(f.so);
+        provaRef(f.so, f.volumDb, forca);
+    }
+
+    /** Fa sonar un so (encara que el ritme estigui sonant). */
+    private void provaRef(String ref, double volumDb, int forca) {
+        short[] s = sons.apply(ref);
         if (s == null || s.length == 0) return;
-        float g = Patro.MARGE * Patro.guany(f.volumDb) * Patro.FORCA[Math.max(1, Math.min(3, forca))];
+        float g = Patro.MARGE * Patro.guany(volumDb) * Patro.FORCA[Math.max(1, Math.min(3, forca))];
         short[] r = new short[s.length];
         for (int i = 0; i < s.length; i++) r[i] = (short) Math.max(-32768, Math.min(32767, Math.round(s[i] * g)));
         aturaProva();
@@ -339,17 +375,41 @@ public class DrumpadActivity extends Activity {
         }
     }
 
+    /**
+     * Mostra del bucle que surt ara mateix per l'altaveu o els auriculars (no la que l'app ha enviat,
+     * que va per davant pel retard del mòbil). -1 si encara no ha començat a sonar.
+     */
+    private long posicioQueSona() {
+        try {
+            if (bucle.getTimestamp(marca) && marca.nanoTime > 0) {
+                double s = (System.nanoTime() - marca.nanoTime) / 1e9;
+                return marca.framePosition + Math.round(s * Kits.MOSTREIG) + iniciBucle;
+            }
+            return -1;
+        } catch (RuntimeException e) {
+            return -1;
+        }
+    }
+
     /** Fa sonar el ritme en bucle, des de la mostra {@code pos}. */
     private void sonaBucle(int pos) {
         aturaProva();
         short[] so = patro.renderitza(bpm, compas, sons);
+        // per començar a mig ritme, el so es fa rodar (així el comptador del mòbil sempre comença a 0)
+        int inici = pos > 0 && pos < so.length ? pos : 0;
+        if (inici > 0) {
+            short[] r = new short[so.length];
+            System.arraycopy(so, inici, r, 0, so.length - inici);
+            System.arraycopy(so, 0, r, so.length - inici, inici);
+            so = r;
+        }
         try {
             AudioTrack t = nouTrack(so);
             t.setLoopPoints(0, so.length, -1);
-            if (pos > 0 && pos < so.length) t.setPlaybackHeadPosition(pos);
             t.play();
             bucle = t;
             llargBucle = so.length;
+            iniciBucle = inici;
         } catch (RuntimeException e) {
             Ui.avis(this, "No s'ha pogut fer sonar el ritme");
             return;
@@ -364,10 +424,16 @@ public class DrumpadActivity extends Activity {
         int pos = 0;
         long vell = llargBucle;
         if (bucle != null) {
-            try {
-                pos = bucle.getPlaybackHeadPosition() % Math.max(1, llargBucle);
-            } catch (RuntimeException ignorat) {
+            // es continua des del que s'està sentint
+            long p = posicioQueSona();
+            if (p < 0) {
+                try {
+                    p = bucle.getPlaybackHeadPosition() + iniciBucle;
+                } catch (RuntimeException ignorat) {
+                    p = 0;
+                }
             }
+            pos = (int) (p % Math.max(1, llargBucle));
         }
         alliberaBucle();
         long nou = Math.round(patro.compassos * Patro.msCompas(bpm, compas) * Kits.MOSTREIG / 1000.0);

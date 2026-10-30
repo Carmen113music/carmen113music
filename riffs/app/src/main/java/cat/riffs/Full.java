@@ -239,6 +239,70 @@ public final class Full {
         d[0].show();
     }
 
+    /**
+     * Panell per triar un so escoltant-lo: tocar una fila el fa sonar ({@code prova}) i el deixa triat ({@code tria}),
+     * però el panell no es tanca, perquè se'n puguin provar uns quants. «Fet» el tanca.
+     */
+    public static void triaAmbProva(Activity a, String titol, String subtitol, String[] noms, int triat, int color,
+                                    Ui.AmbIndex prova, Ui.AmbIndex tria) {
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 6), Ui.dp(a, 20), 0);
+        LinearLayout cap = Ui.fila(a);
+        LinearLayout tx = Ui.columna(a);
+        tx.addView(Ui.negreta(a, titol, 17, Ui.TEXT));
+        if (subtitol != null && !subtitol.isEmpty()) {
+            TextView st = Ui.text(a, subtitol, 13, Ui.SUAU);
+            st.setLineSpacing(0, 1.2f);
+            tx.addView(st, Ui.ample(a, 4));
+        }
+        cap.addView(tx, Ui.pes(1));
+        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
+        cap.addView(fet);
+        cos.addView(cap);
+
+        LinearLayout files = Ui.columna(a);
+        final int[] sel = {triat};
+        List<LinearLayout> rows = new java.util.ArrayList<>();
+        Runnable pinta = () -> {
+            for (int i = 0; i < rows.size(); i++) {
+                boolean t = i == sel[0];
+                LinearLayout f = rows.get(i);
+                f.setBackground(Ui.tocable(t ? Ui.alfa(color, 50) : Ui.SUPERFICIE2, Ui.dp(a, 14)));
+                Ui.colorIcona(f, t ? color : Ui.SUAU);
+            }
+        };
+        for (int i = 0; i < noms.length; i++) {
+            int idx = i;
+            LinearLayout f = Ui.fila(a);
+            f.setClickable(true);
+            f.setFocusable(true);
+            f.setPadding(Ui.dp(a, 14), 0, Ui.dp(a, 14), 0);
+            f.setMinimumHeight(Ui.dp(a, 48));
+            f.addView(Ui.imatge(a, Icona.PLAY, Ui.SUAU, 18), new LinearLayout.LayoutParams(Ui.dp(a, 20), Ui.dp(a, 20)));
+            f.addView(Ui.espai(a, 12));
+            f.addView(Ui.unaLinia(Ui.negreta(a, noms[i], 15, Ui.TEXT)), Ui.pes(1));
+            f.setOnClickListener(v -> {
+                prova.fet(idx);
+                if (sel[0] != idx) {
+                    sel[0] = idx;
+                    tria.fet(idx);
+                    pinta.run();
+                }
+            });
+            rows.add(f);
+            files.addView(f, Ui.ample(a, 6));
+        }
+        pinta.run();
+        ScrollView sc = new ScrollView(a);
+        sc.addView(files);
+        LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.min(Ui.dp(a, 54) * noms.length + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.55f)));
+        cos.addView(sc, ls);
+        Dialog d = panellBaix(a, cos);
+        fet.setOnClickListener(v -> d.dismiss());
+        d.show();
+    }
+
     // ---------- Confirmar ----------
 
     public static void confirma(Activity a, String titol, String missatge, String boto, boolean perill, Runnable fet) {
