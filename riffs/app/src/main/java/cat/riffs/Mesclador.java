@@ -22,10 +22,21 @@ public final class Mesclador {
      * a la mostra {@code inici} de la línia de temps. {@code audio} té les mostres de cada fitxer (pel nom).
      */
     public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n) {
+        mescla(p, audio, inici, sortida, n, null);
+    }
+
+    /**
+     * Com l'altra, i a més deixa a {@code nivells[i]} el pic (0..1 o més) del que ha sonat de la pista {@code i}
+     * en aquest tros, ja amb el fader (per als vúmetres). {@code nivells} pot ser null.
+     */
+    public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n, float[] nivells) {
         java.util.Arrays.fill(sortida, 0, n, 0f);
+        if (nivells != null) java.util.Arrays.fill(nivells, 0f);
         boolean solo = p.hiHaSolo();
-        for (Projecte.Pista t : p.pistes) {
+        for (int ti = 0; ti < p.pistes.size(); ti++) {
+            Projecte.Pista t = p.pistes.get(ti);
             if (t.mut || (solo && !t.solo)) continue;
+            float pic = 0;
             double volum = lineal(t.volumDb);
             if (volum <= 0) continue;
             for (Projecte.Clip k : t.clips) {
@@ -47,9 +58,13 @@ public final class Mesclador {
                     double env = 1;
                     if (fIn > 0 && f < ini + fIn) env = (f - ini) / (double) fIn;
                     if (fOut > 0 && f > fi - fOut) env = Math.min(env, (fi - f) / (double) fOut);
-                    sortida[(int) i] += (float) (so[(int) f] / 32768.0 * guany * env);
+                    float v = (float) (so[(int) f] / 32768.0 * guany * env);
+                    sortida[(int) i] += v;
+                    if (v > pic) pic = v;
+                    else if (-v > pic) pic = -v;
                 }
             }
+            if (nivells != null && ti < nivells.length) nivells[ti] = pic;
         }
     }
 

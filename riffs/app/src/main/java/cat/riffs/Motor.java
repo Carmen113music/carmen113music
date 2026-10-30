@@ -33,6 +33,8 @@ public final class Motor {
     private volatile float volumClic = 1f;
     // silenci total (el motor continua corrent per marcar el temps, però no surt cap so)
     private volatile boolean silenci = false;
+    // vúmetres: pic de cada pista al darrer tros barrejat
+    private volatile float[] nivells = new float[0];
     private short[] clicFort, clicFluix;
 
     public Motor(Projecte projecte, Map<String, short[]> audio) {
@@ -42,6 +44,12 @@ public final class Motor {
 
     public boolean sona() {
         return sona;
+    }
+
+    /** Pic (0..1 o més) de la pista {@code i} al que s'acaba de barrejar, per al vúmetre. */
+    public float nivell(int i) {
+        float[] nv = nivells;
+        return sona && !silenci && i >= 0 && i < nv.length ? nv[i] : 0f;
     }
 
     /** Silencia tot el que surt (pistes i clic). Per gravar sense auriculars: per l'altaveu es gravaria. */
@@ -113,7 +121,9 @@ public final class Motor {
             double mostresPerTemps;
             int compas;
             synchronized (projecte) {
-                Mesclador.mescla(projecte, audio, mostraInici + mostresEscrites, mescla, TROS);
+                float[] nv = nivells.length == projecte.pistes.size() ? nivells : new float[projecte.pistes.size()];
+                Mesclador.mescla(projecte, audio, mostraInici + mostresEscrites, mescla, TROS, nv);
+                nivells = nv;
                 mostresPerTemps = MOSTREIG * 60.0 / projecte.bpm;
                 compas = projecte.compas;
             }

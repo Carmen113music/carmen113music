@@ -42,8 +42,15 @@ public class ProjecteActivity extends Activity {
     private PistesView pistes;
     private LinearLayout capcaleres;
     private FrameLayout botoPlay;
-    private TextView textPosicio, textInfo, textTempo;
+    private TextView textPosicio, textInfo, textTempo, textSnap;
+    private LinearLayout botoSnap;
     private FrameLayout botoClic;
+    private FrameLayout pestanyaPistes, pestanyaTaula;
+    private LinearLayout vistaPistes, filaTaula;
+    private android.widget.HorizontalScrollView vistaTaula;
+    private final List<FaderView> faders = new ArrayList<>();
+    private final List<TextView> textosPic = new ArrayList<>();
+    private boolean taulaVisible = false;
     private boolean clicActiu = true;
     private float volumClic = 1f;
     private LinearLayout accions;
@@ -168,15 +175,21 @@ public class ProjecteActivity extends Activity {
         pintaClic();
         dalt.addView(Ui.espai(this, 10));
 
-        LinearLayout snap = Ui.segmentat(this, new String[]{"Compàs", "Temps", "Lliure"}, vista.snap, Ui.TEXT, i -> {
-            vista.snap = i;
-            Ui.prefs(this).edit().putInt("snap", i).apply();
-        });
-        snap.setPadding(Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
-        for (int k = 0; k < snap.getChildCount(); k++) ((TextView) snap.getChildAt(k)).setMinHeight(Ui.dp(this, 26));
-        dalt.addView(snap, new LinearLayout.LayoutParams(Ui.dp(this, 200), LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        dalt.addView(Ui.mollaH(this));
+        // Graella (snap): una icona; en tocar-la surt el desplegable Compàs / Temps / Lliure
+        botoSnap = Ui.fila(this);
+        botoSnap.setClickable(true);
+        botoSnap.setContentDescription("Graella");
+        botoSnap.setBackground(Ui.tocable(Ui.SUPERFICIE, Ui.dp(this, 14)));
+        botoSnap.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 10), 0);
+        botoSnap.setMinimumHeight(Ui.dp(this, 28));
+        botoSnap.addView(Ui.imatge(this, Icona.GRAELLA, Ui.TEXT, 16), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
+        botoSnap.addView(Ui.espai(this, 5));
+        textSnap = Ui.negreta(this, "", 12, Ui.TEXT);
+        botoSnap.addView(textSnap);
+        botoSnap.setOnClickListener(v -> desplegableSnap(v));
+        dalt.addView(botoSnap);
+        pintaSnap();
+        dalt.addView(Ui.espai(this, 8));
 
         // accions dels clips triats (només es veuen si n'hi ha)
         accions = Ui.fila(this);
@@ -194,8 +207,11 @@ public class ProjecteActivity extends Activity {
         accions.setVisibility(View.GONE);
         dalt.addView(accions);
 
+        // El text d'informació ocupa només l'espai que sobra: mai no pot empènyer els botons fora de la pantalla
         textInfo = Ui.unaLinia(Ui.text(this, "", 13, Ui.GUITARRA));
-        dalt.addView(textInfo);
+        textInfo.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        textInfo.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        dalt.addView(textInfo, dalt.indexOfChild(accions), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         dalt.addView(Ui.espai(this, 12));
 
         textPosicio = Ui.text(this, "1.1.1", 14, Ui.TEXT);
@@ -234,8 +250,40 @@ public class ProjecteActivity extends Activity {
         arrel.addView(dalt);
         arrel.addView(Ui.separador(this));
 
+        // ---- A l'esquerra, la tira de pestanyes: Pistes (taulell) i Taula (de so) ----
+        LinearLayout cosH = Ui.fila(this);
+        cosH.setGravity(Gravity.TOP);
+        LinearLayout tira = Ui.columna(this);
+        tira.setBackgroundColor(Ui.SUPERFICIE);
+        tira.setPadding(0, Ui.dp(this, 6), 0, 0);
+        tira.setGravity(Gravity.CENTER_HORIZONTAL);
+        pestanyaPistes = Ui.botoIcona(this, Icona.PISTES, Ui.TEXT, 0x00000000, 36, 20, "Pistes");
+        pestanyaTaula = Ui.botoIcona(this, Icona.TAULA, Ui.SUAU, 0x00000000, 36, 20, "Taula de so");
+        pestanyaPistes.setOnClickListener(v -> mostraTaula(false));
+        pestanyaTaula.setOnClickListener(v -> mostraTaula(true));
+        tira.addView(pestanyaPistes);
+        tira.addView(Ui.espai(this, 6));
+        tira.addView(pestanyaTaula);
+        cosH.addView(tira, new LinearLayout.LayoutParams(Ui.dp(this, 44), LinearLayout.LayoutParams.MATCH_PARENT));
+        View sepTira = new View(this);
+        sepTira.setBackgroundColor(Ui.LINIA);
+        cosH.addView(sepTira, new LinearLayout.LayoutParams(1, LinearLayout.LayoutParams.MATCH_PARENT));
+        FrameLayout contingut = new FrameLayout(this);
+        cosH.addView(contingut, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        vistaPistes = Ui.columna(this);
+        contingut.addView(vistaPistes, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        vistaTaula = new android.widget.HorizontalScrollView(this);
+        vistaTaula.setHorizontalScrollBarEnabled(true);
+        vistaTaula.setFillViewport(true);
+        filaTaula = Ui.fila(this);
+        filaTaula.setGravity(Gravity.TOP);
+        vistaTaula.addView(filaTaula, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        vistaTaula.setVisibility(View.GONE);
+        contingut.addView(vistaTaula, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        arrel.addView(cosH, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
         // ---- Regla ----
-        int ampleCap = Ui.dp(this, 176);
+        int ampleCap = Ui.dp(this, 170);
         LinearLayout filaRegle = Ui.fila(this);
         etPistes = Ui.etiqueta(this, "");
         posaEtiquetaPistes();
@@ -250,7 +298,7 @@ public class ProjecteActivity extends Activity {
             if (acabat && motor != null && motor.sona()) play();
         });
         filaRegle.addView(regle, new LinearLayout.LayoutParams(0, Ui.dp(this, 30), 1f));
-        arrel.addView(filaRegle);
+        vistaPistes.addView(filaRegle);
 
         // ---- Capçaleres + pistes (amb desplaçament vertical si n'hi ha moltes) ----
         // El desplaçament vertical només es fa amb dos dits (des de les pistes): un dit és per editar
@@ -317,11 +365,12 @@ public class ProjecteActivity extends Activity {
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         scroll.addView(fila);
-        arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        vistaPistes.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         vista.escolta(this::refresca);
         setContentView(arrel);
         ompleCapcaleres();
+        mostraTaula(Ui.prefs(this).getBoolean("estudi_taula", false));
         mostraTempo();
         refresca();
     }
@@ -333,11 +382,15 @@ public class ProjecteActivity extends Activity {
         for (int i = 0; i < projecte.pistes.size(); i++) {
             capcaleres.addView(capcalera(i), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
         }
-        if (projecte.pistes.isEmpty()) {
-            TextView t = Ui.text(this, "Aquesta carpeta no té gravacions.", 13, Ui.SUAU);
-            t.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 8), 0);
-            capcaleres.addView(t, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
-        }
+        // espai buit amb un «+» sota l'última pista, per afegir-ne una de nova
+        LinearLayout mes = Ui.fila(this);
+        mes.setGravity(Gravity.CENTER_VERTICAL);
+        mes.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 8), 0);
+        LinearLayout boto = Ui.pastilla(this, Icona.MES, "Pista nova", Ui.SUPERFICIE2, Ui.SUAU);
+        boto.setOnClickListener(v -> afegeixPista());
+        mes.addView(boto, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        mes.setTag("mes");
+        capcaleres.addView(mes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
         aplicaAlcada();
     }
 
@@ -354,6 +407,11 @@ public class ProjecteActivity extends Activity {
         c.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 4));
         c.setClickable(true);
         c.setOnClickListener(v -> {
+            if (t.clips.isEmpty() && t.esBuida()) {
+                textInfo.setTextColor(Ui.GUITARRA);
+                textInfo.setText("Pista buida: encén el seu botó de gravar i mantén premut el play");
+                return;
+            }
             if (t.clips.isEmpty()) {
                 // pista buida: es pot tornar a posar la gravació sencera
                 Full.confirma(this, "Tornar a posar «" + t.nomVisible() + "»?",
@@ -382,6 +440,11 @@ public class ProjecteActivity extends Activity {
         arrossegable(c, i);
 
         LinearLayout dalt = Ui.fila(this);
+        TextView num = Ui.negreta(this, String.valueOf(i + 1), 13, Ui.SUAU);
+        num.setFontFeatureSettings("tnum");
+        num.setMinWidth(Ui.dp(this, 16));
+        dalt.addView(num);
+        dalt.addView(Ui.espai(this, 4));
         dalt.addView(Ui.imatge(this, t.veu ? Icona.MIC : Icona.GUITARRA, color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         dalt.addView(Ui.espai(this, 6));
         dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 13, Ui.TEXT)), Ui.pes(1));
@@ -409,7 +472,6 @@ public class ProjecteActivity extends Activity {
                     pintaRec((FrameLayout) r, projecte.pistes.get(k).rec);
                 }
             }
-            textInfo.setText(t.rec ? "Es gravarà a «" + t.nomVisible() + "»" : "");
         });
         rec.setTag("rec");
         m.setOnClickListener(v -> {
@@ -607,14 +669,24 @@ public class ProjecteActivity extends Activity {
                 pistes.invalidate();
             }));
         }
-        if (i > 0) {
-            ops.add(new Full.Accio(Icona.PUJA, "Puja", false, () -> mouPistaA(i, i - 1)));
-        }
-        if (i < projecte.pistes.size() - 1) {
-            ops.add(new Full.Accio(Icona.BAIXA, "Baixa", false, () -> mouPistaA(i, i + 1)));
-        }
-        Full.accions(this, t.veu ? Icona.MIC : Icona.GUITARRA, t.veu ? Ui.VEU : Ui.GUITARRA, t.nomVisible(),
-                "Mantén premut i arrossega per moure-la", ops);
+        ops.add(new Full.Accio(Icona.PAPERERA, "Esborra la pista", true, () ->
+                Full.confirma(this, "Esborrar la pista «" + t.nomVisible() + "»?",
+                        "Es treu la pista i els seus clips del projecte. Les gravacions no s'esborren: continuen a la biblioteca.",
+                        "Esborra", true, () -> {
+                            synchronized (projecte) {
+                                projecte.esborraPista(projecte.pistes.indexOf(t));
+                            }
+                            vista.tria(-1, null);
+                            actualitzaAccions();
+                            desa();
+                            ompleCapcaleres();
+                            posaEtiquetaPistes();
+                            pistes.requestLayout();
+                            vista.avisa();
+                            refresca();
+                        })));
+        Full.accions(this, t.veu ? Icona.MIC : Icona.GUITARRA, t.veu ? Ui.VEU : Ui.GUITARRA,
+                (i + 1) + " · " + t.nomVisible(), "Per moure-la, mantén premut i arrossega", ops);
     }
 
     private void mouPistaA(int de, int a) {
@@ -722,6 +794,206 @@ public class ProjecteActivity extends Activity {
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar la bandera.");
         }
+    }
+
+    /** «+»: afegeix una pista buida al final i la deixa a punt per gravar-hi. */
+    private void afegeixPista() {
+        if (gravant) return;
+        Projecte.Pista p;
+        synchronized (projecte) {
+            p = projecte.pistaBuida();
+            projecte.armaRec(p);
+        }
+        desa();
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        pistes.requestLayout();
+        pistes.invalidate();
+        textInfo.setTextColor(Ui.GUITARRA);
+        textInfo.setText("«" + p.nomVisible() + "» a punt: mantén premut el play per gravar-hi");
+    }
+
+    // ---------- Taula de so ----------
+
+    private void mostraTaula(boolean taula) {
+        taulaVisible = taula;
+        Ui.colorIcona(pestanyaPistes, taula ? Ui.SUAU : Ui.TEXT);
+        Ui.colorIcona(pestanyaTaula, taula ? Ui.TEXT : Ui.SUAU);
+        pestanyaPistes.setBackground(Ui.tocable(taula ? 0x00000000 : Ui.SUPERFICIE2, Ui.dp(this, 18)));
+        pestanyaTaula.setBackground(Ui.tocable(taula ? Ui.SUPERFICIE2 : 0x00000000, Ui.dp(this, 18)));
+        if (taula) {
+            ompleTaula();
+            vistaPistes.setVisibility(View.GONE);
+            vistaTaula.setVisibility(View.VISIBLE);
+            filaTaula.removeCallbacks(tic);
+            filaTaula.postOnAnimation(tic);
+        } else {
+            filaTaula.removeCallbacks(tic);
+            vistaTaula.setVisibility(View.GONE);
+            vistaPistes.setVisibility(View.VISIBLE);
+            ompleCapcaleres();   // els faders petits, al dia
+            refresca();
+        }
+        Ui.prefs(this).edit().putBoolean("estudi_taula", taula).apply();
+    }
+
+    /** Vúmetres de la taula: es refresquen a cada fotograma mentre es veu. */
+    private final Runnable tic = new Runnable() {
+        @Override
+        public void run() {
+            if (!taulaVisible) return;
+            for (int i = 0; i < faders.size(); i++) {
+                FaderView f = faders.get(i);
+                f.setNivell(motor != null ? motor.nivell(i) : 0f);
+                float p = f.picDb();
+                textosPic.get(i).setText(p <= -60 ? "—" : String.format(Locale.ROOT, "%.1f", p).replace('.', ','));
+                textosPic.get(i).setTextColor(p > 0 ? Ui.ACCENT : Ui.SUAU);
+            }
+            filaTaula.postOnAnimation(this);
+        }
+    };
+
+    private void ompleTaula() {
+        filaTaula.removeAllViews();
+        faders.clear();
+        textosPic.clear();
+        for (int i = 0; i < projecte.pistes.size(); i++) filaTaula.addView(canal(i));
+        // «+» també a la taula
+        LinearLayout mes = Ui.columna(this);
+        mes.setGravity(Gravity.CENTER);
+        FrameLayout b = Ui.botoIcona(this, Icona.MES, Ui.SUAU, Ui.SUPERFICIE2, 44, 22, "Pista nova");
+        b.setOnClickListener(v -> {
+            afegeixPista();
+            ompleTaula();
+        });
+        mes.addView(b);
+        filaTaula.addView(mes, new LinearLayout.LayoutParams(Ui.dp(this, 76), LinearLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    /** Una tira de canal: número i nom, pic, fader gros amb vúmetre, dB, M, S i gravar. */
+    private View canal(int i) {
+        Projecte.Pista t = projecte.pistes.get(i);
+        int color = t.veu ? Ui.VEU : Ui.GUITARRA;
+        LinearLayout c = Ui.columna(this);
+        c.setGravity(Gravity.CENTER_HORIZONTAL);
+        c.setPadding(Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6));
+        c.setBackground(Ui.rodo(i % 2 == 0 ? Ui.SUPERFICIE : 0xFF141418, 0));
+
+        View franja = new View(this);
+        franja.setBackgroundColor(color);
+        c.addView(franja, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 3)));
+        TextView num = Ui.negreta(this, String.valueOf(i + 1), 15, Ui.TEXT);
+        num.setGravity(Gravity.CENTER);
+        c.addView(num, Ui.ample(this, 4));
+        TextView nom = Ui.text(this, t.nomVisible(), 11, Ui.SUAU);
+        nom.setGravity(Gravity.CENTER);
+        nom.setMaxLines(2);
+        nom.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nom.setMinLines(2);
+        c.addView(nom, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView pic = Ui.text(this, "—", 10, Ui.SUAU);
+        pic.setFontFeatureSettings("tnum");
+        pic.setGravity(Gravity.CENTER);
+        c.addView(pic, Ui.ample(this, 2));
+        textosPic.add(pic);
+
+        FaderView f = new FaderView(this, t.volumDb, color);
+        TextView db = Ui.negreta(this, Projecte.textDb(t.volumDb), 12, Ui.TEXT);
+        db.setFontFeatureSettings("tnum");
+        db.setGravity(Gravity.CENTER);
+        f.setOient((valor, acabat) -> {
+            synchronized (projecte) {
+                t.volumDb = valor;
+            }
+            db.setText(Projecte.textDb(valor));
+            if (acabat) desa();
+        });
+        faders.add(f);
+        c.addView(f, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        c.addView(db);
+
+        LinearLayout botons = Ui.fila(this);
+        botons.setGravity(Gravity.CENTER);
+        TextView m = botoMS("M", t.mut, Ui.ACCENT);
+        TextView so = botoMS("S", t.solo, Ui.GUITARRA);
+        m.setOnClickListener(v -> {
+            synchronized (projecte) {
+                t.mut = !t.mut;
+            }
+            pintaMS(m, t.mut, Ui.ACCENT);
+            desa();
+        });
+        so.setOnClickListener(v -> {
+            synchronized (projecte) {
+                t.solo = !t.solo;
+            }
+            pintaMS(so, t.solo, Ui.GUITARRA);
+            desa();
+        });
+        botons.addView(m);
+        botons.addView(Ui.espai(this, 4));
+        botons.addView(so);
+        c.addView(botons, Ui.ample(this, 6));
+        FrameLayout rec = new FrameLayout(this);
+        rec.setClickable(true);
+        rec.setContentDescription("Pista on es grava");
+        rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
+                new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
+        LinearLayout.LayoutParams lr = new LinearLayout.LayoutParams(Ui.dp(this, 60), Ui.dp(this, 24));
+        lr.topMargin = Ui.dp(this, 4);
+        c.addView(rec, lr);
+        pintaRec(rec, t.rec);
+        rec.setOnClickListener(v -> {
+            synchronized (projecte) {
+                projecte.armaRec(t.rec ? null : t);
+            }
+            desa();
+            filaTaula.post(this::ompleTaula);
+        });
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 76), LinearLayout.LayoutParams.MATCH_PARENT);
+        lp.rightMargin = 1;
+        c.setLayoutParams(lp);
+        return c;
+    }
+
+    // ---------- Graella ----------
+
+    private static final String[] NOMS_SNAP = {"Compàs", "Temps", "Lliure"};
+
+    private void pintaSnap() {
+        textSnap.setText(NOMS_SNAP[Math.max(0, Math.min(2, vista.snap))]);
+    }
+
+    private void desplegableSnap(View ancora) {
+        LinearLayout llista = Ui.columna(this);
+        llista.setBackground(Ui.rodoVora(Ui.SUPERFICIE2, Ui.LINIA_FORTA, Ui.dp(this, 12), Ui.dp(this, 1)));
+        llista.setPadding(Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4));
+        android.widget.PopupWindow pw = new android.widget.PopupWindow(llista,
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true);
+        for (int i = 0; i < NOMS_SNAP.length; i++) {
+            int idx = i;
+            boolean actual = i == vista.snap;
+            TextView t = Ui.negreta(this, NOMS_SNAP[i], 14, actual ? Ui.SOBRE_COLOR : Ui.TEXT);
+            t.setGravity(Gravity.CENTER_VERTICAL);
+            t.setMinWidth(Ui.dp(this, 120));
+            t.setMinHeight(Ui.dp(this, 40));
+            t.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
+            t.setClickable(true);
+            t.setBackground(Ui.tocable(actual ? Ui.TEXT : 0x00000000, Ui.dp(this, 9)));
+            t.setOnClickListener(v -> {
+                vista.snap = idx;
+                Ui.prefs(this).edit().putInt("snap", idx).apply();
+                pintaSnap();
+                pw.dismiss();
+            });
+            llista.addView(t);
+        }
+        pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0x00000000));
+        pw.setOutsideTouchable(true);
+        pw.setElevation(Ui.dp(this, 8));
+        pw.showAsDropDown(ancora, 0, Ui.dp(this, 4));
     }
 
     // ---------- Clic del metrònom ----------
@@ -852,7 +1124,7 @@ public class ProjecteActivity extends Activity {
             TextView nova = Ui.negreta(this, "Pista nova · gravant", 13, Ui.ACCENT);
             nova.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 8), 0);
             nova.setTag("viva");
-            capcaleres.addView(nova, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
+            capcaleres.addView(nova, projecte.pistes.size(), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
         }
         retardViu = Double.NaN;
         pistes.comencaViva(fila);
@@ -949,6 +1221,7 @@ public class ProjecteActivity extends Activity {
             posaEtiquetaPistes();
             pistes.requestLayout();
         }
+        if (taulaVisible) ompleTaula();
         vista.tria(ip, clip);
         actualitzaAccions();
         vista.capcalMs = entradaMs;

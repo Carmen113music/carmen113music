@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -210,6 +210,37 @@ public class Icona extends Drawable {
                 p.lineTo(12, 3);
                 p.lineTo(16.5f, 7.5f);
                 c.drawPath(p, traz);
+                break;
+            case PISTES:
+                // taulell: tres pistes amb clips
+                r.set(3, 5, 15, 8.5f);
+                c.drawRoundRect(r, 1.2f, 1.2f, ple);
+                r.set(7, 10.25f, 21, 13.75f);
+                c.drawRoundRect(r, 1.2f, 1.2f, ple);
+                r.set(3, 15.5f, 12, 19);
+                c.drawRoundRect(r, 1.2f, 1.2f, ple);
+                r.set(14, 15.5f, 21, 19);
+                c.drawRoundRect(r, 1.2f, 1.2f, ple);
+                break;
+            case TAULA:
+                // taula de so: tres faders
+                linia(c, 6, 3.5f, 6, 20.5f);
+                linia(c, 12, 3.5f, 12, 20.5f);
+                linia(c, 18, 3.5f, 18, 20.5f);
+                r.set(3.5f, 12, 8.5f, 15.5f);
+                c.drawRoundRect(r, 1, 1, ple);
+                r.set(9.5f, 6, 14.5f, 9.5f);
+                c.drawRoundRect(r, 1, 1, ple);
+                r.set(15.5f, 14.5f, 20.5f, 18);
+                c.drawRoundRect(r, 1, 1, ple);
+                break;
+            case GRAELLA:
+                // graella (snap): quadre amb línies
+                r.set(3.5f, 4.5f, 20.5f, 19.5f);
+                c.drawRoundRect(r, 2, 2, traz);
+                linia(c, 9.2f, 4.5f, 9.2f, 19.5f);
+                linia(c, 14.8f, 4.5f, 14.8f, 19.5f);
+                linia(c, 3.5f, 12, 20.5f, 12);
                 break;
             case REC:
                 // el cercle de gravar

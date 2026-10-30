@@ -115,7 +115,13 @@ public final class Projecte {
 
         /** El nom que es veu: el que li has posat, o el de la gravació. */
         public String nomVisible() {
-            return nomPropi != null && !nomPropi.trim().isEmpty() ? nomPropi.trim() : nom;
+            if (nomPropi != null && !nomPropi.trim().isEmpty()) return nomPropi.trim();
+            return nom == null || nom.isEmpty() ? "Pista" : nom;
+        }
+
+        /** Pista creada amb el «+», encara sense cap gravació pròpia. */
+        public boolean esBuida() {
+            return wav == null || wav.isEmpty();
         }
 
         /** El clip que hi ha al moment {@code ms} (el de més amunt si se'n trepitgen), o null. */
@@ -271,6 +277,11 @@ public final class Projecte {
             pista.nom = nom;
             pista.veu = veu;
             pistes.add(pista);
+        } else if (pista.esBuida()) {
+            // la primera gravació d'una pista buida passa a ser la seva
+            pista.wav = wav;
+            pista.nom = nom;
+            pista.veu = veu;
         }
         Clip c = new Clip();
         c.wav = wav;
@@ -325,6 +336,29 @@ public final class Projecte {
         p.clips.addAll(nous);
         p.ordena();
         return nous;
+    }
+
+    /** Afegeix una pista buida al final («Pista 3»…). */
+    public Pista pistaBuida() {
+        Pista p = new Pista();
+        p.wav = "";
+        p.nom = "";
+        p.nomPropi = "Pista " + (pistes.size() + 1);
+        pistes.add(p);
+        return p;
+    }
+
+    /** Treu una pista del projecte (les gravacions continuen a la biblioteca). */
+    public void esborraPista(int i) {
+        if (i >= 0 && i < pistes.size()) pistes.remove(i);
+    }
+
+    /** Passa clips d'una pista a una altra sense tocar-ne el temps (cada clip conserva la seva presa). */
+    public static void canviaPista(Pista de, Pista a, List<Clip> clips) {
+        if (de == a) return;
+        de.clips.removeAll(clips);
+        a.clips.addAll(clips);
+        a.ordena();
     }
 
     /** Treu els clips del projecte (el fitxer de so no es toca). */
@@ -405,7 +439,7 @@ public final class Projecte {
         for (int i = pistes.size() - 1; i >= 0; i--) {
             Pista p = pistes.get(i);
             if (p.clips.removeIf(c -> !hiSon.contains(c.wav))) canvi = true;
-            if (!hiSon.contains(p.wav)) {
+            if (!p.esBuida() && !hiSon.contains(p.wav)) {
                 if (p.clips.isEmpty()) {
                     pistes.remove(i);
                 } else {
@@ -496,7 +530,7 @@ public final class Projecte {
             t.mut = "si".equals(p.getProperty(k + "mut"));
             t.solo = "si".equals(p.getProperty(k + "solo"));
             t.rec = "si".equals(p.getProperty(k + "rec"));
-            if (!pr.preses.containsKey(wav)) {
+            if (!wav.isEmpty() && !pr.preses.containsKey(wav)) {
                 // projecte d'abans de la 2.5: les dades de la gravació eren a la pista
                 Presa g = new Presa();
                 g.wav = wav;
@@ -508,7 +542,7 @@ public final class Projecte {
             }
             if (p.getProperty(k + "clips") == null) {
                 // projecte d'abans de la 2.4: un sol clip per pista
-                t.clips.add(llegeixClip(p, k, wav, pr.preses.get(wav).duradaMs));
+                if (!wav.isEmpty()) t.clips.add(llegeixClip(p, k, wav, pr.preses.get(wav).duradaMs));
             } else {
                 int nc = (int) dec(p.getProperty(k + "clips"), 0);
                 for (int j = 0; j < nc; j++) {

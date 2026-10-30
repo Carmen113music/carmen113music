@@ -47,7 +47,7 @@ public class PistesView extends View {
     }
 
     private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6,
-            BUIT = 7, DOS_DITS = 8, TRIA = 9;
+            BUIT = 7, DOS_DITS = 8, TRIA = 9, CARRIL = 10;
     private static final long TEMPS_PREMUT = 400;
 
     private final Projecte projecte;
@@ -78,6 +78,10 @@ public class PistesView extends View {
     private long pos0, ini0, fi0, snap0, visIni0, visFi0, fadeIn0, fadeOut0, primer0;
     private double guany0;
     private boolean banderaFixa;
+    // moure clips: el primer moviment decideix si és en el temps (de costat) o de pista (amunt/avall)
+    private boolean eixDecidit;
+    private float lastX, lastY;
+    private int carrilOrig, carrilActual;
 
     private final Runnable premut = this::comencaTria;
 
@@ -203,7 +207,8 @@ public class PistesView extends View {
 
     @Override
     protected void onMeasure(int ample, int alt) {
-        int files = projecte.pistes.size() + (filaViva >= projecte.pistes.size() ? 1 : 0);
+        // una fila més sota l'última: l'espai del «+» (i on es dibuixa una pista nova mentre es grava)
+        int files = projecte.pistes.size() + 1;
         int h = Math.max(1, files) * altPista;
         setMeasuredDimension(MeasureSpec.getSize(ample), h);
     }
@@ -435,12 +440,28 @@ public class PistesView extends View {
                     return true;
                 }
                 float x = e.getX(), y = e.getY();
+                lastX = x;
+                lastY = y;
                 if (!mogut && (Math.abs(x - x0) > dp(4) || Math.abs(y - y0) > dp(4))) {
                     mogut = true;
                     removeCallbacks(premut);
                 }
+                if ((mode == MOU || mode == TRIA) && !eixDecidit) {
+                    // el primer moviment clar decideix el sentit
+                    float ax = Math.abs(x - x0), ay = Math.abs(y - y0);
+                    if (Math.max(ax, ay) < dp(10)) return true;
+                    eixDecidit = true;
+                    if (ay > ax) {
+                        comencaCarril();
+                    } else if (mode == TRIA) {
+                        // de costat després de mantenir premut: tria clips consecutius
+                        grup.clear();
+                    }
+                }
                 if (mode == TRIA) {
                     estenTria(x);
+                } else if (mode == CARRIL) {
+                    mouCarril(y);
                 } else if (mogut && mode != BUIT && mode != CAP) {
                     arrossega(x, y);
                 }
@@ -455,6 +476,11 @@ public class PistesView extends View {
                 return true;
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(premut);
+                if (mode == CARRIL) {
+                    acabaCarril();
+                    mode = CAP;
+                    return true;
+                }
                 if (mode >= MOU && mode <= GUANY && oient != null) {
                     ordena();
                     oient.editat(true);
@@ -486,6 +512,15 @@ public class PistesView extends View {
             }
         }
         if (mode == TRIA && oient != null) oient.info(null);
+        if (mode == CARRIL) {
+            // torna els clips a la seva pista
+            portaGrup(carrilOrig);
+            if (oient != null) {
+                oient.info(null);
+                oient.seleccio();
+                oient.editat(false);
+            }
+        }
         mode = DOS_DITS;
         getParent().requestDisallowInterceptTouchEvent(true);
         focusX = (e.getX(0) + e.getX(1)) / 2f;
@@ -532,7 +567,10 @@ public class PistesView extends View {
     private void comenca(float x, float y) {
         x0 = x;
         y0 = y;
+        lastX = x;
+        lastY = y;
         mogut = false;
+        eixDecidit = false;
         mode = BUIT;
         clip = null;
         grup.clear();
@@ -614,14 +652,70 @@ public class PistesView extends View {
     private void comencaTria() {
         if (mode != MOU || mogut || clip == null || pista < 0) return;
         mode = TRIA;
-        grup.clear();
-        vista.tria(pista, clip);
+        // si el clip ja era dins d'un grup triat, el grup es manté (per poder-lo passar a una altra pista)
+        if (!triatAbans) {
+            grup.clear();
+            vista.tria(pista, clip);
+            grup.add(clip);
+        }
+        x0 = lastX;
+        y0 = lastY;
+        eixDecidit = false;
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         if (oient != null) {
-            oient.info("Arrossega per triar més clips");
+            oient.info("De costat: tria més clips · Amunt o avall: canvia de pista");
             oient.seleccio();
         }
         vista.avisa();
+    }
+
+    // ---------- Carril vertical: canviar clips de pista sense moure'ls en el temps ----------
+
+    private void comencaCarril() {
+        removeCallbacks(premut);
+        mode = CARRIL;
+        if (grup.isEmpty()) grup.addAll(vista.triats);
+        if (grup.isEmpty() && clip != null) grup.add(clip);
+        // si s'havia començat a moure en el temps, torna-ho al lloc
+        synchronized (projecte) {
+            for (int i = 0; i < grup.size() && i < posGrup0.length; i++) grup.get(i).posMs = posGrup0[i];
+        }
+        carrilOrig = pista;
+        carrilActual = pista;
+        if (oient != null) oient.info("Amunt o avall: canvia de pista");
+        invalidate();
+    }
+
+    private void mouCarril(float y) {
+        int n = projecte.pistes.size();
+        int desti = Math.max(0, Math.min(n - 1, (int) Math.floor(y / altPista)));
+        if (desti == carrilActual) return;
+        portaGrup(desti);
+        if (oient != null) {
+            oient.info("Pista " + (desti + 1) + " · " + projecte.pistes.get(desti).nomVisible());
+            oient.editat(false);
+        }
+    }
+
+    /** Passa els clips del grup a la pista {@code desti} (sense tocar-ne el temps). */
+    private void portaGrup(int desti) {
+        if (desti == carrilActual || desti < 0 || desti >= projecte.pistes.size()) return;
+        synchronized (projecte) {
+            Projecte.canviaPista(projecte.pistes.get(carrilActual), projecte.pistes.get(desti), grup);
+        }
+        carrilActual = desti;
+        pista = desti;
+        vista.triada = desti;
+        vista.avisa();
+        invalidate();
+    }
+
+    private void acabaCarril() {
+        if (oient != null) {
+            oient.info(null);
+            if (carrilActual != carrilOrig) oient.editat(true);
+            oient.seleccio();
+        }
     }
 
     private void estenTria(float x) {
@@ -720,6 +814,11 @@ public class PistesView extends View {
 
     private void acaba(float x) {
         if (mode == DOS_DITS || mode == CAP) {
+            mode = CAP;
+            return;
+        }
+        if (mode == CARRIL) {
+            acabaCarril();
             mode = CAP;
             return;
         }
