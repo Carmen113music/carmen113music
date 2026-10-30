@@ -41,6 +41,9 @@ public class PistesView extends View {
 
         /** Han canviat els clips triats. */
         void seleccio();
+
+        /** Ha canviat l'alçada de les pistes (zoom vertical). */
+        void alcada(int altPistaPx);
     }
 
     private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6,
@@ -50,7 +53,7 @@ public class PistesView extends View {
     private final Projecte projecte;
     private final Vista vista;
     private final Map<String, float[]> ones = new HashMap<>();
-    private final int altPista;
+    private int altPista;
     private Oient oient;
 
     private final Paint ple = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -60,8 +63,8 @@ public class PistesView extends View {
     private final Path cami = new Path();
     private final RectF r = new RectF();
 
-    // dos dits
-    private float focusX, focusY, distancia;
+    // dos dits: separació horitzontal i vertical (zoom en cada direcció)
+    private float focusX, focusY, ampleDits, altDits;
 
     // estat de l'arrossegament
     private int mode = CAP;
@@ -84,6 +87,21 @@ public class PistesView extends View {
         vista = v;
         altPista = altPistaPx;
         mansa.setStyle(Paint.Style.FILL);
+    }
+
+    public static final int ALT_MIN_DP = 48, ALT_MAX_DP = 200;
+
+    public int altPista() {
+        return altPista;
+    }
+
+    /** Canvia l'alçada de les pistes (zoom vertical). */
+    public void setAltPista(int px) {
+        int nou = Math.max((int) dp(ALT_MIN_DP), Math.min((int) dp(ALT_MAX_DP), px));
+        if (nou == altPista) return;
+        altPista = nou;
+        requestLayout();
+        invalidate();
     }
 
     public void setOient(Oient o) {
@@ -266,7 +284,8 @@ public class PistesView extends View {
         if (xn < xb - dp(30)) {
             c.save();
             c.clipRect(xa, top, xb, baix);
-            c.drawText(t.nom, xn, top + dp(15), ple);
+            String nomClip = k.wav != null && !k.wav.equals(t.wav) ? projecte.presa(k).nom : t.nomVisible();
+            c.drawText(nomClip, xn, top + dp(15), ple);
             c.restore();
         }
 
@@ -363,25 +382,42 @@ public class PistesView extends View {
         getParent().requestDisallowInterceptTouchEvent(true);
         focusX = (e.getX(0) + e.getX(1)) / 2f;
         focusY = (e.getY(0) + e.getY(1)) / 2f;
-        distancia = (float) Math.hypot(e.getX(0) - e.getX(1), e.getY(0) - e.getY(1));
+        ampleDits = Math.abs(e.getX(0) - e.getX(1));
+        altDits = Math.abs(e.getY(0) - e.getY(1));
         invalidate();
     }
 
-    /** Dos dits: desplaçar (horitzontal i vertical) i zoom, tot alhora. */
+    /**
+     * Dos dits: desplaçar (horitzontal i vertical) i zoom, tot alhora.
+     * Obrir o tancar els dits de costat fa el zoom horitzontal (temps); de dalt a baix, el vertical (alçada de les pistes).
+     */
     private void mouDosDits(MotionEvent e) {
         float fx = (e.getX(0) + e.getX(1)) / 2f;
         float fy = (e.getY(0) + e.getY(1)) / 2f;
-        float d = (float) Math.hypot(e.getX(0) - e.getX(1), e.getY(0) - e.getY(1));
-        // zoom (només si els dits no són massa junts)
-        if (distancia > dp(30) && d > dp(30)) vista.zoom(d / distancia, fx);
+        float aw = Math.abs(e.getX(0) - e.getX(1));
+        float ah = Math.abs(e.getY(0) - e.getY(1));
+        // zoom horitzontal: només si els dits estan prou separats de costat
+        if (ampleDits > dp(40) && aw > dp(40)) vista.zoom(aw / ampleDits, fx);
+        // zoom vertical: només si els dits estan prou separats de dalt a baix
+        int dy = Math.round(fy - focusY);
+        if (altDits > dp(40) && ah > dp(40)) {
+            int abans = altPista;
+            setAltPista(Math.round(altPista * (ah / altDits)));
+            if (altPista != abans) {
+                // manté a lloc el que hi ha sota els dits
+                float factor = altPista / (float) abans;
+                dy -= Math.round(fy * factor - fy);
+                if (oient != null) oient.alcada(altPista);
+            }
+        }
         // desplaçament
         vista.iniciMs -= (fx - focusX) / vista.pxPerMs;
         vista.limita();
-        int dy = Math.round(fy - focusY);
         if (dy != 0 && oient != null) oient.desplacaVertical(-dy);
         focusX = fx;
         focusY = fy;
-        distancia = d;
+        ampleDits = aw;
+        altDits = ah;
         vista.avisa();
     }
 

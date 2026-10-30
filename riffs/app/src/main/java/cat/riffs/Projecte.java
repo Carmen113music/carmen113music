@@ -97,7 +97,8 @@ public final class Projecte {
     /** Una pista: té nom i color de la seva presa principal, un fader, M/S i els clips. */
     public static final class Pista {
         public String wav;          // presa principal (dona nom i color a la pista)
-        public String nom = "";
+        public String nom = "";     // títol de la presa principal
+        public String nomPropi = ""; // nom que li has posat a l'Estudi (buit = el de la presa)
         public boolean veu = false;
         public double volumDb;      // fader de la pista: -60 (silenci) a +6
         public boolean mut, solo;
@@ -109,6 +110,11 @@ public final class Projecte {
             long f = 0;
             for (Clip c : clips) f = Math.max(f, c.fiVisible());
             return f;
+        }
+
+        /** El nom que es veu: el que li has posat, o el de la gravació. */
+        public String nomVisible() {
+            return nomPropi != null && !nomPropi.trim().isEmpty() ? nomPropi.trim() : nom;
         }
 
         /** El clip que hi ha al moment {@code ms} (el de més amunt si se'n trepitgen), o null. */
@@ -325,6 +331,15 @@ public final class Projecte {
         p.clips.removeAll(sel);
     }
 
+    /** Mou la pista {@code de} a la posició {@code a} (les altres es desplacen). */
+    public void mouPista(int de, int a) {
+        if (de < 0 || de >= pistes.size()) return;
+        a = Math.max(0, Math.min(pistes.size() - 1, a));
+        if (a == de) return;
+        Pista p = pistes.remove(de);
+        pistes.add(a, p);
+    }
+
     /** Índex de la pista on és un clip, o -1. */
     public int pistaDe(Clip c) {
         for (int i = 0; i < pistes.size(); i++) if (pistes.get(i).clips.contains(c)) return i;
@@ -463,6 +478,7 @@ public final class Projecte {
             Pista t = new Pista();
             t.wav = wav;
             t.nom = p.getProperty(k + "nom", wav);
+            t.nomPropi = p.getProperty(k + "etiqueta", "");
             t.veu = "si".equals(p.getProperty(k + "veu"));
             t.volumDb = Math.max(SILENCI_DB, Math.min(6, dec(p.getProperty(k + "volum"), 0)));
             t.mut = "si".equals(p.getProperty(k + "mut"));
@@ -528,6 +544,7 @@ public final class Projecte {
             String k = "p" + i + ".";
             p.setProperty(k + "wav", t.wav);
             p.setProperty(k + "nom", t.nom == null ? "" : t.nom);
+            p.setProperty(k + "etiqueta", t.nomPropi == null ? "" : t.nomPropi);
             p.setProperty(k + "veu", t.veu ? "si" : "no");
             p.setProperty(k + "volum", String.format(Locale.ROOT, "%.2f", t.volumDb));
             p.setProperty(k + "mut", t.mut ? "si" : "no");

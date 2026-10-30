@@ -105,7 +105,7 @@ public class ProjecteActivity extends Activity {
         projecte = Projecte.obre(dir);
         if (projecte.sincronitza(b)) desa();
         vista.snap = Ui.prefs(this).getInt("snap", Projecte.SNAP_TEMPS);
-        altPista = Ui.dp(this, 78);
+        altPista = Ui.dp(this, Ui.prefs(this).getInt("alt_pista_dp", 78));
         construeix();
         carrega();
     }
@@ -273,6 +273,14 @@ public class ProjecteActivity extends Activity {
             public void seleccio() {
                 actualitzaAccions();
             }
+
+            @Override
+            public void alcada(int px) {
+                altPista = px;
+                aplicaAlcada();
+                Ui.prefs(ProjecteActivity.this).edit()
+                        .putInt("alt_pista_dp", Math.round(px / getResources().getDisplayMetrics().density)).apply();
+            }
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         scroll.addView(fila);
@@ -297,6 +305,7 @@ public class ProjecteActivity extends Activity {
             t.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 8), 0);
             capcaleres.addView(t, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
         }
+        aplicaAlcada();
     }
 
     private View capcalera(int i) {
@@ -314,7 +323,7 @@ public class ProjecteActivity extends Activity {
         c.setOnClickListener(v -> {
             if (t.clips.isEmpty()) {
                 // pista buida: es pot tornar a posar la gravació sencera
-                Full.confirma(this, "Tornar a posar «" + t.nom + "»?",
+                Full.confirma(this, "Tornar a posar «" + t.nomVisible() + "»?",
                         "La pista no té cap clip. Es tornarà a posar la gravació sencera.", "Posa", false, () -> {
                             synchronized (projecte) {
                                 t.clips.add(projecte.clipSencer(t.wav));
@@ -337,10 +346,12 @@ public class ProjecteActivity extends Activity {
             vista.avisa();
         });
 
+        arrossegable(c, i);
+
         LinearLayout dalt = Ui.fila(this);
         dalt.addView(Ui.imatge(this, t.veu ? Icona.MIC : Icona.GUITARRA, color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         dalt.addView(Ui.espai(this, 6));
-        dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nom, 13, Ui.TEXT)), Ui.pes(1));
+        dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 13, Ui.TEXT)), Ui.pes(1));
         c.addView(dalt);
 
         LinearLayout baix = Ui.fila(this);
@@ -395,6 +406,7 @@ public class ProjecteActivity extends Activity {
         baix.addView(fader, Ui.pes(1));
         c.addView(baix, Ui.ample(this, 6));
         db.setPadding(Ui.dp(this, 64), 0, 0, 0);
+        db.setTag("db");
         c.addView(db);
 
         fora.addView(c, Ui.pes(1));
@@ -402,6 +414,152 @@ public class ProjecteActivity extends Activity {
         amb.addView(fora, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         amb.addView(Ui.separador(this));
         return amb;
+    }
+
+    /** Posa l'alçada de cada capçalera igual que la de les pistes (zoom vertical). */
+    private void aplicaAlcada() {
+        boolean petita = altPista < Ui.dp(this, 74);
+        for (int k = 0; k < capcaleres.getChildCount(); k++) {
+            View v = capcaleres.getChildAt(k);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
+            lp.height = altPista;
+            v.setLayoutParams(lp);
+            View db = v.findViewWithTag("db");
+            if (db != null) db.setVisibility(petita ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    // ---------- Ordenar i canviar el nom de les pistes ----------
+
+    private int pistaArrossegada = -1;
+    private float yArrossega0;
+    private int destiPista;
+
+    /**
+     * Capçalera: mantenir premut 0,4 s (vibra) i arrossegar amunt o avall mou la pista.
+     * Si es deixa anar sense moure, surten les opcions (canviar el nom).
+     */
+    private void arrossegable(View c, int i) {
+        final boolean[] actiu = {false};
+        final float[] y0 = {0};
+        final int marge = Ui.dp(this, 8);
+        Runnable premut = () -> {
+            actiu[0] = true;
+            pistaArrossegada = i;
+            destiPista = i;
+            c.setPressed(false);
+            c.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            View cap = capcaleres.getChildAt(i);
+            cap.setElevation(Ui.dp(this, 8));
+            cap.setAlpha(0.92f);
+            cap.setBackgroundColor(Ui.SUPERFICIE2);
+            textInfo.setText("Arrossega per moure la pista");
+        };
+        c.setOnTouchListener((v, ev) -> {
+            switch (ev.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    actiu[0] = false;
+                    y0[0] = ev.getRawY();
+                    v.postDelayed(premut, 400);
+                    return false;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    if (!actiu[0]) {
+                        if (Math.abs(ev.getRawY() - y0[0]) > marge) v.removeCallbacks(premut);
+                        return false;
+                    }
+                    float dy = ev.getRawY() - y0[0];
+                    View cap = capcaleres.getChildAt(i);
+                    cap.setTranslationY(dy);
+                    int desti = Math.max(0, Math.min(projecte.pistes.size() - 1, Math.round(i + dy / altPista)));
+                    if (desti != destiPista) {
+                        destiPista = desti;
+                        textInfo.setText(desti == i ? "Arrossega per moure la pista" : "Posició " + (desti + 1));
+                    }
+                    return true;
+                case android.view.MotionEvent.ACTION_UP:
+                    v.removeCallbacks(premut);
+                    if (!actiu[0]) return false;
+                    acabaArrossegarPista(i, Math.abs(ev.getRawY() - y0[0]) > marge);
+                    return true;
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    v.removeCallbacks(premut);
+                    if (actiu[0]) acabaArrossegarPista(i, false);
+                    return false;
+                default:
+                    return actiu[0];
+            }
+        });
+    }
+
+    private void acabaArrossegarPista(int i, boolean mogut) {
+        pistaArrossegada = -1;
+        textInfo.setText("");
+        if (mogut && destiPista != i) {
+            synchronized (projecte) {
+                projecte.mouPista(i, destiPista);
+            }
+            vista.tria(-1, null);
+            actualitzaAccions();
+            desa();
+            ompleCapcaleres();
+            vista.avisa();
+            refresca();
+            return;
+        }
+        // sense moure: torna-la al seu lloc i obre les opcions
+        View cap = capcaleres.getChildAt(i);
+        cap.setTranslationY(0);
+        cap.setElevation(0);
+        cap.setAlpha(1f);
+        cap.setBackgroundColor(0x00000000);
+        if (!mogut) opcionsPista(i);
+    }
+
+    private void opcionsPista(int i) {
+        if (i < 0 || i >= projecte.pistes.size()) return;
+        Projecte.Pista t = projecte.pistes.get(i);
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
+                Full.demanaText(this, "Nom de la pista", t.nomVisible(), "Desa", text -> {
+                    String n = text == null ? "" : text.trim();
+                    synchronized (projecte) {
+                        // si és igual que el de la gravació, no cal nom propi
+                        t.nomPropi = n.equals(t.nom) ? "" : n;
+                    }
+                    desa();
+                    ompleCapcaleres();
+                    pistes.invalidate();
+                })));
+        if (t.nomPropi != null && !t.nomPropi.trim().isEmpty()) {
+            ops.add(new Full.Accio(Icona.HISTORIAL, "Nom de la gravació", false, () -> {
+                synchronized (projecte) {
+                    t.nomPropi = "";
+                }
+                desa();
+                ompleCapcaleres();
+                pistes.invalidate();
+            }));
+        }
+        if (i > 0) {
+            ops.add(new Full.Accio(Icona.PUJA, "Puja", false, () -> mouPistaA(i, i - 1)));
+        }
+        if (i < projecte.pistes.size() - 1) {
+            ops.add(new Full.Accio(Icona.BAIXA, "Baixa", false, () -> mouPistaA(i, i + 1)));
+        }
+        Full.accions(this, t.veu ? Icona.MIC : Icona.GUITARRA, t.veu ? Ui.VEU : Ui.GUITARRA, t.nomVisible(),
+                "Mantén premut i arrossega per moure-la", ops);
+    }
+
+    private void mouPistaA(int de, int a) {
+        synchronized (projecte) {
+            projecte.mouPista(de, a);
+        }
+        vista.tria(-1, null);
+        actualitzaAccions();
+        desa();
+        ompleCapcaleres();
+        vista.avisa();
+        refresca();
     }
 
     private TextView botoMS(String s, boolean actiu, int color) {
@@ -511,7 +669,7 @@ public class ProjecteActivity extends Activity {
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
-            ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nom, false, () -> comencaGravacio(t, t.veu)));
+            ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> comencaGravacio(t, t.veu)));
         }
         ops.add(new Full.Accio(Icona.MES, "Pista nova · guitarra", false, () -> comencaGravacio(null, false)));
         ops.add(new Full.Accio(Icona.MES, "Pista nova · veu", false, () -> comencaGravacio(null, true)));
@@ -598,9 +756,10 @@ public class ProjecteActivity extends Activity {
         // on ha quedat el primer temps (l'entrada) dins la gravació, abans d'aturar res
         long nano = motor.nanoDeLinia(entradaMs);
         String sortida = motor.tipusSortida();
+        String sortidaNom = motor.nomSortida();
         long primer = gravadora.msDelMoment(nano);
         long correccio = 0;
-        double r = DiagnosticActivity.retardDesat(this, sortida);
+        double r = DiagnosticActivity.retardDesat(this, sortida, sortidaNom);
         if (!Double.isNaN(r)) {
             correccio = Math.round(r);
             primer += correccio;
@@ -640,11 +799,11 @@ public class ProjecteActivity extends Activity {
         }
         desa();
         int ip = projecte.pistaDe(clip);
-        String nomPista = ip >= 0 ? projecte.pistes.get(ip).nom : "";
+        String nomPista = ip >= 0 ? projecte.pistes.get(ip).nomVisible() : "";
         long compas = Math.round(entradaMs / projecte.msPerCompas()) + 1;
         Ui.historial(this, "Gravat a l'Estudi «" + fitxaGravant.titol + "» (" + Biblioteca.durada(durada) + ") a "
                 + (nova ? "una pista nova" : "la pista «" + nomPista + "»") + ", entra al compàs " + compas
-                + (correccio != 0 ? " · retard corregit " + correccio + " ms (" + sortida + ")" : ""));
+                + (correccio != 0 ? " · retard corregit " + correccio + " ms (" + Retards.nomVisible(sortida, sortidaNom) + ")" : ""));
         if (nova) {
             ompleCapcaleres();
             posaEtiquetaPistes();

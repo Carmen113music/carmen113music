@@ -14,6 +14,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -54,6 +56,7 @@ public class DiagnosticActivity extends Activity {
     private TextView textBotoRetard, resultatRetard, ajudaRetard;
     private String sortidaRetard = "", nomSortidaRetard = "";
     private boolean provantRetard = false;
+    private LinearLayout llistaRetards;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -125,6 +128,12 @@ public class DiagnosticActivity extends Activity {
         resultatRetard = Ui.text(this, "", 14, Ui.TEXT);
         resultatRetard.setLineSpacing(0, 1.25f);
         cos.addView(resultatRetard, Ui.ample(this, 12));
+        TextView etRetards = Ui.text(this, "Retard que s'aplica a cada sortida (toca − i + per ajustar-lo a mà):", 14, Ui.SUAU);
+        etRetards.setLineSpacing(0, 1.2f);
+        cos.addView(etRetards, Ui.ample(this, 16));
+        llistaRetards = Ui.columna(this);
+        cos.addView(llistaRetards, Ui.ample(this, 8));
+        ompleRetards();
         posaAjudaRetard();
         mostraMesures();
 
@@ -256,37 +265,184 @@ public class DiagnosticActivity extends Activity {
 
     // ---------- Prova de retard ----------
 
-    /**
-     * Retard mesurat (ms) per a aquesta sortida («altaveu», «bluetooth»…) i la font de micròfon triada.
-     * Si no n'hi ha per a aquesta font, fa la mitjana de les altres fonts amb la mateixa sortida.
-     * Torna NaN si no s'ha mesurat mai.
-     */
-    public static double retardDesat(Context c, String sortida) {
-        if (sortida == null) sortida = "altaveu";
+    /** Els retards desats (per a cada sortida concreta). Passa al format nou els d'abans de la 2.6. */
+    public static Retards retards(Context c) {
         android.content.SharedPreferences p = Ui.prefs(c);
-        String font = p.getString("font", Gravadora.AUTO);
-        String clau = "retard_" + sortida + "_" + font;
-        if (p.contains(clau)) return p.getFloat(clau, 0f);
-        double suma = 0;
-        int n = 0;
+        String text = p.getString("retards", null);
+        if (text != null) return Retards.llegeix(text);
+        // format antic: «retard_<tipus>_<font>» → una entrada per tipus (la mitjana de les fonts)
+        Retards r = new Retards();
+        java.util.Map<String, double[]> sumes = new java.util.LinkedHashMap<>();
+        android.content.SharedPreferences.Editor ed = p.edit();
         for (java.util.Map.Entry<String, ?> e : p.getAll().entrySet()) {
-            if (e.getKey().startsWith("retard_" + sortida + "_") && e.getValue() instanceof Float) {
-                suma += (Float) e.getValue();
-                n++;
+            String k = e.getKey();
+            if (!k.startsWith("retard_") || k.equals("retard_hist") || !(e.getValue() instanceof Float)) continue;
+            String resta = k.substring("retard_".length());
+            int sep = resta.indexOf('_');
+            String tipus = sep > 0 ? resta.substring(0, sep) : resta;
+            double[] sn = sumes.get(tipus);
+            if (sn == null) sumes.put(tipus, sn = new double[2]);
+            sn[0] += (Float) e.getValue();
+            sn[1]++;
+            ed.remove(k);
+        }
+        for (java.util.Map.Entry<String, double[]> e : sumes.entrySet()) {
+            r.posa(e.getKey(), "", e.getValue()[0] / e.getValue()[1], false, System.currentTimeMillis());
+        }
+        ed.putString("retards", r.text()).apply();
+        return r;
+    }
+
+    public static void desaRetards(Context c, Retards r) {
+        Ui.prefs(c).edit().putString("retards", r.text()).apply();
+    }
+
+    /** Retard (ms) que cal aplicar per a aquesta sortida, o NaN si no se'n sap cap. */
+    public static double retardDesat(Context c, String tipus, String nom) {
+        return retards(c).retard(tipus == null ? "altaveu" : tipus, nom);
+    }
+
+    /** Per on sortiria ara el so: {tipus, nom}. Els auriculars tenen preferència sobre l'altaveu. */
+    public static String[] sortidaActual(Context c) {
+        AudioManager am = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+        String[] bt = null, cable = null;
+        if (am != null) {
+            for (android.media.AudioDeviceInfo d : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                String t = Metronom.tipus(d);
+                String nom = d.getProductName() == null ? "" : d.getProductName().toString();
+                if ("cable".equals(t) && cable == null) cable = new String[]{t, nom};
+                if ("bluetooth".equals(t) && bt == null) bt = new String[]{t, nom};
             }
         }
-        return n == 0 ? Double.NaN : suma / n;
+        if (cable != null) return cable;
+        if (bt != null) return bt;
+        return new String[]{"altaveu", ""};
     }
 
     private String textCorreccio() {
+        Retards r = retards(this);
+        if (r.entrades().isEmpty()) return "cap mesura (no es corregeix)";
         StringBuilder s = new StringBuilder();
-        for (String sortida : new String[]{"altaveu", "bluetooth", "cable"}) {
-            double r = retardDesat(this, sortida);
+        for (Retards.Entrada e : r.entrades()) {
             if (s.length() > 0) s.append(" · ");
-            s.append(nomSortida(sortida, "")).append(": ")
-                    .append(Double.isNaN(r) ? "sense mesura" : Math.round(r) + " ms");
+            s.append(Retards.nomVisible(e.tipus, e.nom)).append(": ").append(Math.round(e.ms)).append(" ms")
+                    .append(e.manual ? " (a mà)" : "");
         }
         return s.toString();
+    }
+
+    // ---------- Llista de retards (ajust a mà) ----------
+
+    private void ompleRetards() {
+        if (llistaRetards == null) return;
+        llistaRetards.removeAllViews();
+        Retards r = retards(this);
+        String[] ara = sortidaActual(this);
+        boolean araHiEs = r.exacta(ara[0], ara[1]) != null;
+        if (!araHiEs) {
+            double perDefecte = r.retard(ara[0], ara[1]);
+            llistaRetards.addView(filaRetard(ara[0], ara[1], perDefecte, true, null), Ui.ample(this, 0));
+        }
+        for (Retards.Entrada e : r.entrades()) {
+            boolean esAra = Retards.clau(ara[0], ara[1]).equals(e.clau());
+            llistaRetards.addView(filaRetard(e.tipus, e.nom, e.ms, esAra, e), Ui.ample(this, 8));
+        }
+    }
+
+    private View filaRetard(String tipus, String nom, double ms, boolean ara, Retards.Entrada e) {
+        LinearLayout f = Ui.fila(this);
+        f.setBackground(Ui.rodo(ara ? Ui.SUPERFICIE2 : Ui.SUPERFICIE, Ui.dp(this, 16)));
+        f.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10));
+
+        LinearLayout tx = Ui.columna(this);
+        tx.addView(Ui.negreta(this, Retards.nomVisible(tipus, nom), 14, Ui.TEXT));
+        String sub;
+        if (e == null) {
+            sub = Double.isNaN(ms) ? "Connectada ara · sense mesura: no es corregeix"
+                    : "Connectada ara · sense mesura pròpia: s'usa " + Math.round(ms) + " ms (d'unes altres del mateix tipus)";
+        } else {
+            sub = (ara ? "Connectada ara · " : "")
+                    + (e.manual ? "ajustat a mà" : "mesurat") + " el "
+                    + new SimpleDateFormat("d/M", Locale.ROOT).format(new Date(e.data));
+        }
+        TextView st = Ui.text(this, sub, 12, ara ? Ui.GUITARRA : Ui.SUAU);
+        st.setLineSpacing(0, 1.15f);
+        tx.addView(st, Ui.ample(this, 2));
+        f.addView(tx, Ui.pes(1));
+
+        TextView valor = Ui.negreta(this, Double.isNaN(ms) ? "—" : Math.round(ms) + " ms", 15, Ui.TEXT);
+        valor.setFontFeatureSettings("tnum");
+        valor.setGravity(android.view.Gravity.CENTER);
+        valor.setMinWidth(Ui.dp(this, 64));
+        double[] actual = {Double.isNaN(ms) ? 0 : Math.round(ms)};
+        Runnable desa = () -> {
+            Retards rr = retards(this);
+            rr.posa(tipus, nom, actual[0], true, System.currentTimeMillis());
+            desaRetards(this, rr);
+        };
+        FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Menys");
+        FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Més");
+        repeteix(menys, () -> {
+            actual[0] = Math.max(Retards.MIN, actual[0] - 1);
+            valor.setText(Math.round(actual[0]) + " ms");
+        }, () -> {
+            desa.run();
+            ompleRetards();
+            omple();
+        });
+        repeteix(mes, () -> {
+            actual[0] = Math.min(Retards.MAX, actual[0] + 1);
+            valor.setText(Math.round(actual[0]) + " ms");
+        }, () -> {
+            desa.run();
+            ompleRetards();
+            omple();
+        });
+        f.addView(menys);
+        f.addView(valor);
+        f.addView(mes);
+        if (e != null) {
+            f.addView(Ui.espai(this, 4));
+            FrameLayout treu = Ui.botoIcona(this, Icona.PAPERERA, Ui.SUAU, 0x00000000, 36, 18, "Oblida aquesta sortida");
+            treu.setOnClickListener(v -> Full.confirma(this, "Oblidar aquesta sortida?",
+                    "Es deixarà de corregir el retard de «" + Retards.nomVisible(tipus, nom) + "» fins que la tornis a mesurar.",
+                    "Oblida", true, () -> {
+                        Retards rr = retards(this);
+                        Retards.Entrada x = rr.exacta(tipus, nom);
+                        if (x != null) rr.treu(x);
+                        desaRetards(this, rr);
+                        ompleRetards();
+                        omple();
+                    }));
+            f.addView(treu);
+        }
+        return f;
+    }
+
+    /** Botó que repeteix l'acció mentre es manté premut; {@code fi} quan s'aixeca el dit. */
+    private void repeteix(View b, Runnable accio, Runnable fi) {
+        final Runnable[] bucle = new Runnable[1];
+        bucle[0] = () -> {
+            accio.run();
+            h.postDelayed(bucle[0], 70);
+        };
+        b.setOnTouchListener((v, ev) -> {
+            switch (ev.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    v.setPressed(true);
+                    accio.run();
+                    h.postDelayed(bucle[0], 400);
+                    return true;
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    v.setPressed(false);
+                    h.removeCallbacks(bucle[0]);
+                    fi.run();
+                    return true;
+                default:
+                    return true;
+            }
+        });
     }
 
     private void posaAjudaRetard() {
@@ -299,9 +455,9 @@ public class DiagnosticActivity extends Activity {
         } else {
             text += "\n\nSense auriculars: el clic sonarà per l'altaveu. Deixa el mòbil sobre la taula.";
         }
-        text += "\n\nFes-la uns quants cops, amb cada font de micròfon i amb i sense auriculars. "
-                + "En gravar amb metrònom, la bandera del primer temps es corregeix sola amb el retard mesurat "
-                + "per a la sortida i la font que facis servir.\n\nAra: " + textCorreccio() + ".";
+        text += "\n\nCada sortida (l'altaveu, cada parell d'auriculars) recorda el seu retard. En gravar, "
+                + "la bandera del primer temps es corregeix amb el de la sortida que estiguis fent servir. "
+                + "Si canvien les condicions, torna a fer la prova: la nova mesura substitueix l'anterior.";
         ajudaRetard.setText(text);
     }
 
@@ -387,9 +543,9 @@ public class DiagnosticActivity extends Activity {
                         + (r.errors.isEmpty() ? "" : " · [" + r.detall() + "]");
                 desaMesura(linia);
                 if (r.valida()) {
-                    Ui.prefs(this).edit()
-                            .putFloat("retard_" + sortida + "_" + Ui.prefs(this).getString("font", Gravadora.AUTO), (float) r.mediana)
-                            .apply();
+                    Retards rr = retards(this);
+                    rr.posa(sortida, nomSortidaRetard, Math.round(r.mediana), false, System.currentTimeMillis());
+                    desaRetards(this, rr);
                 }
                 Ui.historial(this, "Prova de retard (" + nom + "): " + r.resum());
                 String text;
@@ -403,6 +559,7 @@ public class DiagnosticActivity extends Activity {
                 }
                 mostraResultatRetard(text, r.valida() ? Ui.TEXT : Ui.ACCENT);
                 posaAjudaRetard();
+                ompleRetards();
                 mostraMesures();
                 omple();
             });
@@ -475,6 +632,7 @@ public class DiagnosticActivity extends Activity {
     protected void onResume() {
         super.onResume();
         posaAjudaRetard();
+        ompleRetards();
     }
 
     @Override

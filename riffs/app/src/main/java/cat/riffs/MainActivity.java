@@ -475,13 +475,14 @@ public class MainActivity extends Activity {
         long primerEsperat = -1;
         Metronom met = metronom;
         metronom = null;
-        String sortida = null;
+        String sortida = null, sortidaNom = "";
         long correccio = 0;
         if (met != null) {
             primerEsperat = gravadora.msDelMoment(met.nanoPrimerTemps());
             // el so arriba a la gravació més tard del que diu el mòbil: hi sumem el retard mesurat
             sortida = met.tipusSortida();
-            double r = DiagnosticActivity.retardDesat(this, sortida);
+            sortidaNom = met.nomSortida();
+            double r = DiagnosticActivity.retardDesat(this, sortida, sortidaNom);
             if (!Double.isNaN(r)) {
                 correccio = Math.round(r);
                 primerEsperat += correccio;
@@ -524,7 +525,7 @@ public class MainActivity extends Activity {
         Ui.historial(this, "Gravat «" + fitxaActual.titol + "» (" + (fitxaActual.esVeu() ? "veu" : "guitarra") + ", "
                 + Biblioteca.durada(durada) + (fitxaActual.claqueta ? ", " + fitxaActual.textTempo() : "")
                 + ") a " + Ui.nomCarpeta(this, wav.getParentFile())
-                + (met != null && correccio != 0 ? " · bandera corregida " + correccio + " ms (" + sortida + ")" : ""));
+                + (met != null && correccio != 0 ? " · bandera corregida " + correccio + " ms (" + Retards.nomVisible(sortida, sortidaNom) + ")" : ""));
         rellotge.setText(tempsAmbDecimes(durada));
         mostraEstat(motiu != null ? motiu : "Desada ✓", motiu != null ? Ui.ACCENT : Ui.SUAU);
         mostraUltima();

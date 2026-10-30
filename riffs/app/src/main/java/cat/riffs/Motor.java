@@ -155,6 +155,13 @@ public final class Motor {
         return d == null ? null : Metronom.tipus(d);
     }
 
+    /** Nom del dispositiu de sortida (per exemple el dels auriculars), si el mòbil el diu. */
+    public synchronized String nomSortida() {
+        AudioDeviceInfo d = track != null ? track.getRoutedDevice() : null;
+        if (d == null || d.getProductName() == null) return "";
+        return d.getProductName().toString();
+    }
+
     public void atura() {
         sona = false;
         if (fil != null) {
