@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.22:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.24:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22). Pròximes fases: editor del so del sinte, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -79,11 +79,19 @@ El primer cop l'app demana permís de micròfon.
   - **Toca una casella buida**: hi posa una nota (sona). **Toca una nota**: la treu.
   - **Arrossega una nota** per moure-la de costat (en el temps) o amunt i avall (d'altura; va sonant a cada nota).
   - **Arrossega la punta dreta** d'una nota per allargar-la o escurçar-la. Les notes noves surten amb la llargada de l'última que has allargat (al principi, una corxera).
+  - **Dos dits** (com a l'Estudi: un dit edita, dos dits mouen): **obre'ls o tanca'ls de costat** per fer **zoom del temps** (de tota la frase fins a un sol temps: amb les notes més llargues és molt més fàcil agafar-ne la punta i allargar-les o escurçar-les); **obre'ls amunt i avall** per fer les **files més altes o més baixes** (es recorda); **arrossega'ls** per moure't per la frase i per les notes. Les pestanyes de compàs porten aquell compàs a l'esquerra.
   - Com que només sona una nota alhora, si en poses una a sobre d'una altra, la de davant s'escurça (o es treu).
   - **Toca el teclat** per escoltar una nota.
-  - A dalt: el **so** (cada so que toques sona amb una frase curta i queda triat; s'aplica a **totes les finestres de la pista**), la **llargada** (1 a 8 compassos), la **graella** (4, 8, 3 o 6 caselles per temps) i el **play** (en bucle; es pot editar mentre sona). Amb més d'un compàs, pestanyes o **dos dits de costat** per canviar de compàs.
+  - A dalt: el **so** (cada so que toques sona amb una frase curta i queda triat; s'aplica a **totes les finestres de la pista**), la **llargada** (1 a 8 compassos), la **graella** (4, 8, 3 o 6 caselles per temps) i el **play** (en bucle; es pot editar mentre sona). Amb més d'un compàs, pestanyes per anar a cada compàs.
+  - **Solo** (a dalt): vegeu «Solo als editors».
   - En els sons amb *glide* (els leads i el *Baix àcid*), dues notes que es toquen (l'una acaba on comença l'altra) **llisquen** l'una cap a l'altra; si vols que no llisquin, deixa una casella buida entre mig.
 - En sortir, la frase es converteix en el so de la finestra. Si canvies el tempo o el compàs del projecte, es torna a fer al tempo nou. Les frases es guarden a la carpeta amagada `.sinte` de la cançó.
+- **Gravar tocant en directe** (com amb l'àudio): les pistes de sinte tenen el **botó de gravar**. Encén-lo i **mantén premut el play**: sona el projecte des d'un compàs abans (amb el compte i el clic, si el tens encès; aquí sí que pot sonar per l'altaveu, perquè no es grava cap micròfon) i als **dos terços de baix** surt un **teclat de dues octaves**. Amb **−** i **+** el pujes o el baixes d'octava (s'obre a Do1–Do3 per als baixos i Do3–Do5 per als leads). El que toques sona al moment amb el so de la pista. Pots fer servir més d'un dit, però sona només l'última tecla premuda (si la deixes i n'hi ha una altra de premuda, torna a aquella; arrossegar el dit canvia de nota, i amb glide, llisca).
+  - Toca el **quadrat de dalt** per aturar: el que has tocat es posa a la pista en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos cadascuna), **ajustat a semicorxeres**, i ho pots retocar al **piano roll** (doble toc). El que toques durant el compte no es desa (si una nota comença just abans de l'entrada, comença a l'entrada).
+  - Si a la pista ja hi havia finestres en aquell tros, no es treuen: sonarien juntes (com els clips d'àudio que es trepitgen).
+
+### Solo als editors (drumpad i piano roll)
+- El botó **Solo** de dalt tria què sona amb el play: **encès**, només el que estàs editant; **apagat** (per defecte), sona **amb la resta de pistes de l'Estudi** que no estiguin mutejades (amb els seus faders i el solo de la taula), just al tros on és la finestra, i el bucle es repeteix sobre aquell tros. La tria es recorda i és la mateixa als dos editors.
 
 ### Kits de bateria
 - S'hi entra des de **Diagnòstic i ajustos** (botó d'ajustos de la pantalla Gravar), apartat **Bateria virtual**: **Importa samples de bateria** obre directament el selector de carpetes; **Baixa els kits de GitHub** baixa el zip dels kits del grup (vegeu més avall) i l'importa; la fila «N kits importats» obre la llista de kits.
@@ -115,6 +123,8 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.24** (30/10/2026) — **Gravar el sinte en directe**: les pistes de sinte tenen botó de gravar; mantenint premut el play surt un **teclat virtual de dues octaves** als dos terços de baix, el sinte sona en directe (amb la mateixa veu que el piano roll) i, en aturar, el que has tocat queda en finestres noves, ajustat a semicorxeres.
+- **2.23** (30/10/2026) — Piano roll: **zoom amb dos dits** (de costat, el temps; amunt i avall, l'alçada de les files, que es recorda) i **arrossegar amb dos dits** per moure's; així és més fàcil allargar i escurçar les notes. Drumpad i piano roll: botó **Solo**; amb el Solo apagat, el bucle sona amb la resta de pistes de l'Estudi que no estan mutejades.
 - **2.22** (30/10/2026) — **Pistes de sinte**: «+ Pista nova» ara pregunta **Àudio, Bateria o Sinte**. Sinte monofònic propi (dos osciladors, sub, soroll, filtre amb ressonància i envolupant, LFO, glide i distorsió) amb **10 sons de fàbrica** (baixos i leads). **Piano roll** amb teclat de Do0 a Do6, una octava i mitja a la vista, notes que es posen, es mouen i s'allarguen amb el dit, bucle, 1–8 compassos i graella triable.
 - **2.21** (30/10/2026) — Drumpad: la columna que s'il·lumina va sincronitzada amb el que sona (abans anava per davant pel retard del mòbil). Botó **Graella** per triar 4, 8, 3 o 6 caselles per temps (2 o 4 en 6/8).
 - **2.20** (30/10/2026) — Drumpad: en triar el so d'una fila, cada so que toques sona i el panell es queda obert (*Fet* per tancar). Els compassos nous surten en blanc. Dos dits de costat sobre la graella per canviar de compàs.

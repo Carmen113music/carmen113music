@@ -68,6 +68,13 @@ public class ProjecteActivity extends Activity {
     private Projecte.Pista pistaGravant;     // null = pista nova
     private long entradaMs;
     private double retardViu = Double.NaN;   // retard de la sortida actual (per dibuixar l'ona en directe)
+    // gravar el sinte en directe (teclat virtual)
+    private boolean gravantSinte = false;
+    private Projecte.Pista pistaSinte;
+    private GravacioNotes notesGravades;
+    private SinteViu sinteViu;
+    private View panellTeclat;
+    private TextView textTeclat;
     private AudioManager gestorSo;
     private AudioDeviceCallback vigilant;
     private int altPista;
@@ -92,7 +99,7 @@ public class ProjecteActivity extends Activity {
                     textInfo.setText("Compte: " + Math.max(1, falten));
                 } else {
                     textInfo.setTextColor(Ui.ACCENT);
-                    textInfo.setText("● Gravant");
+                    textInfo.setText(gravantSinte ? "● Gravant el sinte" : "● Gravant");
                 }
             } else if (ms > projecte.finalMs() + 800) {
                 atura();
@@ -530,7 +537,7 @@ public class ProjecteActivity extends Activity {
             }
         });
         rec.setTag("rec");
-        if (t.esGenerat()) rec.setVisibility(View.INVISIBLE);
+        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
@@ -1003,7 +1010,9 @@ public class ProjecteActivity extends Activity {
         int copies = 0;
         for (Projecte.Pista p : projecte.pistes) for (Projecte.Clip k : p.clips) if (k.wav.equals(clip.wav)) copies++;
         String nom = "Bateria · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        desa();   // l'editor llegeix el projecte per fer sonar la resta de pistes
         android.content.Intent i = new android.content.Intent(this, DrumpadActivity.class);
+        i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
         i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
         i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
         i.putExtra(DrumpadActivity.EXTRA_NOM, nom);
@@ -1157,7 +1166,9 @@ public class ProjecteActivity extends Activity {
             }
         }
         String nom = nomPista + " · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        desa();   // l'editor llegeix el projecte per fer sonar la resta de pistes
         android.content.Intent i = new android.content.Intent(this, PianoRollActivity.class);
+        i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
         i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
         i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
         i.putExtra(DrumpadActivity.EXTRA_NOM, nom);
@@ -1322,7 +1333,7 @@ public class ProjecteActivity extends Activity {
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
         col.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
-        if (t.esGenerat()) rec.setVisibility(View.INVISIBLE);
+        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
             synchronized (projecte) {
@@ -1426,7 +1437,8 @@ public class ProjecteActivity extends Activity {
     private void aplicaClic() {
         if (motor == null) return;
         motor.posaVolumClic(volumClic);
-        motor.posaClic(clicActiu && (!gravant || Metronom.auriculars(this)));
+        // gravant àudio, el clic només amb auriculars (es gravaria); gravant el sinte no hi ha micròfon
+        motor.posaClic(clicActiu && (!gravant || gravantSinte || Metronom.auriculars(this)));
     }
 
     // ---------- Gravar des de l'Estudi ----------
@@ -1434,12 +1446,17 @@ public class ProjecteActivity extends Activity {
     /** Mantenir premut el play: tria on es grava (una pista o una de nova). */
     private void triaPistaGravar() {
         if (!carregat || motor == null) return;
+        Projecte.Pista armada = projecte.pistaRec();
+        if (armada != null && armada.esSinte()) {
+            // el sinte es grava tocant el teclat virtual (no cal micròfon)
+            comencaGravacioSinte(armada);
+            return;
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
             return;
         }
         atura();
-        Projecte.Pista armada = projecte.pistaRec();
         if (armada != null && armada.esGenerat()) armada = null;
         if (armada != null) {
             comencaGravacio(armada, armada.veu);
@@ -1454,7 +1471,18 @@ public class ProjecteActivity extends Activity {
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
-            if (t.esGenerat()) continue;
+            if (t.esBateria()) continue;
+            if (t.esSinte()) {
+                ops.add(new Full.Accio(Icona.SINTE, t.nomVisible() + " · teclat", false, () -> {
+                    synchronized (projecte) {
+                        projecte.armaRec(t);
+                    }
+                    desa();
+                    ompleCapcaleres();
+                    comencaGravacioSinte(t);
+                }));
+                continue;
+            }
             ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> {
                 synchronized (projecte) {
                     projecte.armaRec(t);
@@ -1572,6 +1600,10 @@ public class ProjecteActivity extends Activity {
 
     private void aturaGravacio(String motiu) {
         if (!gravant) return;
+        if (gravantSinte) {
+            aturaGravacioSinte(motiu);
+            return;
+        }
         gravant = false;
         // on ha quedat el primer temps (l'entrada) dins la gravació, abans d'aturar res
         long nano = motor.nanoDeLinia(entradaMs);
@@ -1656,6 +1688,200 @@ public class ProjecteActivity extends Activity {
                 if (pics != null) pistes.posaOna(wav.getName(), pics);
             });
         }).start();
+        vista.avisa();
+        refresca();
+    }
+
+    // ---------- Gravar el sinte en directe ----------
+
+    /** El so (i el preset) d'una pista de sinte: el de la seva frase principal, o el de qualsevol finestra seva. */
+    private Melodia soDeLaPista(Projecte.Pista t) {
+        Melodia m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, t.wav));
+        if (m == null) {
+            for (Projecte.Clip k : t.clips) {
+                if (!Projecte.esSinte(k.wav)) continue;
+                m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, k.wav));
+                if (m != null) break;
+            }
+        }
+        return m != null ? m : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
+    }
+
+    /** Moment de la línia de temps (ms) que se sentia a {@code nanos} (System.nanoTime). */
+    private double msDeNano(long nanos) {
+        if (motor == null) return entradaMs;
+        return entradaMs + (nanos - motor.nanoDeLinia(entradaMs)) / 1e6;
+    }
+
+    /**
+     * Gravar una pista de sinte: sona el projecte des d'un compàs abans (amb el clic, si està encès) i surt el
+     * teclat virtual als dos terços de baix. El que toques sona en directe i, en aturar, es converteix en notes.
+     */
+    private void comencaGravacioSinte(Projecte.Pista t) {
+        if (gravant || motor == null) return;
+        atura();
+        Melodia base = soDeLaPista(t);
+        entradaMs = projecte.entradaGravacio(vista.capcalMs);
+        long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
+        notesGravades = new GravacioNotes();
+        pistaSinte = t;
+        sinteViu = new SinteViu(base.so, Mesclador.lineal(t.volumDb));
+        if (!sinteViu.comenca()) {
+            sinteViu = null;
+            Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
+            return;
+        }
+        gravant = true;
+        gravantSinte = true;
+        aplicaClic();
+        motor.posaSilenci(false);
+        if (!motor.comenca(iniciMs)) {
+            gravant = false;
+            gravantSinte = false;
+            sinteViu.atura();
+            sinteViu = null;
+            motor.posaClic(false);
+            Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
+            return;
+        }
+        mostraTeclat(t, base.esGreu() ? 36 : 60);
+        vista.tria(-1, null);
+        actualitzaAccions();
+        vista.capcalMs = iniciMs;
+        Ui.canviaIcona(botoPlay, Icona.STOP, Ui.ACCENT, 18);
+        pistes.removeCallbacks(segueix);
+        pistes.postOnAnimation(segueix);
+    }
+
+    /** El teclat virtual, als dos terços de baix de la pantalla (per sobre de les pistes). */
+    private void mostraTeclat(Projecte.Pista t, int doEsquerra) {
+        amagaTeclat();
+        LinearLayout panell = Ui.columna(this);
+        panell.setBackgroundColor(Ui.FONS);
+        panell.setClickable(true);   // que els tocs no passin a les pistes de sota
+        View vora = new View(this);
+        vora.setBackgroundColor(Ui.SINTE);
+        panell.addView(vora, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
+
+        TeclatView teclat = new TeclatView(this);
+        teclat.posaBase(doEsquerra);
+        LinearLayout barra = Ui.fila(this);
+        barra.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
+        barra.setGravity(Gravity.CENTER_VERTICAL);
+        barra.addView(Ui.imatge(this, Icona.SINTE, Ui.SINTE, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT)));
+        barra.addView(Ui.espai(this, 16));
+        FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
+        TextView rang = Ui.negreta(this, "", 13, Ui.SUAU);
+        FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
+        Runnable posaRang = () -> rang.setText(Melodia.nomNota(teclat.base()) + " – " + Melodia.nomNota(teclat.base() + 24));
+        menys.setOnClickListener(v -> {
+            teclat.posaBase(teclat.base() - 12);
+            posaRang.run();
+        });
+        mes.setOnClickListener(v -> {
+            teclat.posaBase(teclat.base() + 12);
+            posaRang.run();
+        });
+        posaRang.run();
+        barra.addView(menys);
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(rang);
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(mes);
+        textTeclat = Ui.text(this, "Toca el teclat · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
+        textTeclat.setGravity(Gravity.END);
+        LinearLayout.LayoutParams lt = Ui.pes(1);
+        lt.leftMargin = Ui.dp(this, 12);
+        barra.addView(Ui.unaLinia(textTeclat), lt);
+        panell.addView(barra);
+
+        teclat.setPadding(0, 0, 0, 0);
+        teclat.posaOient((nota, lligada, nanos) -> {
+            if (!gravantSinte || sinteViu == null) return;
+            if (nota >= 0) sinteViu.nota(nota, lligada);
+            else sinteViu.deixa();
+            notesGravades.canvi(nota, 2, msDeNano(nanos));
+            textTeclat.setTextColor(nota >= 0 ? Ui.SINTE : Ui.APAGAT);
+            textTeclat.setText(nota >= 0 ? Melodia.nomNota(nota) : notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
+        });
+        LinearLayout.LayoutParams lk = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        lk.setMargins(Ui.dp(this, 6), 0, Ui.dp(this, 6), Ui.dp(this, 6));
+        panell.addView(teclat, lk);
+
+        int alt = getWindow().getDecorView().getHeight();
+        if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, alt * 2 / 3, Gravity.BOTTOM);
+        addContentView(panell, lp);
+        panellTeclat = panell;
+    }
+
+    private void amagaTeclat() {
+        if (panellTeclat != null && panellTeclat.getParent() instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup) panellTeclat.getParent()).removeView(panellTeclat);
+        }
+        panellTeclat = null;
+        textTeclat = null;
+    }
+
+    /** Atura la gravació del sinte i posa el que s'ha tocat en finestres noves de la pista (a partir de l'entrada). */
+    private void aturaGravacioSinte(String motiu) {
+        gravant = false;
+        gravantSinte = false;
+        notesGravades.tanca(msDeNano(System.nanoTime()));
+        motor.posaClic(false);
+        motor.atura();
+        if (sinteViu != null) sinteViu.atura();
+        sinteViu = null;
+        amagaTeclat();
+        pistes.removeCallbacks(segueix);
+        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 18);
+        textInfo.setTextColor(Ui.SINTE);
+        vista.capcalMs = entradaMs;
+        Projecte.Pista t = pistaSinte;
+        int ppc = Patro.passosDe(projecte.compas);
+        List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS);
+        if (t == null || !projecte.pistes.contains(t) || frases.isEmpty()) {
+            textInfo.setText(motiu != null ? motiu : "No has tocat cap nota després del compte: no s'ha desat res");
+            refresca();
+            return;
+        }
+        Melodia base = soDeLaPista(t);
+        int compasEntrada = (int) Math.round(entradaMs / projecte.msPerCompas()) + 1;
+        Projecte.Clip primer = null;
+        int notes = 0, finestres = 0;
+        for (GravacioNotes.Frase f : frases) {
+            Melodia m = base.buidaAmbElMateixSo();
+            m.compas = projecte.compas;
+            m.passosPerCompas = ppc;
+            m.compassos = f.compassos;
+            for (Melodia.Nota n : f.notes) m.posa(new Melodia.Nota(n.pas, n.llarg, n.nota, n.forca));
+            notes += m.notes.size();
+            try {
+                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
+                        ? t.wav : projecte.wavSinteLliure();
+                m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
+                long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+                Projecte.Clip c;
+                synchronized (projecte) {
+                    c = projecte.afegeixFinestraBateria(t, wav, durada, compasEntrada + f.compasDes);
+                }
+                carregaSo(wav);
+                finestres++;
+                if (primer == null) primer = c;
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar una part de la gravació");
+            }
+        }
+        desa();
+        Ui.historial(this, "Gravat amb el teclat a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes")
+                + ", entra al compàs " + compasEntrada + (finestres > 1 ? ", " + finestres + " finestres" : ""));
+        int ip = projecte.pistes.indexOf(t);
+        if (primer != null) vista.tria(ip, primer);
+        actualitzaAccions();
+        if (taulaVisible) ompleTaula();
+        textInfo.setText(motiu != null ? motiu : notes + (notes == 1 ? " nota gravada" : " notes gravades") + " · doble toc per veure-les al piano roll");
         vista.avisa();
         refresca();
     }

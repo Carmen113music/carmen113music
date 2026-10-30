@@ -30,6 +30,12 @@ public final class Mesclador {
      * en aquest tros, ja amb el fader (per als vúmetres). {@code nivells} pot ser null.
      */
     public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n, float[] nivells) {
+        mescla(p, audio, inici, sortida, n, nivells, null);
+    }
+
+    /** Com l'altra, però sense els clips del so {@code excloure} (el que s'està editant al drumpad o al piano roll). */
+    public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n, float[] nivells,
+                              String excloure) {
         java.util.Arrays.fill(sortida, 0, n, 0f);
         if (nivells != null) java.util.Arrays.fill(nivells, 0f);
         boolean solo = p.hiHaSolo();
@@ -40,6 +46,7 @@ public final class Mesclador {
             double volum = lineal(t.volumDb);
             if (volum <= 0) continue;
             for (Projecte.Clip k : t.clips) {
+                if (excloure != null && excloure.equals(k.wav)) continue;
                 short[] so = audio.get(k.wav);
                 if (so == null) continue;
                 double guany = lineal(k.guanyDb) * volum;

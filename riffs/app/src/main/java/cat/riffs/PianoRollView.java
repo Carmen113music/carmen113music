@@ -7,13 +7,15 @@ import android.graphics.RectF;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.ScrollView;
 
 /**
  * El piano roll d'una finestra de sinte: a l'esquerra un teclat (de Do0 a Do6, de dalt a baix de més agut a més greu)
  * i, a la dreta, la graella del compàs que es veu, amb una fila per nota i una columna per casella.
  * Tocar una casella buida posa una nota; tocar una nota la treu; arrossegar-la la mou (de costat i amunt/avall);
  * arrossegar-ne la punta dreta l'allarga o l'escurça. Tocar el teclat fa sonar la nota.
- * Va dins un ScrollView (amunt i avall es desplaça); dos dits de costat canvien de compàs.
+ * Va dins un ScrollView (amunt i avall es desplaça). Dos dits: obrir-los o tancar-los de costat = zoom del temps,
+ * amunt i avall = alçada de les files, arrossegar = desplaçar-se (un dit edita, dos dits mouen, com a l'Estudi).
  */
 public class PianoRollView extends View {
 
@@ -24,15 +26,23 @@ public class PianoRollView extends View {
         /** Que soni aquesta nota (en tocar el teclat, posar-ne una o moure-la amunt i avall). */
         void prova(int nota);
 
-        /** S'ha canviat de compàs lliscant amb dos dits. */
+        /** El compàs que es veu a l'esquerra ha canviat (desplaçant-se amb dos dits). */
         default void compas(int c) {}
+
+        /** S'ha canviat l'alçada de les files amb dos dits (en dp, per recordar-la). */
+        default void alcada(float dp) {}
     }
 
     private static final int CAP = 0, NOU = 1, MOU = 2, ALLARGA = 3, TECLAT = 4;
+    // gest de dos dits: encara no se sap, desplaçar, zoom del temps, zoom de les files
+    private static final int DD_NOSE = 0, DD_MOU = 1, DD_ZOOM_H = 2, DD_ZOOM_V = 3;
+    public static final float FILA_MIN_DP = 14, FILA_MAX_DP = 56;
 
     private Melodia melodia;
     private Oients oients;
-    private int compasVisible = 0;
+    /** Vista del temps, en compassos: on comença (a l'esquerra) i quants se'n veuen. */
+    private double iniciC = 0, visiblesC = 1;
+    private int compasEsq = 0;
     private int pasSonant = -1;
     private int teclaPremuda = -1;
     /** Llargada de les notes noves (la de l'última que s'ha allargat), en caselles; 0 = mitja divisió. */
@@ -52,7 +62,11 @@ public class PianoRollView extends View {
     private int pas0, nota0, llarg0;
     private int pasNou, notaNova;
     private boolean dosDits = false;
-    private float xDosDits;
+    private int modeDD;
+    private float sepX0, sepY0, cx0, cy0;   // separació i centre dels dits en començar (y de pantalla)
+    private double iniciC0, visiblesC0;
+    private float altFila0;
+    private int scrollY0;
 
     public PianoRollView(Context c) {
         super(c);
@@ -65,13 +79,15 @@ public class PianoRollView extends View {
     public void posa(Melodia m, Oients o) {
         melodia = m;
         oients = o;
+        iniciC = 0;
+        visiblesC = 1;
         requestLayout();
         invalidate();
     }
 
-    /** Alçada de cada fila (perquè hi càpiga una octava i mitja a la pantalla). */
+    /** Alçada de cada fila (de 14 a 56 dp). */
     public void posaAltFila(float px) {
-        altFila = Math.max(16 * d, px);
+        altFila = Math.max(FILA_MIN_DP * d, Math.min(FILA_MAX_DP * d, px));
         requestLayout();
         invalidate();
     }
@@ -85,13 +101,32 @@ public class PianoRollView extends View {
         return (Melodia.NOTA_MAX - nota) * altFila + altFila / 2f;
     }
 
+    /** Porta el compàs {@code c} a l'esquerra (amb el mateix zoom). */
     public void posaCompas(int c) {
-        compasVisible = Math.max(0, Math.min(melodia == null ? 0 : melodia.compassos - 1, c));
+        iniciC = c;
+        limita();
         invalidate();
     }
 
     public int compasVisible() {
-        return compasVisible;
+        return compasEsq;
+    }
+
+    /** Torna a posar la vista dins la frase (després de canviar-ne la llargada). */
+    public void limita() {
+        if (melodia == null) return;
+        double min = 1.0 / Math.max(1, melodia.compas == 6 ? 2 : melodia.compas);   // un temps (mig compàs en 6/8)
+        visiblesC = Math.max(min, Math.min(melodia.compassos, visiblesC));
+        iniciC = Math.max(0, Math.min(melodia.compassos - visiblesC, iniciC));
+        int c = (int) Math.floor(iniciC + 1e-6);
+        if (c != compasEsq) {
+            compasEsq = c;
+            if (oients != null) oients.compas(c);
+        }
+    }
+
+    private ScrollView scroll() {
+        return getParent() instanceof ScrollView ? (ScrollView) getParent() : null;
     }
 
     public void posaPasSonant(int pas) {
@@ -110,8 +145,25 @@ public class PianoRollView extends View {
         setMeasuredDimension(MeasureSpec.getSize(wSpec), (int) (files() * altFila));
     }
 
+    private float ampleGraella() {
+        return Math.max(1, getWidth() - ampleTecles - 6 * d);
+    }
+
     private float ampleCasella() {
-        return (getWidth() - ampleTecles - 6 * d) / Math.max(1, melodia.passosPerCompas);
+        return (float) (ampleGraella() / (visiblesC * Math.max(1, melodia.passosPerCompas)));
+    }
+
+    /** Primera casella que es veu (pot ser fraccionària). */
+    private double pasEsq() {
+        return iniciC * melodia.passosPerCompas;
+    }
+
+    private float xDePas(double pas) {
+        return (float) (ampleTecles + (pas - pasEsq()) * ampleCasella());
+    }
+
+    private int pasDeX(float x) {
+        return (int) Math.floor(pasEsq() + (x - ampleTecles) / ampleCasella());
     }
 
     private int notaDeY(float y) {
@@ -123,51 +175,55 @@ public class PianoRollView extends View {
         if (melodia == null) return;
         float ac = ampleCasella();
         int ppc = melodia.passosPerCompas;
-        int base = compasVisible * ppc;
         int grup = Math.max(1, melodia.grup());
         float x0 = ampleTecles;
-        float xFi = x0 + ppc * ac;
+        float xFi = x0 + ampleGraella();
+        int total = melodia.passos();
+        float xFrase = Math.min(xFi, xDePas(total));   // on s'acaba la frase
         int n = files();
         p.setStyle(Paint.Style.FILL);
 
+        c.save();
+        c.clipRect(x0, 0, xFi, n * altFila);
         // files de la graella (les de tecla negra, més fosques)
         for (int i = 0; i < n; i++) {
             int nt = Melodia.NOTA_MAX - i;
             float top = i * altFila;
             p.setColor(Melodia.esNegra(nt) ? 0xFF151519 : Ui.SUPERFICIE);
-            c.drawRect(x0, top, xFi, top + altFila, p);
+            c.drawRect(x0, top, xFrase, top + altFila, p);
             if (Math.floorMod(nt, 12) == 0) {
                 // ratlla sota cada Do (separa les octaves)
                 p.setColor(Ui.LINIA_FORTA);
-                c.drawRect(x0, top + altFila - 1.2f * d, xFi, top + altFila, p);
+                c.drawRect(x0, top + altFila - 1.2f * d, xFrase, top + altFila, p);
             } else if (Math.floorMod(nt, 12) == 5) {
                 p.setColor(Ui.LINIA);
-                c.drawRect(x0, top + altFila - 0.8f * d, xFi, top + altFila, p);
+                c.drawRect(x0, top + altFila - 0.8f * d, xFrase, top + altFila, p);
             }
         }
         // columna que sona
-        if (pasSonant >= base && pasSonant < base + ppc) {
-            p.setColor(Ui.alfa(Ui.TEXT, 22));
-            float x = x0 + (pasSonant - base) * ac;
-            c.drawRect(x, 0, x + ac, n * altFila, p);
+        if (pasSonant >= 0) {
+            float x = xDePas(pasSonant);
+            if (x + ac > x0 && x < xFi) {
+                p.setColor(Ui.alfa(Ui.TEXT, 22));
+                c.drawRect(x, 0, x + ac, n * altFila, p);
+            }
         }
-        // línies verticals: fines a cada casella, més marcades a cada temps
-        for (int s = 0; s <= ppc; s++) {
-            boolean temps = s % grup == 0;
-            p.setColor(temps ? Ui.alfa(Ui.TEXT, 46) : Ui.alfa(Ui.TEXT, 12));
-            float x = x0 + s * ac;
-            float w = (temps ? 1.4f : 0.8f) * d;
+        // línies verticals: fines a cada casella (si no estan massa juntes), més a cada temps i fortes a cada compàs
+        int s0 = Math.max(0, (int) Math.floor(pasEsq())), s1 = Math.min(total, (int) Math.ceil(pasEsq() + visiblesC * ppc));
+        for (int s = s0; s <= s1; s++) {
+            boolean compas = s % ppc == 0, temps = s % grup == 0;
+            if (!compas && !temps && ac < 6 * d) continue;
+            p.setColor(compas ? Ui.alfa(Ui.TEXT, 110) : temps ? Ui.alfa(Ui.TEXT, 46) : Ui.alfa(Ui.TEXT, 12));
+            float x = xDePas(s);
+            float w = (compas ? 2f : temps ? 1.4f : 0.8f) * d;
             c.drawRect(x - w / 2, 0, x + w / 2, n * altFila, p);
         }
         // notes
         for (Melodia.Nota nt : melodia.notes) {
-            if (nt.fi() <= base || nt.pas >= base + ppc) continue;
+            float xa = xDePas(nt.pas), xb = xDePas(nt.fi());
+            if (xb <= x0 || xa >= xFi) continue;
             float top = (Melodia.NOTA_MAX - nt.nota) * altFila;
-            float xa = x0 + (nt.pas - base) * ac, xb = x0 + (nt.fi() - base) * ac;
-            boolean tallaEsq = xa < x0, tallaDre = xb > xFi;
-            xa = Math.max(x0, xa);
-            xb = Math.min(xFi, xb);
-            r.set(xa + (tallaEsq ? 0 : 1.5f * d), top + 2 * d, xb - (tallaDre ? 0 : 1.5f * d), top + altFila - 2 * d);
+            r.set(xa + 1.5f * d, top + 2 * d, xb - 1.5f * d, top + altFila - 2 * d);
             boolean triada = nt == nota && mode != CAP;
             p.setColor(Ui.alfa(Ui.SINTE, nt.forca == 1 ? 150 : nt.forca == 2 ? 215 : 255));
             c.drawRoundRect(r, 5 * d, 5 * d, p);
@@ -179,16 +235,17 @@ public class PianoRollView extends View {
                 p.setStyle(Paint.Style.FILL);
             }
             // la punta dreta (per allargar)
-            if (!tallaDre && r.width() > 18 * d) {
+            if (r.width() > 18 * d) {
                 p.setColor(Ui.alfa(Ui.SOBRE_COLOR, 90));
                 c.drawRect(r.right - 5 * d, r.top + 4 * d, r.right - 3.5f * d, r.bottom - 4 * d, p);
             }
             if (r.width() > 34 * d && altFila >= 16 * d) {
                 p.setColor(Ui.SOBRE_COLOR);
                 p.setTextSize(Math.min(11 * d, altFila * 0.55f));
-                c.drawText(Melodia.nomNota(nt.nota), r.left + 5 * d, r.centerY() + p.getTextSize() * 0.36f, p);
+                c.drawText(Melodia.nomNota(nt.nota), Math.max(r.left, x0) + 5 * d, r.centerY() + p.getTextSize() * 0.36f, p);
             }
         }
+        c.restore();
         // teclat
         for (int i = 0; i < n; i++) {
             int nt = Melodia.NOTA_MAX - i;
@@ -230,31 +287,24 @@ public class PianoRollView extends View {
     public boolean onTouchEvent(MotionEvent ev) {
         if (melodia == null) return false;
         int acc = ev.getActionMasked();
-        // dos dits: es desfà el que s'estava fent i lliscar de costat canvia de compàs
+        // dos dits: es desfà el que s'estava fent; obrir/tancar = zoom, arrossegar = desplaçar-se
         if (acc == MotionEvent.ACTION_POINTER_DOWN && ev.getPointerCount() == 2) {
             cancelaToc();
-            dosDits = true;
-            xDosDits = mitjanaX(ev);
+            comencaDosDits(ev);
             getParent().requestDisallowInterceptTouchEvent(true);
             invalidate();
             return true;
         }
         if (dosDits) {
             if (acc == MotionEvent.ACTION_MOVE && ev.getPointerCount() >= 2) {
-                float dx = mitjanaX(ev) - xDosDits;
-                if (Math.abs(dx) > 60 * d) {
-                    int nou = compasVisible + (dx < 0 ? 1 : -1);
-                    xDosDits = mitjanaX(ev);
-                    if (nou >= 0 && nou < melodia.compassos) {
-                        compasVisible = nou;
-                        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
-                        invalidate();
-                        if (oients != null) oients.compas(nou);
-                    }
-                }
+                mouDosDits(ev);
+            } else if (acc == MotionEvent.ACTION_POINTER_UP && ev.getPointerCount() == 3) {
+                // s'aixeca un de tres dits: es continua amb els dos que queden
+                comencaDosDits(ev);
             } else if (acc == MotionEvent.ACTION_UP || acc == MotionEvent.ACTION_CANCEL) {
                 dosDits = false;
                 getParent().requestDisallowInterceptTouchEvent(false);
+                if (modeDD == DD_ZOOM_V && oients != null) oients.alcada(altFila / d);
             }
             return true;
         }
@@ -273,9 +323,9 @@ public class PianoRollView extends View {
                     if (oients != null) oients.prova(nt);
                     return true;
                 }
-                int col = (int) ((ev.getX() - ampleTecles) / ac);
-                if (col < 0 || col >= melodia.passosPerCompas) return false;
-                int pas = compasVisible * melodia.passosPerCompas + col;
+                if (ev.getX() > ampleTecles + ampleGraella()) return false;
+                int pas = pasDeX(ev.getX());
+                if (pas < 0 || pas >= melodia.passos()) return false;
                 Melodia.Nota n = melodia.notaA(pas, nt);
                 if (n != null) {
                     nota = n;
@@ -283,7 +333,7 @@ public class PianoRollView extends View {
                     nota0 = n.nota;
                     llarg0 = n.llarg;
                     // a prop de la punta dreta: allargar; si no, moure
-                    float xFiNota = ampleTecles + (n.fi() - compasVisible * melodia.passosPerCompas) * ac;
+                    float xFiNota = xDePas(n.fi());
                     float marge = Math.max(14 * d, Math.min(ac * 0.45f, 26 * d));
                     mode = xFiNota - ev.getX() < marge && n.llarg * ac > marge ? ALLARGA : MOU;
                     getParent().requestDisallowInterceptTouchEvent(true);
@@ -362,6 +412,73 @@ public class PianoRollView extends View {
                 return false;
             default:
                 return true;
+        }
+    }
+
+    // ---------- Dos dits ----------
+
+    private void comencaDosDits(MotionEvent ev) {
+        ScrollView sv = scroll();
+        int sy = sv == null ? 0 : sv.getScrollY();
+        dosDits = true;
+        modeDD = DD_NOSE;
+        sepX0 = Math.abs(ev.getX(0) - ev.getX(1));
+        sepY0 = Math.abs(ev.getY(0) - ev.getY(1));
+        cx0 = (ev.getX(0) + ev.getX(1)) / 2f;
+        cy0 = (ev.getY(0) + ev.getY(1)) / 2f - sy;
+        iniciC0 = iniciC;
+        visiblesC0 = visiblesC;
+        altFila0 = altFila;
+        scrollY0 = sy;
+    }
+
+    private void mouDosDits(MotionEvent ev) {
+        ScrollView sv = scroll();
+        int sy = sv == null ? 0 : sv.getScrollY();
+        float sepX = Math.abs(ev.getX(0) - ev.getX(1));
+        float sepY = Math.abs(ev.getY(0) - ev.getY(1));
+        float cx = (ev.getX(0) + ev.getX(1)) / 2f;
+        float cy = (ev.getY(0) + ev.getY(1)) / 2f - sy;   // en coordenades de pantalla (la vista es mou sota els dits)
+        if (modeDD == DD_NOSE) {
+            // el primer que passa decideix (només un sentit per gest, com a l'Estudi)
+            if (Math.abs(sepX - sepX0) > 36 * d) modeDD = DD_ZOOM_H;
+            else if (Math.abs(sepY - sepY0) > 36 * d) modeDD = DD_ZOOM_V;
+            else if (Math.hypot(cx - cx0, cy - cy0) > 10 * d) modeDD = DD_MOU;
+            else return;
+            // que el zoom no faci un salt: comença des d'aquí
+            sepX0 = sepX;
+            sepY0 = sepY;
+        }
+        double ppc = melodia.passosPerCompas;
+        if (modeDD == DD_MOU) {
+            double ac0 = ampleGraella() / (visiblesC0 * ppc);
+            iniciC = iniciC0 - (cx - cx0) / ac0 / ppc;
+            limita();
+            if (sv != null) sv.scrollTo(0, Math.max(0, Math.round(scrollY0 - (cy - cy0))));
+            invalidate();
+        } else if (modeDD == DD_ZOOM_H) {
+            if (sepX < 10 * d) return;
+            // el moment que hi ha entre els dits es queda entre els dits
+            double ac0 = ampleGraella() / (visiblesC0 * ppc);
+            double pasCentre = iniciC0 * ppc + (cx0 - ampleTecles) / ac0;
+            visiblesC = visiblesC0 * sepX0 / sepX;
+            limita();
+            double ac = ampleGraella() / (visiblesC * ppc);
+            iniciC = (pasCentre - (cx - ampleTecles) / ac) / ppc;
+            limita();
+            invalidate();
+        } else if (modeDD == DD_ZOOM_V) {
+            if (sepY < 10 * d) return;
+            float fila = (cy0 + scrollY0) / altFila0;   // la nota que hi ha entre els dits
+            float nova = Math.max(FILA_MIN_DP * d, Math.min(FILA_MAX_DP * d, altFila0 * sepY / sepY0));
+            if (Math.abs(nova - altFila) < 0.5f) return;
+            altFila = nova;
+            requestLayout();
+            invalidate();
+            if (sv != null) {
+                int y = Math.max(0, Math.round(fila * nova - cy));
+                sv.post(() -> sv.scrollTo(0, y));
+            }
         }
     }
 

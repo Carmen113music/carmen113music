@@ -34,6 +34,8 @@ public class DrumpadActivity extends Activity {
     public static final String EXTRA_NOM = "nom";
     public static final String EXTRA_BPM = "bpm";
     public static final String EXTRA_COMPAS = "compas";
+    /** On és la finestra a la línia de temps de l'Estudi (ms), per fer sonar la resta de pistes. */
+    public static final String EXTRA_POS = "pos";
 
     private File carpeta;
     private String wav;
@@ -51,6 +53,7 @@ public class DrumpadActivity extends Activity {
     private TextView textKit, textCompassos, textDivisio;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
     private FrameLayout botoPlay;
+    private BotoSolo botoSolo;
 
     // so
     private AudioTrack bucle;
@@ -132,6 +135,11 @@ public class DrumpadActivity extends Activity {
         div.setOnClickListener(v -> triaDivisio());
         dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
+        botoSolo = new BotoSolo(this, Ui.BATERIA, () -> {
+            if (bucle != null) reprenBucle();
+        });
+        dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.BATERIA, 44, 20, "Escolta el ritme");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
@@ -163,6 +171,11 @@ public class DrumpadActivity extends Activity {
         sc.addView(graella, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         arrel.addView(sc, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(arrel);
+        // la resta de pistes de l'Estudi, per sentir-les amb el bucle (si el Solo no està encès)
+        botoSolo.carrega(carpeta, wav, in.getLongExtra(DrumpadActivity.EXTRA_POS, -1),
+                Math.round(Patro.MAX_COMPASSOS * Patro.msCompas(bpm, compas)), () -> {
+                    if (bucle != null) reprenBucle();
+                });
 
         graella.posa(patro, new GraellaView.Oients() {
             @Override
@@ -394,7 +407,7 @@ public class DrumpadActivity extends Activity {
     /** Fa sonar el ritme en bucle, des de la mostra {@code pos}. */
     private void sonaBucle(int pos) {
         aturaProva();
-        short[] so = patro.renderitza(bpm, compas, sons);
+        short[] so = botoSolo.so(patro.renderitza(bpm, compas, sons));
         // per començar a mig ritme, el so es fa rodar (així el comptador del mòbil sempre comença a 0)
         int inici = pos > 0 && pos < so.length ? pos : 0;
         if (inici > 0) {

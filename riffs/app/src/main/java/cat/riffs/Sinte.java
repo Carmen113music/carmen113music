@@ -357,54 +357,97 @@ public final class Sinte {
         int total = n + cua;
         float[] out = new float[total];
         if (notes.isEmpty()) return roda ? new float[n] : out;
-        final double sr = MOSTREIG;
-        Random rnd = new Random(1234);
-
-        double fase1 = 0, fase2 = 0, faseSub = 0, faseLfo = 0;
-        double notaAra = notes.get(0).nota, notaObjectiu = notaAra;
-        double env = 0, envF = 0;
-        int etapa = 0, etapaF = 0;          // 0 res, 1 atac, 2 caiguda/sosteniment, 3 deixar anar
-        double ic1 = 0, ic2 = 0;
-        double vel = 1;
-        long desDeNota = 0;
+        Veu v = new Veu(o);
+        v.notaAra = notes.get(0).nota;
+        v.notaObjectiu = v.notaAra;
         int k = 0;                          // nota següent
         int fiActual = -1;                  // quan s'acaba la nota que sona
-
-        double atac = Math.max(1, o.a * sr / 1000), atacF = Math.max(1, o.fa * sr / 1000);
-        double cD = coef(o.d), cR = coef(o.r), cFD = coef(o.fd), cFR = coef(o.fr);
-        double cGlide = o.glideMs > 0 ? coef(o.glideMs) : 1;
-        double kRes = 2 - 1.96 * o.resso;
-        double guany1 = 1.0 / (1 + o.sub * 0.6 + o.soroll * 0.5);
-        double drive = 1 + 9 * o.distorsio;
-        double normDrive = Math.tanh(drive * 0.6);
-        double pw = o.pols;
-
         for (int i = 0; i < total; i++) {
             // notes que comencen ara
             while (k < notes.size() && notes.get(k).inici <= i) {
                 Toc t = notes.get(k);
-                boolean lligada = o.glideMs > 0 && fiActual >= t.inici && etapa != 0 && etapa != 3;
-                notaObjectiu = t.nota;
-                vel = FORCA[Math.max(1, Math.min(3, t.forca))];
-                if (!lligada) {
-                    if (o.glideMs <= 0 || etapa == 0) notaAra = t.nota;
-                    etapa = 1;
-                    etapaF = 1;
-                    desDeNota = 0;
-                }
+                v.toca(t.nota, t.forca, fiActual >= t.inici);
                 fiActual = t.fi;
                 k++;
             }
-            if (fiActual >= 0 && i >= fiActual && (etapa == 1 || etapa == 2)) {
-                etapa = 3;
-                etapaF = 3;
-            }
-            if (etapa == 0 && k >= notes.size()) {
+            if (fiActual >= 0 && i >= fiActual) v.deixa();
+            if (v.callada() && k >= notes.size()) {
                 // ja no queda res per sonar
                 if (i >= n) break;
                 continue;
             }
+            out[i] = v.mostra();
+        }
+        if (!roda) return out;
+        float[] r = new float[n];
+        System.arraycopy(out, 0, r, 0, n);
+        for (int i = n; i < total; i++) r[(i - n) % n] += out[i];
+        return r;
+    }
 
+    /**
+     * Una veu del sinte, mostra a mostra: la fan servir tant el piano roll (per fer el so de la frase)
+     * com el teclat per tocar en directe, perquè sonin exactament igual.
+     */
+    public static final class Veu {
+        private final So o;
+        private final double sr = MOSTREIG;
+        private final Random rnd = new Random(1234);
+        private double fase1 = 0, fase2 = 0, faseSub = 0, faseLfo = 0;
+        double notaAra = 60, notaObjectiu = 60;
+        private double env = 0, envF = 0;
+        private int etapa = 0, etapaF = 0;  // 0 res, 1 atac, 2 caiguda/sosteniment, 3 deixar anar
+        private double ic1 = 0, ic2 = 0;
+        private double vel = 1;
+        private long desDeNota = 0;
+        private final double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw;
+
+        public Veu(So o) {
+            this.o = o;
+            atac = Math.max(1, o.a * sr / 1000);
+            atacF = Math.max(1, o.fa * sr / 1000);
+            cD = coef(o.d);
+            cR = coef(o.r);
+            cFD = coef(o.fd);
+            cFR = coef(o.fr);
+            cGlide = o.glideMs > 0 ? coef(o.glideMs) : 1;
+            kRes = 2 - 1.96 * o.resso;
+            guany1 = 1.0 / (1 + o.sub * 0.6 + o.soroll * 0.5);
+            drive = 1 + 9 * o.distorsio;
+            normDrive = Math.tanh(drive * 0.6);
+            pw = o.pols;
+        }
+
+        /**
+         * Comença una nota. {@code lligada}: la d'abans encara sona (es toquen); si el so té glide,
+         * no es torna a atacar i llisca cap a la nova.
+         */
+        public void toca(int nota, int forca, boolean lligada) {
+            boolean ll = o.glideMs > 0 && lligada && etapa != 0 && etapa != 3;
+            notaObjectiu = nota;
+            vel = FORCA[Math.max(1, Math.min(3, forca))];
+            if (!ll) {
+                if (o.glideMs <= 0 || etapa == 0) notaAra = nota;
+                etapa = 1;
+                etapaF = 1;
+                desDeNota = 0;
+            }
+        }
+
+        /** Deixa anar la nota (comença la cua). */
+        public void deixa() {
+            if (etapa == 1 || etapa == 2) {
+                etapa = 3;
+                etapaF = 3;
+            }
+        }
+
+        public boolean callada() {
+            return etapa == 0;
+        }
+
+        /** La mostra següent (aprox. de −1 a 1, abans del volum). */
+        public float mostra() {
             // envolupants
             switch (etapa) {
                 case 1:
@@ -482,13 +525,8 @@ public final class Sinte {
             double y = v2;
 
             if (o.distorsio > 0) y = Math.tanh(y * drive * 0.6) / normDrive;
-            out[i] = (float) (y * env * vel);
+            return (float) (y * env * vel);
         }
-        if (!roda) return out;
-        float[] r = new float[n];
-        System.arraycopy(out, 0, r, 0, n);
-        for (int i = n; i < total; i++) r[(i - n) % n] += out[i];
-        return r;
     }
 
     private static double coef(double ms) {

@@ -27,6 +27,8 @@ public class PianoRollActivity extends Activity {
     public static final String EXTRA_SO_CANVIAT = "so_canviat";
     /** Quantes notes (files) caben a la pantalla: una octava i mitja. */
     private static final float FILES_VISIBLES = 18f;
+    /** Alçada de les files triada amb dos dits (dp; 0 = la de per defecte). */
+    private static final String PREF_FILA = "piano_fila_dp";
 
     private File carpeta;
     private String wav;
@@ -41,6 +43,7 @@ public class PianoRollActivity extends Activity {
     private LinearLayout filaCompassos;
     private TextView textSo, textCompassos, textDivisio;
     private FrameLayout botoPlay;
+    private BotoSolo botoSolo;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
 
     // so
@@ -118,6 +121,11 @@ public class PianoRollActivity extends Activity {
         div.setOnClickListener(v -> triaDivisio());
         dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
+        botoSolo = new BotoSolo(this, Ui.SINTE, () -> {
+            if (bucle != null) reprenBucle();
+        });
+        dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.SINTE, 44, 20, "Escolta la frase");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
@@ -132,7 +140,7 @@ public class PianoRollActivity extends Activity {
         filaCompassos = Ui.fila(this);
         segona.addView(filaCompassos);
         TextView ajuda = Ui.text(this, "Toca per posar una nota i toca-la per treure-la · arrossega-la per moure-la · "
-                + "arrossega la punta dreta per allargar-la · toca el teclat per escoltar · dos dits de costat per canviar de compàs", 11, Ui.APAGAT);
+                + "arrossega la punta dreta per allargar-la · dos dits: obre'ls per fer zoom (de costat, el temps; amunt i avall, les files) i arrossega per moure't", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);
         la.leftMargin = Ui.dp(this, 12);
@@ -146,6 +154,11 @@ public class PianoRollActivity extends Activity {
         scroll.addView(roll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(arrel);
+        // la resta de pistes de l'Estudi, per sentir-les amb el bucle (si el Solo no està encès)
+        botoSolo.carrega(carpeta, wav, in.getLongExtra(DrumpadActivity.EXTRA_POS, -1),
+                Math.round(Melodia.MAX_COMPASSOS * Patro.msCompas(bpm, compas)), () -> {
+                    if (bucle != null) reprenBucle();
+                });
 
         roll.posa(melodia, new PianoRollView.Oients() {
             @Override
@@ -164,7 +177,12 @@ public class PianoRollActivity extends Activity {
 
             @Override
             public void compas(int c) {
-                actualitzaCapcalera();
+                filaCompassos.post(() -> actualitzaCapcalera());
+            }
+
+            @Override
+            public void alcada(float dp) {
+                Ui.prefs(PianoRollActivity.this).edit().putFloat(PREF_FILA, dp).apply();
             }
         });
         actualitzaCapcalera();
@@ -172,7 +190,8 @@ public class PianoRollActivity extends Activity {
         scroll.post(() -> {
             int h = scroll.getHeight();
             if (h <= 0) return;
-            roll.posaAltFila(h / FILES_VISIBLES);
+            float dp = Ui.prefs(this).getFloat(PREF_FILA, 0);
+            roll.posaAltFila(dp > 0 ? dp * getResources().getDisplayMetrics().density : h / FILES_VISIBLES);
             scroll.post(() -> centra(h));
         });
     }
@@ -238,7 +257,7 @@ public class PianoRollActivity extends Activity {
             ops.add(new Full.Accio(Icona.GRAELLA, t, false, () -> {
                 if (nn == melodia.compassos) return;
                 melodia.posaCompassos(nn);
-                roll.posaCompas(Math.min(roll.compasVisible(), nn - 1));
+                roll.limita();
                 canviat = true;
                 desaMelodia();
                 actualitzaCapcalera();
@@ -333,7 +352,7 @@ public class PianoRollActivity extends Activity {
 
     private void sonaBucle(int pos) {
         aturaProva();
-        short[] so = melodia.renderitza(bpm, compas);
+        short[] so = botoSolo.so(melodia.renderitza(bpm, compas));
         int inici = pos > 0 && pos < so.length ? pos : 0;
         if (inici > 0) {
             short[] r = new short[so.length];
