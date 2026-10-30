@@ -102,6 +102,7 @@ public final class Projecte {
         public boolean veu = false;
         public double volumDb;      // fader de la pista: -60 (silenci) a +6
         public boolean mut, solo;
+        public boolean rec;         // pista on es grava en mantenir premut el play
         /** Els clips, ordenats per on comencen a sonar. */
         public final List<Clip> clips = new ArrayList<>();
 
@@ -331,6 +332,17 @@ public final class Projecte {
         p.clips.removeAll(sel);
     }
 
+    /** La pista on es grava (la que té la R), o null. */
+    public Pista pistaRec() {
+        for (Pista p : pistes) if (p.rec) return p;
+        return null;
+    }
+
+    /** Arma una pista per gravar (només n'hi pot haver una); null = cap. */
+    public void armaRec(Pista p) {
+        for (Pista x : pistes) x.rec = x == p;
+    }
+
     /** Mou la pista {@code de} a la posició {@code a} (les altres es desplacen). */
     public void mouPista(int de, int a) {
         if (de < 0 || de >= pistes.size()) return;
@@ -483,6 +495,7 @@ public final class Projecte {
             t.volumDb = Math.max(SILENCI_DB, Math.min(6, dec(p.getProperty(k + "volum"), 0)));
             t.mut = "si".equals(p.getProperty(k + "mut"));
             t.solo = "si".equals(p.getProperty(k + "solo"));
+            t.rec = "si".equals(p.getProperty(k + "rec"));
             if (!pr.preses.containsKey(wav)) {
                 // projecte d'abans de la 2.5: les dades de la gravació eren a la pista
                 Presa g = new Presa();
@@ -549,6 +562,7 @@ public final class Projecte {
             p.setProperty(k + "volum", String.format(Locale.ROOT, "%.2f", t.volumDb));
             p.setProperty(k + "mut", t.mut ? "si" : "no");
             p.setProperty(k + "solo", t.solo ? "si" : "no");
+            p.setProperty(k + "rec", t.rec ? "si" : "no");
             p.setProperty(k + "clips", Integer.toString(t.clips.size()));
             for (int j = 0; j < t.clips.size(); j++) {
                 Clip c = t.clips.get(j);

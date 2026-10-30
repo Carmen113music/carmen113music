@@ -91,6 +91,94 @@ public class PistesView extends View {
 
     public static final int ALT_MIN_DP = 48, ALT_MAX_DP = 200;
 
+    // gravació en directe: fila on es dibuixa (pot ser una fila nova, sota l'última) i nivells
+    private int filaViva = -1;
+    private float[] vivaMs = new float[4096], vivaPic = new float[4096];
+    private int vivaN = 0;
+
+    /** Comença a dibuixar una gravació en directe a la fila {@code fila} (= nombre de pistes per a una pista nova). */
+    public void comencaViva(int fila) {
+        filaViva = fila;
+        vivaN = 0;
+        requestLayout();
+        invalidate();
+    }
+
+    /** Afegeix un nivell (0..1) que ha entrat pel micròfon quan sonava el moment {@code ms} de la línia de temps. */
+    public void afegeixViva(long ms, float pic) {
+        if (filaViva < 0) return;
+        if (vivaN == vivaMs.length) {
+            vivaMs = java.util.Arrays.copyOf(vivaMs, vivaN * 2);
+            vivaPic = java.util.Arrays.copyOf(vivaPic, vivaN * 2);
+        }
+        vivaMs[vivaN] = ms;
+        vivaPic[vivaN] = pic;
+        vivaN++;
+        invalidate();
+    }
+
+    public void aturaViva() {
+        filaViva = -1;
+        vivaN = 0;
+        requestLayout();
+        invalidate();
+    }
+
+    private void dibuixaViva(Canvas c, float w) {
+        if (filaViva < 0 || vivaN == 0) return;
+        float top = filaViva * altPista + dp(5);
+        float baix = (filaViva + 1) * altPista - dp(5);
+        float alt = baix - top;
+        float xa = vista.x(vivaMs[0]);
+        float xb = vista.x(vivaMs[vivaN - 1]);
+        if (xb < 0 || xa > w) return;
+        r.set(xa, top, Math.max(xa + dp(2), xb), baix);
+        ple.setColor(Ui.alfa(Ui.ACCENT, 46));
+        c.drawRoundRect(r, dp(6), dp(6), ple);
+        barra.setColor(Ui.alfa(Ui.ACCENT, 230));
+        float mig = top + alt / 2f;
+        float pas = dp(2.5f);
+        float ultimaX = -1e9f;
+        float pic = 0;
+        for (int i = 0; i < vivaN; i++) {
+            float x = vista.x(vivaMs[i]);
+            pic = Math.max(pic, vivaPic[i]);
+            if (x - ultimaX < pas && i < vivaN - 1) continue;
+            if (x >= 0 && x <= w) {
+                float hb = Math.max(dp(1), pic * (alt - dp(10)));
+                c.drawRect(x, mig - hb / 2f, x + pas * 0.6f, mig + hb / 2f, barra);
+            }
+            ultimaX = x;
+            pic = 0;
+        }
+        linia.setStyle(Paint.Style.STROKE);
+        linia.setStrokeWidth(dp(1.5f));
+        linia.setColor(Ui.ACCENT);
+        c.drawRoundRect(r, dp(6), dp(6), linia);
+        linia.setStyle(Paint.Style.FILL_AND_STROKE);
+    }
+
+    // pista que s'està arrossegant des de la capçalera (-1 = cap)
+    private int arrDe = -1, arrA = -1;
+    private float arrDy;
+
+    /** Mentre s'arrossega una pista: la pista {@code de} es desplaça {@code dy} i les altres li fan lloc fins a {@code a}. */
+    public void setArrossegant(int de, float dy, int a) {
+        arrDe = de;
+        arrDy = dy;
+        arrA = a;
+        invalidate();
+    }
+
+    /** Desplaçament vertical amb què es dibuixa la pista {@code i}. */
+    private float desplacament(int i) {
+        if (arrDe < 0) return 0;
+        if (i == arrDe) return arrDy;
+        if (arrDe < arrA && i > arrDe && i <= arrA) return -altPista;
+        if (arrA < arrDe && i >= arrA && i < arrDe) return altPista;
+        return 0;
+    }
+
     public int altPista() {
         return altPista;
     }
@@ -115,7 +203,8 @@ public class PistesView extends View {
 
     @Override
     protected void onMeasure(int ample, int alt) {
-        int h = Math.max(1, projecte.pistes.size()) * altPista;
+        int files = projecte.pistes.size() + (filaViva >= projecte.pistes.size() ? 1 : 0);
+        int h = Math.max(1, files) * altPista;
         setMeasuredDimension(MeasureSpec.getSize(ample), h);
     }
 
@@ -142,18 +231,37 @@ public class PistesView extends View {
 
         synchronized (projecte) {
             for (int i = 0; i < n; i++) {
-                Projecte.Pista t = projecte.pistes.get(i);
-                // primer els no triats, i els triats a sobre
-                for (Projecte.Clip k : t.clips) if (!vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
-                for (Projecte.Clip k : t.clips) if (vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
+                if (i != arrDe) dibuixaPista(c, i, w);
+            }
+            // la que s'arrossega, per sobre de tot
+            if (arrDe >= 0 && arrDe < n) {
+                c.save();
+                c.translate(0, desplacament(arrDe));
+                ple.setColor(0x33FFFFFF);
+                c.drawRect(0, arrDe * altPista, w, (arrDe + 1) * altPista, ple);
+                c.restore();
+                dibuixaPista(c, arrDe, w);
             }
         }
+
+        dibuixaViva(c, w);
 
         // capçal
         float xc = vista.x(vista.capcalMs);
         linia.setColor(Ui.TEXT);
         linia.setStrokeWidth(dp(1.5f));
         c.drawLine(xc, 0, xc, getHeight(), linia);
+    }
+
+    private void dibuixaPista(Canvas c, int i, float w) {
+        Projecte.Pista t = projecte.pistes.get(i);
+        float d = desplacament(i);
+        c.save();
+        c.translate(0, d);
+        // primer els no triats, i els triats a sobre
+        for (Projecte.Clip k : t.clips) if (!vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
+        for (Projecte.Clip k : t.clips) if (vista.triats.contains(k)) dibuixaClip(c, i, t, k, w);
+        c.restore();
     }
 
     private void dibuixaGraella(Canvas c, float w, float h) {

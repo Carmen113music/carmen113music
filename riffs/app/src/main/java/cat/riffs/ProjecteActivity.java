@@ -43,6 +43,9 @@ public class ProjecteActivity extends Activity {
     private LinearLayout capcaleres;
     private FrameLayout botoPlay;
     private TextView textPosicio, textInfo, textTempo;
+    private FrameLayout botoClic;
+    private boolean clicActiu = true;
+    private float volumClic = 1f;
     private LinearLayout accions;
     private TextView textTriats, etPistes;
 
@@ -54,6 +57,7 @@ public class ProjecteActivity extends Activity {
     private Fitxa fitxaGravant;
     private Projecte.Pista pistaGravant;     // null = pista nova
     private long entradaMs;
+    private double retardViu = Double.NaN;   // retard de la sortida actual (per dibuixar l'ona en directe)
     private AudioManager gestorSo;
     private AudioDeviceCallback vigilant;
     private int altPista;
@@ -106,6 +110,8 @@ public class ProjecteActivity extends Activity {
         if (projecte.sincronitza(b)) desa();
         vista.snap = Ui.prefs(this).getInt("snap", Projecte.SNAP_TEMPS);
         altPista = Ui.dp(this, Ui.prefs(this).getInt("alt_pista_dp", 78));
+        clicActiu = Ui.prefs(this).getBoolean("estudi_clic", true);
+        volumClic = Ui.prefs(this).getFloat("estudi_clic_vol", 1f);
         construeix();
         carrega();
     }
@@ -115,33 +121,60 @@ public class ProjecteActivity extends Activity {
 
         // ---- Barra de dalt ----
         LinearLayout dalt = Ui.fila(this);
-        dalt.setPadding(Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
-        FrameLayout enrere = Ui.botoIcona(this, Icona.ENRERE, Ui.TEXT, 0x00000000, 44, 24, "Enrere");
+        dalt.setPadding(Ui.dp(this, 2), Ui.dp(this, 1), Ui.dp(this, 10), Ui.dp(this, 1));
+        FrameLayout enrere = Ui.botoIcona(this, Icona.ENRERE, Ui.TEXT, 0x00000000, 34, 20, "Enrere");
         enrere.setOnClickListener(v -> finish());
         dalt.addView(enrere);
-        TextView nom = Ui.unaLinia(Ui.negreta(this, projecte.carpeta.getName(), 17, Ui.TEXT));
+        TextView nom = Ui.unaLinia(Ui.negreta(this, projecte.carpeta.getName(), 15, Ui.TEXT));
         nom.setMaxWidth(Ui.dp(this, 150));
         dalt.addView(nom);
         dalt.addView(Ui.espai(this, 12));
 
+        // Pastilla del tempo: la icona encén o apaga el clic (mantenir premut = volum); el text canvia el tempo
         LinearLayout xipTempo = Ui.fila(this);
-        xipTempo.setClickable(true);
-        xipTempo.setBackground(Ui.tocable(Ui.SUPERFICIE, Ui.dp(this, 16)));
-        xipTempo.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 12), 0);
-        xipTempo.setMinimumHeight(Ui.dp(this, 34));
-        xipTempo.addView(Ui.imatge(this, Icona.METRONOM, Ui.SUAU, 15), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
-        xipTempo.addView(Ui.espai(this, 6));
+        xipTempo.setBackground(Ui.rodo(Ui.SUPERFICIE, Ui.dp(this, 16)));
+        xipTempo.setMinimumHeight(Ui.dp(this, 28));
+        botoClic = new FrameLayout(this);
+        botoClic.setClickable(true);
+        botoClic.setContentDescription("Clic del metrònom (mantén premut per al volum)");
+        botoClic.addView(Ui.imatge(this, Icona.METRONOM, Ui.SUAU, 15),
+                new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
+        botoClic.setOnClickListener(v -> {
+            clicActiu = !clicActiu;
+            Ui.prefs(this).edit().putBoolean("estudi_clic", clicActiu).apply();
+            pintaClic();
+            aplicaClic();
+            textInfo.setTextColor(Ui.GUITARRA);
+            textInfo.setText(clicActiu ? "Clic activat" : "Clic apagat");
+        });
+        botoClic.setOnLongClickListener(v -> {
+            Full.lliscador(this, "Volum del clic", Math.round(volumClic * 100), 150, val -> {
+                volumClic = val / 100f;
+                if (motor != null) motor.posaVolumClic(volumClic);
+                Ui.prefs(this).edit().putFloat("estudi_clic_vol", volumClic).apply();
+            }, val -> val + " %");
+            return true;
+        });
+        xipTempo.addView(botoClic, new LinearLayout.LayoutParams(Ui.dp(this, 34), Ui.dp(this, 28)));
         textTempo = Ui.negreta(this, "", 13, Ui.TEXT);
+        textTempo.setGravity(Gravity.CENTER_VERTICAL);
+        textTempo.setPadding(Ui.dp(this, 2), 0, Ui.dp(this, 12), 0);
+        textTempo.setMinHeight(Ui.dp(this, 28));
+        textTempo.setClickable(true);
+        textTempo.setBackground(Ui.tocable(0x00000000, Ui.dp(this, 14)));
+        textTempo.setOnClickListener(v -> editaTempo());
         xipTempo.addView(textTempo);
-        xipTempo.setOnClickListener(v -> editaTempo());
         dalt.addView(xipTempo);
+        pintaClic();
         dalt.addView(Ui.espai(this, 10));
 
         LinearLayout snap = Ui.segmentat(this, new String[]{"Compàs", "Temps", "Lliure"}, vista.snap, Ui.TEXT, i -> {
             vista.snap = i;
             Ui.prefs(this).edit().putInt("snap", i).apply();
         });
-        dalt.addView(snap, new LinearLayout.LayoutParams(Ui.dp(this, 210), LinearLayout.LayoutParams.WRAP_CONTENT));
+        snap.setPadding(Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
+        for (int k = 0; k < snap.getChildCount(); k++) ((TextView) snap.getChildAt(k)).setMinHeight(Ui.dp(this, 26));
+        dalt.addView(snap, new LinearLayout.LayoutParams(Ui.dp(this, 200), LinearLayout.LayoutParams.WRAP_CONTENT));
 
         dalt.addView(Ui.mollaH(this));
 
@@ -150,11 +183,11 @@ public class ProjecteActivity extends Activity {
         textTriats = Ui.text(this, "", 12, Ui.SUAU);
         accions.addView(textTriats);
         accions.addView(Ui.espai(this, 6));
-        FrameLayout duplica = Ui.botoIcona(this, Icona.DUPLICA, Ui.TEXT, Ui.SUPERFICIE, 40, 20, "Duplica");
+        FrameLayout duplica = Ui.botoIcona(this, Icona.DUPLICA, Ui.TEXT, Ui.SUPERFICIE, 32, 18, "Duplica");
         duplica.setOnClickListener(v -> duplica());
         accions.addView(duplica);
         accions.addView(Ui.espai(this, 6));
-        FrameLayout esborra = Ui.botoIcona(this, Icona.PAPERERA, Ui.ACCENT, Ui.SUPERFICIE, 40, 20, "Treu del projecte");
+        FrameLayout esborra = Ui.botoIcona(this, Icona.PAPERERA, Ui.ACCENT, Ui.SUPERFICIE, 32, 18, "Treu del projecte");
         esborra.setOnClickListener(v -> esborra());
         accions.addView(esborra);
         accions.addView(Ui.espai(this, 12));
@@ -165,7 +198,7 @@ public class ProjecteActivity extends Activity {
         dalt.addView(textInfo);
         dalt.addView(Ui.espai(this, 12));
 
-        textPosicio = Ui.text(this, "1.1.1", 15, Ui.TEXT);
+        textPosicio = Ui.text(this, "1.1.1", 14, Ui.TEXT);
         textPosicio.setTypeface(Ui.MITJA);
         textPosicio.setFontFeatureSettings("tnum");
         textPosicio.setMinWidth(Ui.dp(this, 64));
@@ -173,8 +206,8 @@ public class ProjecteActivity extends Activity {
         dalt.addView(textPosicio);
         dalt.addView(Ui.espai(this, 12));
 
-        FrameLayout inici = Ui.botoIcona(this, Icona.ENRERE5, Ui.TEXT, Ui.SUPERFICIE, 40, 20, "Torna a l'inici");
-        Ui.canviaIcona(inici, Icona.ENRERE, Ui.TEXT, 20);
+        FrameLayout inici = Ui.botoIcona(this, Icona.ENRERE5, Ui.TEXT, Ui.SUPERFICIE, 32, 18, "Torna a l'inici");
+        Ui.canviaIcona(inici, Icona.ENRERE, Ui.TEXT, 18);
         inici.setOnClickListener(v -> {
             if (gravant) return;
             boolean sonava = motor != null && motor.sona();
@@ -186,7 +219,7 @@ public class ProjecteActivity extends Activity {
         });
         dalt.addView(inici);
         dalt.addView(Ui.espai(this, 8));
-        botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.TEXT, 44, 20, "Reprodueix");
+        botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.TEXT, 36, 18, "Reprodueix (mantén premut per gravar)");
         botoPlay.setOnClickListener(v -> {
             if (gravant) aturaGravacio(null);
             else if (motor != null && motor.sona()) atura();
@@ -357,6 +390,28 @@ public class ProjecteActivity extends Activity {
         LinearLayout baix = Ui.fila(this);
         TextView m = botoMS("M", t.mut, Ui.ACCENT);
         TextView s = botoMS("S", t.solo, Ui.GUITARRA);
+        FrameLayout rec = new FrameLayout(this);
+        rec.setClickable(true);
+        rec.setContentDescription("Pista on es grava");
+        rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
+                new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
+        rec.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
+        pintaRec(rec, t.rec);
+        rec.setOnClickListener(v -> {
+            synchronized (projecte) {
+                projecte.armaRec(t.rec ? null : t);
+            }
+            desa();
+            // repinta les R de totes les pistes (només n'hi pot haver una)
+            for (int k = 0; k < capcaleres.getChildCount(); k++) {
+                View r = capcaleres.getChildAt(k).findViewWithTag("rec");
+                if (r instanceof FrameLayout && k < projecte.pistes.size()) {
+                    pintaRec((FrameLayout) r, projecte.pistes.get(k).rec);
+                }
+            }
+            textInfo.setText(t.rec ? "Es gravarà a «" + t.nomVisible() + "»" : "");
+        });
+        rec.setTag("rec");
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
@@ -376,6 +431,8 @@ public class ProjecteActivity extends Activity {
         baix.addView(m);
         baix.addView(Ui.espai(this, 6));
         baix.addView(s);
+        baix.addView(Ui.espai(this, 6));
+        baix.addView(rec);
         baix.addView(Ui.espai(this, 4));
 
         // fader: de -∞ (-60) a +6 dB, amb 0 dB al 90%
@@ -474,7 +531,16 @@ public class ProjecteActivity extends Activity {
                     if (desti != destiPista) {
                         destiPista = desti;
                         textInfo.setText(desti == i ? "Arrossega per moure la pista" : "Posició " + (desti + 1));
+                        // les altres capçaleres s'aparten per fer-li lloc
+                        for (int k = 0; k < projecte.pistes.size(); k++) {
+                            if (k == i) continue;
+                            float t = 0;
+                            if (i < desti && k > i && k <= desti) t = -altPista;
+                            if (desti < i && k >= desti && k < i) t = altPista;
+                            capcaleres.getChildAt(k).animate().translationY(t).setDuration(120).start();
+                        }
                     }
+                    pistes.setArrossegant(i, dy, destiPista);
                     return true;
                 case android.view.MotionEvent.ACTION_UP:
                     v.removeCallbacks(premut);
@@ -494,25 +560,26 @@ public class ProjecteActivity extends Activity {
     private void acabaArrossegarPista(int i, boolean mogut) {
         pistaArrossegada = -1;
         textInfo.setText("");
-        if (mogut && destiPista != i) {
-            synchronized (projecte) {
-                projecte.mouPista(i, destiPista);
-            }
-            vista.tria(-1, null);
-            actualitzaAccions();
-            desa();
-            ompleCapcaleres();
-            vista.avisa();
-            refresca();
-            return;
+        pistes.setArrossegant(-1, 0, -1);
+        // tot torna a la seva posició visual (si s'ha mogut, es reconstrueix tot seguit)
+        for (int k = 0; k < capcaleres.getChildCount(); k++) {
+            View cap = capcaleres.getChildAt(k);
+            cap.animate().cancel();
+            cap.setTranslationY(0);
+            cap.setElevation(0);
+            cap.setAlpha(1f);
+            cap.setBackgroundColor(0x00000000);
         }
-        // sense moure: torna-la al seu lloc i obre les opcions
-        View cap = capcaleres.getChildAt(i);
-        cap.setTranslationY(0);
-        cap.setElevation(0);
-        cap.setAlpha(1f);
-        cap.setBackgroundColor(0x00000000);
-        if (!mogut) opcionsPista(i);
+        final int desti = destiPista;
+        // No es poden treure capçaleres mentre Android encara reparteix el toc del dit
+        // (l'app es tancava): es reconstrueix just després.
+        capcaleres.post(() -> {
+            if (mogut && desti != i) {
+                mouPistaA(i, desti);
+            } else if (!mogut) {
+                opcionsPista(i);
+            }
+        });
     }
 
     private void opcionsPista(int i) {
@@ -570,6 +637,12 @@ public class ProjecteActivity extends Activity {
         t.setLayoutParams(lp);
         pintaMS(t, actiu, color);
         return t;
+    }
+
+    /** Botó de gravar de la pista: cercle gris, o vermell quan és la pista on es grava. */
+    private void pintaRec(FrameLayout b, boolean actiu) {
+        b.setBackground(Ui.tocable(actiu ? Ui.alfa(Ui.ACCENT, 70) : Ui.SUPERFICIE2, Ui.dp(this, 6)));
+        Ui.colorIcona(b, actiu ? Ui.ACCENT : Ui.SUAU);
     }
 
     private void pintaMS(TextView t, boolean actiu, int color) {
@@ -651,6 +724,24 @@ public class ProjecteActivity extends Activity {
         }
     }
 
+    // ---------- Clic del metrònom ----------
+
+    private void pintaClic() {
+        if (botoClic == null) return;
+        Ui.colorIcona(botoClic, clicActiu ? Ui.GUITARRA : Ui.APAGAT);
+        botoClic.setBackground(Ui.tocable(clicActiu ? Ui.alfa(Ui.GUITARRA, 40) : 0x00000000, Ui.dp(this, 14)));
+    }
+
+    /**
+     * Fa sonar el clic segons l'interruptor. Mentre es grava, només amb auriculars
+     * (per l'altaveu quedaria gravat).
+     */
+    private void aplicaClic() {
+        if (motor == null) return;
+        motor.posaVolumClic(volumClic);
+        motor.posaClic(clicActiu && (!gravant || Metronom.auriculars(this)));
+    }
+
     // ---------- Gravar des de l'Estudi ----------
 
     /** Mantenir premut el play: tria on es grava (una pista o una de nova). */
@@ -661,15 +752,28 @@ public class ProjecteActivity extends Activity {
             return;
         }
         atura();
+        Projecte.Pista armada = projecte.pistaRec();
+        if (armada != null) {
+            comencaGravacio(armada, armada.veu);
+            return;
+        }
         long entrada = projecte.entradaGravacio(vista.capcalMs);
         long compas = Math.round(entrada / projecte.msPerCompas()) + 1;
-        String sub = "Entra al compàs " + compas + ", amb un compàs de compte abans.";
+        String sub = "Entra al compàs " + compas + ", amb un compàs de compte abans. La pista que triïs queda marcada "
+                + "amb el botó de gravar vermell: la propera vegada no et preguntarà (toca'l per canviar-la).";
         if (!Metronom.auriculars(this)) {
-            sub += " Sense auriculars el compte és visual, i el que sona per l'altaveu també quedarà gravat.";
+            sub += " Sense auriculars no sonarà res (per l'altaveu es gravaria): el compte serà visual.";
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
-            ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> comencaGravacio(t, t.veu)));
+            ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> {
+                synchronized (projecte) {
+                    projecte.armaRec(t);
+                }
+                desa();
+                ompleCapcaleres();
+                comencaGravacio(t, t.veu);
+            }));
         }
         ops.add(new Full.Accio(Icona.MES, "Pista nova · guitarra", false, () -> comencaGravacio(null, false)));
         ops.add(new Full.Accio(Icona.MES, "Pista nova · veu", false, () -> comencaGravacio(null, true)));
@@ -703,6 +807,18 @@ public class ProjecteActivity extends Activity {
         String error = gravadora.comenca(this, wavGravant, font, new Gravadora.Oient() {
             @Override
             public void nivell(float pic) {
+                // l'ona es dibuixa en directe on sona ara (el que entra pel micròfon és el que se sent)
+                runOnUiThread(() -> {
+                    if (!gravant || motor == null || !motor.sona()) return;
+                    if (Double.isNaN(retardViu)) {
+                        String t = motor.tipusSortida();
+                        if (t == null) return;   // encara no se sap per on sona
+                        double r = DiagnosticActivity.retardDesat(ProjecteActivity.this, t, motor.nomSortida());
+                        retardViu = Double.isNaN(r) ? 0 : r;
+                    }
+                    // el que entra ara pel micròfon és el que ha sonat fa «retard» ms
+                    pistes.afegeixViva(Math.round(motor.posicioMs() - retardViu), pic);
+                });
             }
 
             @Override
@@ -715,8 +831,12 @@ public class ProjecteActivity extends Activity {
             Ui.avis(this, error);
             return;
         }
-        // el clic només sona si hi ha auriculars (per l'altaveu quedaria gravat)
-        motor.posaClic(Metronom.auriculars(this));
+        // Mentre es grava, res no pot sonar per l'altaveu (es gravaria): sense auriculars, silenci total
+        gravant = true;
+        aplicaClic();
+        gravant = false;
+        motor.posaSilenci(!Metronom.auriculars(this));
+        if (!Metronom.auriculars(this)) Ui.avis(this, "Sense auriculars: no sonarà res, el compte és visual");
         if (!motor.comenca(iniciMs)) {
             gravadora.atura();
             b.esborra(wavGravant);
@@ -726,10 +846,20 @@ public class ProjecteActivity extends Activity {
         }
         vigilaAuriculars();
         gravant = true;
+        // ona en directe: a la pista triada o en una fila nova a sota (amb la seva capçalera provisional)
+        int fila = pista != null ? projecte.pistes.indexOf(pista) : projecte.pistes.size();
+        if (pista == null) {
+            TextView nova = Ui.negreta(this, "Pista nova · gravant", 13, Ui.ACCENT);
+            nova.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 8), 0);
+            nova.setTag("viva");
+            capcaleres.addView(nova, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
+        }
+        retardViu = Double.NaN;
+        pistes.comencaViva(fila);
         vista.tria(-1, null);
         actualitzaAccions();
         vista.capcalMs = iniciMs;
-        Ui.canviaIcona(botoPlay, Icona.STOP, Ui.ACCENT, 20);
+        Ui.canviaIcona(botoPlay, Icona.STOP, Ui.ACCENT, 18);
         pistes.removeCallbacks(segueix);
         pistes.postOnAnimation(segueix);
     }
@@ -743,7 +873,8 @@ public class ProjecteActivity extends Activity {
             public void onAudioDevicesRemoved(AudioDeviceInfo[] trets) {
                 if (gravant && motor != null && !Metronom.auriculars(ProjecteActivity.this)) {
                     motor.posaClic(false);
-                    Ui.avis(ProjecteActivity.this, "Auriculars desconnectats: s'ha apagat el clic");
+                    motor.posaSilenci(true);
+                    Ui.avis(ProjecteActivity.this, "Auriculars desconnectats: s'ha silenciat el so perquè no es gravi");
                 }
             }
         };
@@ -767,12 +898,16 @@ public class ProjecteActivity extends Activity {
         long durada = gravadora.atura();
         motor.posaClic(false);
         motor.atura();
+        motor.posaSilenci(false);
+        pistes.aturaViva();
+        View provisional = capcaleres.findViewWithTag("viva");
+        if (provisional != null) capcaleres.removeView(provisional);
         if (gestorSo != null && vigilant != null) {
             gestorSo.unregisterAudioDeviceCallback(vigilant);
             vigilant = null;
         }
         pistes.removeCallbacks(segueix);
-        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 20);
+        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 18);
         textInfo.setTextColor(Ui.GUITARRA);
         File wav = wavGravant;
         wavGravant = null;
@@ -796,6 +931,11 @@ public class ProjecteActivity extends Activity {
         synchronized (projecte) {
             clip = projecte.afegeixPresa(pistaGravant, wav.getName(), fitxaGravant.titol, fitxaGravant.esVeu(),
                     durada, primer, entradaMs);
+        }
+        if (nova) {
+            synchronized (projecte) {
+                projecte.armaRec(projecte.pistes.get(projecte.pistes.size() - 1));
+            }
         }
         desa();
         int ip = projecte.pistaDe(clip);
@@ -896,12 +1036,13 @@ public class ProjecteActivity extends Activity {
 
     private void play() {
         if (!carregat || motor == null || gravant) return;
-        motor.posaClic(false);
+        motor.posaSilenci(false);
+        aplicaClic();
         if (!motor.comenca(vista.capcalMs)) {
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
         }
-        Ui.canviaIcona(botoPlay, Icona.PAUSA, Ui.SOBRE_COLOR, 20);
+        Ui.canviaIcona(botoPlay, Icona.PAUSA, Ui.SOBRE_COLOR, 18);
         pistes.removeCallbacks(segueix);
         pistes.postOnAnimation(segueix);
     }
@@ -912,7 +1053,7 @@ public class ProjecteActivity extends Activity {
             motor.atura();
         }
         pistes.removeCallbacks(segueix);
-        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 20);
+        Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 18);
         refresca();
     }
 

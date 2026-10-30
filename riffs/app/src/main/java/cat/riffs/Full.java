@@ -166,6 +166,41 @@ public final class Full {
         d[0].show();
     }
 
+    /**
+     * Panell amb un lliscador (per exemple, un volum). {@code canvi} rep el valor (0..max) a mesura que es mou;
+     * {@code text} diu com es mostra.
+     */
+    public static void lliscador(Activity a, String titol, int valor, int max, Ui.AmbIndex canvi,
+                                 java.util.function.IntFunction<String> text) {
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 6), Ui.dp(a, 20), Ui.dp(a, 8));
+        LinearLayout cap = Ui.fila(a);
+        cap.addView(Ui.negreta(a, titol, 17, Ui.TEXT), Ui.pes(1));
+        TextView v = Ui.negreta(a, text.apply(valor), 15, Ui.GUITARRA);
+        v.setFontFeatureSettings("tnum");
+        cap.addView(v);
+        cos.addView(cap);
+        android.widget.SeekBar sb = new android.widget.SeekBar(a);
+        sb.setMax(max);
+        sb.setProgress(valor);
+        sb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar b, int p, boolean usuari) {
+                v.setText(text.apply(p));
+                canvi.fet(p);
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar b) {}
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar b) {}
+        });
+        cos.addView(sb, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(a, 48)));
+        Dialog d = panellBaix(a, cos);
+        d.show();
+    }
+
     /** Panell amb un títol i una llista d'opcions (una per fila, amb icona). */
     public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions) {
         LinearLayout cos = Ui.columna(a);

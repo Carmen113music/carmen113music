@@ -30,6 +30,9 @@ public final class Motor {
 
     // clic del metrònom (per gravar des de l'Estudi); només ha de sonar amb auriculars
     private volatile boolean clic = false;
+    private volatile float volumClic = 1f;
+    // silenci total (el motor continua corrent per marcar el temps, però no surt cap so)
+    private volatile boolean silenci = false;
     private short[] clicFort, clicFluix;
 
     public Motor(Projecte projecte, Map<String, short[]> audio) {
@@ -39,6 +42,16 @@ public final class Motor {
 
     public boolean sona() {
         return sona;
+    }
+
+    /** Silencia tot el que surt (pistes i clic). Per gravar sense auriculars: per l'altaveu es gravaria. */
+    public void posaSilenci(boolean s) {
+        silenci = s;
+    }
+
+    /** Volum del clic: 0 (res) a 1,5. */
+    public void posaVolumClic(float v) {
+        volumClic = Math.max(0f, Math.min(1.5f, v));
     }
 
     /** Fa sonar (o no) el clic del metrònom al tempo del projecte, barrejat amb les pistes. */
@@ -107,9 +120,11 @@ public final class Motor {
             if (clic) {
                 java.util.Arrays.fill(clics, (short) 0);
                 Ritme.ompleClics(clics, mostraInici + mostresEscrites, mostresPerTemps, compas, clicFort, clicFluix);
-                for (int i = 0; i < TROS; i++) mescla[i] += clics[i] / 32768f;
+                float vc = volumClic / 32768f;
+                for (int i = 0; i < TROS; i++) mescla[i] += clics[i] * vc;
             }
             Mesclador.a16bits(mescla, tros, TROS);
+            if (silenci) java.util.Arrays.fill(tros, (short) 0);
             int w = track.write(tros, 0, TROS);
             if (w <= 0) break;
             mostresEscrites += w;
