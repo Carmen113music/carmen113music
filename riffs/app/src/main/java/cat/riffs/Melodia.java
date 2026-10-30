@@ -44,6 +44,9 @@ public final class Melodia {
     public int compas = 4;
     public String preset = "";
     public Sinte.So so = new Sinte.So();
+    /** Instrument MIDI del banc (0–127), o -1 si és el sinte propi. Amb instrument MIDI, la frase és polifònica. */
+    public int programa = -1;
+    public int bancMidi = 0;
     /** Ordenades per inici, sense trepitjar-se. */
     public final List<Nota> notes = new ArrayList<>();
 
@@ -58,6 +61,25 @@ public final class Melodia {
         return m;
     }
 
+    /** Frase buida d'un instrument MIDI (polifònica). */
+    public static Melodia novaMidi(int programa, int compas) {
+        Melodia m = new Melodia();
+        m.compas = compas;
+        m.passosPerCompas = Patro.passosDe(compas);
+        m.posaInstrument(programa);
+        return m;
+    }
+
+    /** Si poden sonar diverses notes alhora (instrument MIDI). */
+    public boolean poli() {
+        return programa >= 0;
+    }
+
+    public void posaInstrument(int prog) {
+        programa = Math.max(0, Math.min(127, prog));
+        preset = Gm.nom(programa);
+    }
+
     /** Frase buida amb el mateix so (i el mateix compàs i graella) que una altra. */
     public Melodia buidaAmbElMateixSo() {
         Melodia m = new Melodia();
@@ -66,6 +88,8 @@ public final class Melodia {
         m.compassos = compassos;
         m.preset = preset;
         m.so = so.copia();
+        m.programa = programa;
+        m.bancMidi = bancMidi;
         return m;
     }
 
@@ -74,6 +98,7 @@ public final class Melodia {
     }
 
     public boolean esGreu() {
+        if (poli()) return Gm.esGreu(programa);
         Sinte.Preset p = presetTriat();
         return p != null && p.greu;
     }
@@ -115,6 +140,7 @@ public final class Melodia {
         List<Nota> fora = new ArrayList<>();
         for (Nota x : notes) {
             if (x.fi() <= n.pas || x.pas >= n.fi()) continue;
+            if (poli() && x.nota != n.nota) continue;   // polifònic: només es trepitgen les de la mateixa altura
             if (x.pas < n.pas) x.llarg = n.pas - x.pas;
             else fora.add(x);
         }
@@ -191,7 +217,21 @@ public final class Melodia {
             int fi = (int) Math.round((double) x.fi() * n / total);
             tocs.add(new Sinte.Toc(ini, fi, x.nota, x.forca));
         }
+        if (poli()) return Sinte.a16(MidiSo.toca(Banc.actual(), bancMidi, programa, tocs, n, true), so.volumDb);
         return Sinte.a16(Sinte.toca(so, tocs, n, true), so.volumDb);
+    }
+
+    /** Una nota d'aquesta frase (amb el seu so o instrument), per escoltar-la. */
+    public short[] prova(int nota, int ms) {
+        if (!poli()) return provaNota(so, nota, 2, ms);
+        int n = Math.max(1, ms * Sinte.MOSTREIG / 1000);
+        List<Sinte.Toc> t = new ArrayList<>();
+        t.add(new Sinte.Toc(0, n, nota, 2));
+        float[] x = MidiSo.toca(Banc.actual(), bancMidi, programa, t, n, false);
+        // sense el silenci del final
+        int fi = x.length;
+        while (fi > n && Math.abs(x[fi - 1]) < 1e-4f) fi--;
+        return Sinte.a16(java.util.Arrays.copyOf(x, fi), so.volumDb);
     }
 
     /** Una sola nota, per escoltar-la en tocar el teclat o posar-la. */
@@ -230,12 +270,18 @@ public final class Melodia {
         } catch (IOException e) {
             return null;
         }
+        return deProps(p);
+    }
+
+    private static Melodia deProps(Properties p) {
         Melodia m = new Melodia();
         m.compassos = Math.max(1, Math.min(MAX_COMPASSOS, enter(p.getProperty("compassos"), 1)));
         m.passosPerCompas = Math.max(1, Math.min(96, enter(p.getProperty("passos"), 16)));
         m.compas = enter(p.getProperty("metre"), 4);
         m.preset = p.getProperty("preset", "");
         m.so = Sinte.So.llegeix(p, "so.");
+        m.programa = Math.max(-1, Math.min(127, enter(p.getProperty("programa"), -1)));
+        m.bancMidi = Math.max(0, Math.min(128, enter(p.getProperty("bancmidi"), 0)));
         String ns = p.getProperty("notes", "").trim();
         if (!ns.isEmpty()) {
             for (String t : ns.split(";")) {
@@ -251,18 +297,7 @@ public final class Melodia {
     }
 
     public void desa(File f) throws IOException {
-        Properties p = new Properties();
-        p.setProperty("compassos", Integer.toString(compassos));
-        p.setProperty("passos", Integer.toString(passosPerCompas));
-        p.setProperty("metre", Integer.toString(compas));
-        p.setProperty("preset", preset == null ? "" : preset);
-        so.desa(p, "so.");
-        StringBuilder sb = new StringBuilder();
-        for (Nota x : notes) {
-            if (sb.length() > 0) sb.append(';');
-            sb.append(x.pas).append(':').append(x.llarg).append(':').append(x.nota).append(':').append(x.forca);
-        }
-        p.setProperty("notes", sb.toString());
+        Properties p = props();
         File pare = f.getAbsoluteFile().getParentFile();
         if (pare != null) pare.mkdirs();
         File tmp = new File(f.getPath() + ".tmp");
@@ -273,6 +308,48 @@ public final class Melodia {
             f.delete();
             if (!tmp.renameTo(f)) throw new IOException("no s'ha pogut desar la frase");
         }
+    }
+
+    private Properties props() {
+        Properties p = new Properties();
+        p.setProperty("compassos", Integer.toString(compassos));
+        p.setProperty("passos", Integer.toString(passosPerCompas));
+        p.setProperty("metre", Integer.toString(compas));
+        p.setProperty("preset", preset == null ? "" : preset);
+        so.desa(p, "so.");
+        p.setProperty("programa", Integer.toString(programa));
+        p.setProperty("bancmidi", Integer.toString(bancMidi));
+        StringBuilder sb = new StringBuilder();
+        for (Nota x : notes) {
+            if (sb.length() > 0) sb.append(';');
+            sb.append(x.pas).append(':').append(x.llarg).append(':').append(x.nota).append(':').append(x.forca);
+        }
+        p.setProperty("notes", sb.toString());
+        return p;
+    }
+
+    /** L'estat en text (per desfer). */
+    public String text() {
+        java.io.StringWriter w = new java.io.StringWriter();
+        try {
+            props().store(w, null);
+        } catch (IOException e) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String l : w.toString().split("\n")) if (!l.startsWith("#")) sb.append(l).append('\n');
+        return sb.toString();
+    }
+
+    /** Llegeix un estat en text (null si no es pot). */
+    public static Melodia deText(String text) {
+        Properties p = new Properties();
+        try {
+            p.load(new java.io.StringReader(text));
+        } catch (IOException e) {
+            return null;
+        }
+        return deProps(p);
     }
 
     private static int enter(String s, int def) {

@@ -33,6 +33,9 @@ public class TereminActivity extends Activity {
     private TereminCorbaView corba;
     private TextView textSo;
     private FrameLayout botoPlay;
+    private FrameLayout botoDesfes;
+    private final Desfes desfes = new Desfes();
+    private boolean desfent = false;
     private BotoSolo botoSolo;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
     private AudioTrack bucle, prova;
@@ -71,6 +74,7 @@ public class TereminActivity extends Activity {
             canviat = true;
         }
 
+        desfes.inici(gest.text());
         LinearLayout arrel = Ui.pantalla(this);
         LinearLayout dalt = Ui.fila(this);
         dalt.setPadding(Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
@@ -85,6 +89,10 @@ public class TereminActivity extends Activity {
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
+        botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
+        botoDesfes.setOnClickListener(v -> desfes());
+        dalt.addView(botoDesfes);
+        dalt.addView(Ui.espai(this, 8));
         LinearLayout so = Ui.pastilla(this, Icona.TEREMIN, "", Ui.SUPERFICIE2, Ui.TEXT);
         textSo = (TextView) so.getChildAt(so.getChildCount() - 1);
         so.setOnClickListener(v -> triaSo());
@@ -115,6 +123,7 @@ public class TereminActivity extends Activity {
         arrel.addView(corba, lc);
         setContentView(arrel);
         actualitza();
+        pintaDesfes();
 
         botoSolo.carrega(carpeta, wav, in.getLongExtra(DrumpadActivity.EXTRA_POS, -1),
                 Math.round(Melodia.MAX_COMPASSOS * Patro.msCompas(bpm, compas)), () -> {
@@ -275,7 +284,38 @@ public class TereminActivity extends Activity {
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar");
         }
+        if (!desfent && desfes.registra(gest.text())) pintaDesfes();
     }
+
+    private void actualitzaPantalla() {
+        actualitza();
+    }
+
+    private void pintaDesfes() {
+        if (botoDesfes != null) botoDesfes.setAlpha(desfes.pot() ? 1f : 0.35f);
+    }
+
+    /** Desfà l'últim canvi (notes, llargada, graella, so…). */
+    private void desfes() {
+        String foto = desfes.desfes();
+        Gest anterior = foto == null ? null : Gest.deText(foto);
+        if (anterior == null) {
+            Ui.avis(this, "No hi ha res per desfer");
+            pintaDesfes();
+            return;
+        }
+        if (!java.util.Objects.equals(anterior.preset, gest.preset)) soCanviat = true;
+        gest = anterior;
+        corba.posa(anterior);
+        canviat = true;
+        desfent = true;
+        desa();
+        desfent = false;
+        pintaDesfes();
+        actualitzaPantalla();
+        if (bucle != null) reprenBucle();
+    }
+
 
     private void generaSo() {
         if (!canviat && new File(carpeta, wav).isFile()) return;

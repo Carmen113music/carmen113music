@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -398,6 +398,29 @@ public class Icona extends Drawable {
                 c.drawArc(r, 0, 180, false, traz);
                 linia(c, 10.5f, 10.5f, 6, 3.5f);
                 linia(c, 13.5f, 10.5f, 18, 3.5f);
+                break;
+            case MIDI:
+                // endoll MIDI: cercle amb cinc forats i la marca de dalt
+                r.set(3.5f, 3.5f, 20.5f, 20.5f);
+                c.drawOval(r, traz);
+                c.drawCircle(7.5f, 12.5f, 1.3f, ple);
+                c.drawCircle(16.5f, 12.5f, 1.3f, ple);
+                c.drawCircle(9, 16, 1.3f, ple);
+                c.drawCircle(15, 16, 1.3f, ple);
+                c.drawCircle(12, 17.5f, 1.3f, ple);
+                linia(c, 10.5f, 5.5f, 13.5f, 5.5f);
+                break;
+            case DESFES:
+                // fletxa que torna enrere fent la volta
+                p.reset();
+                p.moveTo(5, 10);
+                p.lineTo(14.5f, 10);
+                p.cubicTo(18.5f, 10, 20.5f, 12.5f, 20.5f, 15);
+                p.cubicTo(20.5f, 17.5f, 18.5f, 20, 14.5f, 20);
+                p.lineTo(10, 20);
+                c.drawPath(p, traz);
+                linia(c, 5, 10, 9, 6);
+                linia(c, 5, 10, 9, 14);
                 break;
             case TEREMIN:
                 // caixa amb l'antena dreta i l'antena en anella

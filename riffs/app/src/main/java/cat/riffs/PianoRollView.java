@@ -48,6 +48,7 @@ public class PianoRollView extends View {
     /** Llargada de les notes noves (la de l'última que s'ha allargat), en caselles; 0 = mitja divisió. */
     private int llargNova = 0;
 
+    private int color = Ui.SINTE;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF r = new RectF();
     private final float d;
@@ -81,6 +82,22 @@ public class PianoRollView extends View {
         oients = o;
         iniciC = 0;
         visiblesC = 1;
+        requestLayout();
+        invalidate();
+    }
+
+    /** Color de les notes (verd el sinte, blau el MIDI). */
+    public void posaColor(int c) {
+        color = c;
+        invalidate();
+    }
+
+    /** Canvia la frase (desfer) sense tocar el zoom ni on es mira. */
+    public void canviaMelodia(Melodia m) {
+        melodia = m;
+        nota = null;
+        mode = CAP;
+        limita();
         requestLayout();
         invalidate();
     }
@@ -225,7 +242,7 @@ public class PianoRollView extends View {
             float top = (Melodia.NOTA_MAX - nt.nota) * altFila;
             r.set(xa + 1.5f * d, top + 2 * d, xb - 1.5f * d, top + altFila - 2 * d);
             boolean triada = nt == nota && mode != CAP;
-            p.setColor(Ui.alfa(Ui.SINTE, nt.forca == 1 ? 150 : nt.forca == 2 ? 215 : 255));
+            p.setColor(Ui.alfa(color, nt.forca == 1 ? 150 : nt.forca == 2 ? 215 : 255));
             c.drawRoundRect(r, 5 * d, 5 * d, p);
             if (triada) {
                 p.setStyle(Paint.Style.STROKE);
@@ -252,7 +269,7 @@ public class PianoRollView extends View {
             float top = i * altFila;
             boolean negra = Melodia.esNegra(nt);
             boolean premuda = nt == teclaPremuda;
-            p.setColor(premuda ? Ui.SINTE : negra ? 0xFF26262C : 0xFFCFCED6);
+            p.setColor(premuda ? color : negra ? 0xFF26262C : 0xFFCFCED6);
             r.set(0, top + 0.5f * d, negra ? ampleTecles * 0.62f : ampleTecles - 4 * d, top + altFila - 0.5f * d);
             c.drawRoundRect(r, 3 * d, 3 * d, p);
             if (negra && !premuda) {

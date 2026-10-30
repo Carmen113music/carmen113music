@@ -53,6 +53,9 @@ public class DrumpadActivity extends Activity {
     private TextView textKit, textCompassos, textDivisio;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
     private FrameLayout botoPlay;
+    private FrameLayout botoDesfes;
+    private final Desfes desfes = new Desfes();
+    private boolean desfent = false;
     private BotoSolo botoSolo;
 
     // so
@@ -103,6 +106,7 @@ public class DrumpadActivity extends Activity {
             canviat = true;
         }
 
+        desfes.inici(patro.text());
         LinearLayout arrel = Ui.pantalla(this);
 
         // barra de dalt
@@ -119,6 +123,10 @@ public class DrumpadActivity extends Activity {
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
 
+        botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
+        botoDesfes.setOnClickListener(v -> desfes());
+        dalt.addView(botoDesfes);
+        dalt.addView(Ui.espai(this, 8));
         LinearLayout kit = Ui.pastilla(this, Icona.BATERIA, "", Ui.SUPERFICIE2, Ui.TEXT);
         kit.setMinimumHeight(Ui.dp(this, 40));
         textKit = (TextView) kit.getChildAt(kit.getChildCount() - 1);
@@ -203,6 +211,7 @@ public class DrumpadActivity extends Activity {
             }
         });
         actualitzaCapcalera();
+        pintaDesfes();
 
         if (kits.isEmpty()) {
             Full.avis(this, "Encara no tens kits de bateria",
@@ -480,7 +489,37 @@ public class DrumpadActivity extends Activity {
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar el ritme");
         }
+        if (!desfent && desfes.registra(patro.text())) pintaDesfes();
     }
+
+    private void actualitzaPantalla() {
+        actualitzaCapcalera();
+    }
+
+    private void pintaDesfes() {
+        if (botoDesfes != null) botoDesfes.setAlpha(desfes.pot() ? 1f : 0.35f);
+    }
+
+    /** Desfà l'últim canvi (notes, llargada, graella, so…). */
+    private void desfes() {
+        String foto = desfes.desfes();
+        Patro anterior = foto == null ? null : Patro.deText(foto);
+        if (anterior == null) {
+            Ui.avis(this, "No hi ha res per desfer");
+            pintaDesfes();
+            return;
+        }
+        patro = anterior;
+        graella.canviaPatro(anterior);
+        canviat = true;
+        desfent = true;
+        desaPatro();
+        desfent = false;
+        pintaDesfes();
+        actualitzaPantalla();
+        if (bucle != null) reprenBucle();
+    }
+
 
     /** Desa el ritme i en fa el so per a l'Estudi. */
     private void generaSo() {

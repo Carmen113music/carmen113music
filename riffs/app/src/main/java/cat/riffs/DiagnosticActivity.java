@@ -163,6 +163,17 @@ public class DiagnosticActivity extends Activity {
         cos.addView(filaKits, Ui.ample(this, 10));
         ompleKits();
 
+        // Instruments MIDI: el banc de sons
+        cos.addView(Ui.etiqueta(this, "Instruments MIDI"), Ui.ample(this, 28));
+        TextView ajudaMidi = Ui.text(this, "El banc de sons amb els 128 instruments General MIDI per a les pistes MIDI. "
+                + "Cal baixar-lo una vegada (uns 31 MB).", 14, Ui.SUAU);
+        ajudaMidi.setLineSpacing(0, 1.2f);
+        cos.addView(ajudaMidi, Ui.ample(this, 8));
+        LinearLayout banc = Ui.pastilla(this, Icona.MIDI, BancActivity.fitxer(this).isFile() ? "Banc de sons MIDI" : "Baixa el banc de sons MIDI",
+                Ui.SUPERFICIE2, Ui.TEXT);
+        banc.setOnClickListener(v -> startActivity(new Intent(this, BancActivity.class)));
+        cos.addView(banc, Ui.ample(this, 12));
+
         cos.addView(Ui.etiqueta(this, "Estat"), Ui.ample(this, 28));
         estat = Ui.text(this, "", 13, Ui.TEXT);
         estat.setTextIsSelectable(true);
@@ -211,6 +222,8 @@ public class DiagnosticActivity extends Activity {
         }
         s.append("Riffs ").append(versio).append('\n');
         s.append("Kits de bateria: ").append(Kits.llista(KitsActivity.arrel(this)).size()).append('\n');
+        File fb = BancActivity.fitxer(this);
+        s.append("Banc MIDI: ").append(fb.isFile() ? (fb.length() >> 20) + " MB" : "no").append('\n');
         s.append("Mòbil: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                 .append(" · Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
         boolean permis = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;

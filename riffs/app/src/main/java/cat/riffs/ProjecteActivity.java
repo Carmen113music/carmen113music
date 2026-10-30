@@ -75,8 +75,13 @@ public class ProjecteActivity extends Activity {
     private GravacioNotes notesGravades;
     private Gest.Gravacio gestGravat;      // teremin
     private SinteViu sinteViu;
+    private MidiViu midiViu;                // pista MIDI (polifònic)
     private View panellTeclat;
     private TextView textTeclat;
+    // desfer
+    private final Desfes desfes = new Desfes();
+    private boolean desfent = false;
+    private FrameLayout botoDesfes;
     private AudioManager gestorSo;
     private AudioDeviceCallback vigilant;
     private int altPista;
@@ -131,7 +136,13 @@ public class ProjecteActivity extends Activity {
         altPista = Ui.dp(this, Ui.prefs(this).getInt("alt_pista_dp", 78));
         clicActiu = Ui.prefs(this).getBoolean("estudi_clic", true);
         volumClic = Ui.prefs(this).getFloat("estudi_clic_vol", 1f);
+        BancActivity.prepara(this);
+        boolean hiHaMidi = false;
+        for (Projecte.Pista t : projecte.pistes) if (t.esMidi()) hiHaMidi = true;
+        if (hiHaMidi) new Thread(Banc::actual, "banc").start();   // que estigui llest quan calgui
+        desfes.inici(projecte.foto());
         construeix();
+        pintaDesfes();
         carrega();
     }
 
@@ -225,6 +236,11 @@ public class ProjecteActivity extends Activity {
         textInfo.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         textInfo.setEllipsize(android.text.TextUtils.TruncateAt.END);
         dalt.addView(textInfo, dalt.indexOfChild(accions), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        dalt.addView(Ui.espai(this, 12));
+
+        botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE, 32, 18, "Desfés l'últim canvi");
+        botoDesfes.setOnClickListener(v -> desfes());
+        dalt.addView(botoDesfes);
         dalt.addView(Ui.espai(this, 12));
 
         textPosicio = Ui.text(this, "1.1.1", 14, Ui.TEXT);
@@ -413,7 +429,7 @@ public class ProjecteActivity extends Activity {
 
             @Override
             public void obreBateria(int i, Projecte.Clip clip) {
-                if (Projecte.esSinte(clip.wav)) obrePianoRoll(clip);
+                if (Projecte.esNotes(clip.wav)) obrePianoRoll(clip);
                 else if (Projecte.esTeremin(clip.wav)) obreTeremin(clip);
                 else obreDrumpad(clip);
             }
@@ -473,9 +489,9 @@ public class ProjecteActivity extends Activity {
                 textInfo.setText("Encén el botó de gravar del teremin i mantén premut el play per tocar-lo");
                 return;
             }
-            if (t.esSinte() && t.clips.isEmpty()) {
-                textInfo.setTextColor(Ui.SINTE);
-                textInfo.setText("Mantén premut a la fila del sinte per posar-hi una frase");
+            if (t.esNotes() && t.clips.isEmpty()) {
+                textInfo.setTextColor(Ui.colorPista(t));
+                textInfo.setText("Mantén premut a la fila per posar-hi una frase, o grava-hi amb el teclat (botó de gravar + mantén premut el play)");
                 return;
             }
             if (t.clips.isEmpty() && t.esBuida()) {
@@ -731,10 +747,10 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Icona.TEREMIN, "Obre el teremin", false, () -> obreTeremin(k)));
         }
-        if (t.esSinte()) {
+        if (t.esNotes()) {
             Projecte.Clip u = vista.unic();
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
-            if (k != null) ops.add(new Full.Accio(Icona.SINTE, "Obre el piano roll", false, () -> obrePianoRoll(k)));
+            if (k != null) ops.add(new Full.Accio(Ui.iconaPista(t), "Obre el piano roll", false, () -> obrePianoRoll(k)));
         }
         ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
                 Full.demanaText(this, "Nom de la pista", t.nomVisible(), "Desa", text -> {
@@ -909,9 +925,11 @@ public class ProjecteActivity extends Activity {
             if (despres != null) despres.run();
         }));
         ops.add(new Full.Accio(Icona.SINTE, "Sinte", false, () -> triaPresetNou(despres)));
+        ops.add(new Full.Accio(Icona.MIDI, "MIDI", false, () -> triaInstrumentNou(despres)));
         ops.add(new Full.Accio(Icona.TEREMIN, "Teremin", false, () -> triaPresetTeremin(despres)));
         Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits. "
-                + "Sinte: baixos i melodies amb el piano roll. Teremin: es toca en directe lliscant el dit.", ops);
+                + "Sinte: baixos i melodies amb el piano roll. MIDI: 128 instruments (piano, cordes…), amb acords. "
+                + "Teremin: es toca en directe lliscant el dit.", ops);
     }
 
     private void afegeixPistaAudio() {
@@ -974,7 +992,7 @@ public class ProjecteActivity extends Activity {
     private void posaFinestraBateria(int i, long ms) {
         if (gravant || i < 0 || i >= projecte.pistes.size()) return;
         Projecte.Pista t = projecte.pistes.get(i);
-        if (t.esSinte()) {
+        if (t.esNotes()) {
             posaFinestraSinte(i, ms);
             return;
         }
@@ -1067,7 +1085,7 @@ public class ProjecteActivity extends Activity {
         long durada;
         try {
             if (jaFet) durada = -1;
-            else if (Projecte.esSinte(wav)) durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            else if (Projecte.esNotes(wav)) durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
             else if (Projecte.esTeremin(wav)) durada = Gest.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
             else durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
         } catch (IOException e) {
@@ -1148,8 +1166,9 @@ public class ProjecteActivity extends Activity {
                 Projecte.Clip abans = Projecte.clipAbans(t, ms);
                 Melodia ma = abans == null ? null : Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, abans.wav));
                 if (ma == null) ma = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, t.wav));
-                Melodia m = ma != null ? ma.buidaAmbElMateixSo() : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
-                wav = projecte.wavSinteLliure();
+                Melodia m = ma != null ? ma.buidaAmbElMateixSo()
+                        : t.esMidi() ? Melodia.novaMidi(0, projecte.compas) : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
+                wav = projecte.wavNotesLliure(t.wav);
                 m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
             }
             durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
@@ -1166,7 +1185,7 @@ public class ProjecteActivity extends Activity {
         vista.tria(i, c);
         actualitzaAccions();
         desa();
-        textInfo.setTextColor(Ui.SINTE);
+        textInfo.setTextColor(Ui.colorPista(t));
         textInfo.setText("Frase al compàs " + compas + " · doble toc per escriure-hi notes");
         vista.avisa();
         refresca();
@@ -1205,6 +1224,7 @@ public class ProjecteActivity extends Activity {
         boolean ter = Projecte.esTeremin(wav);
         String preset;
         Sinte.So so;
+        int programa = -1, bancMidi = 0;
         if (ter) {
             Gest g = Gest.llegeix(Gest.fitxerDe(projecte.carpeta, wav));
             if (g == null) return;
@@ -1215,14 +1235,16 @@ public class ProjecteActivity extends Activity {
             if (m == null) return;
             preset = m.preset;
             so = m.so;
+            programa = m.programa;
+            bancMidi = m.bancMidi;
         }
         java.util.Set<String> germans = new java.util.LinkedHashSet<>();
         for (Projecte.Pista p : projecte.pistes) {
             boolean hiEs = false;
             for (Projecte.Clip k : p.clips) if (k.wav.equals(wav)) hiEs = true;
             if (!hiEs) continue;
-            if (ter ? p.esTeremin() : p.esSinte()) germans.add(p.wav);
-            for (Projecte.Clip k : p.clips) if (ter ? Projecte.esTeremin(k.wav) : Projecte.esSinte(k.wav)) germans.add(k.wav);
+            if (ter ? p.esTeremin() : p.esNotes()) germans.add(p.wav);
+            for (Projecte.Clip k : p.clips) if (ter ? Projecte.esTeremin(k.wav) : Projecte.esNotes(k.wav)) germans.add(k.wav);
         }
         germans.remove(wav);
         for (String w : germans) {
@@ -1240,6 +1262,8 @@ public class ProjecteActivity extends Activity {
                     if (m == null) continue;
                     m.preset = preset;
                     m.so = so.copia();
+                    m.programa = programa;
+                    m.bancMidi = bancMidi;
                     m.desa(f);
                 }
             } catch (IOException e) {
@@ -1591,7 +1615,7 @@ public class ProjecteActivity extends Activity {
         for (Projecte.Pista t : projecte.pistes) {
             if (t.esBateria()) continue;
             if (t.esInstrument()) {
-                ops.add(new Full.Accio(t.esTeremin() ? Icona.TEREMIN : Icona.SINTE, t.nomVisible() + (t.esTeremin() ? " · teremin" : " · teclat"), false, () -> {
+                ops.add(new Full.Accio(Ui.iconaPista(t), t.nomVisible() + (t.esTeremin() ? " · teremin" : " · teclat"), false, () -> {
                     synchronized (projecte) {
                         projecte.armaRec(t);
                     }
@@ -1817,7 +1841,7 @@ public class ProjecteActivity extends Activity {
         Melodia m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, t.wav));
         if (m == null) {
             for (Projecte.Clip k : t.clips) {
-                if (!Projecte.esSinte(k.wav)) continue;
+                if (!Projecte.esNotes(k.wav)) continue;
                 m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, k.wav));
                 if (m != null) break;
             }
@@ -1846,11 +1870,27 @@ public class ProjecteActivity extends Activity {
         notesGravades = new GravacioNotes();
         gestGravat = new Gest.Gravacio();
         pistaSinte = t;
-        sinteViu = new SinteViu(so, Mesclador.lineal(t.volumDb));
-        if (!sinteViu.comenca()) {
-            sinteViu = null;
-            Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
-            return;
+        if (!ter && base.poli()) {
+            // MIDI: polifònic, amb l'instrument del banc
+            Banc b = Banc.actual();
+            if (b == null) {
+                Full.avis(this, "No hi ha banc de sons", "Per tocar les pistes MIDI cal el banc de sons: Gravar → botó d'ajustos → Instruments MIDI.",
+                        "Obre", () -> startActivity(new android.content.Intent(this, BancActivity.class)));
+                return;
+            }
+            midiViu = new MidiViu(b, base.bancMidi, base.programa, Mesclador.lineal(t.volumDb));
+            if (!midiViu.comenca()) {
+                midiViu = null;
+                Ui.avis(this, "No s'ha pogut obrir la sortida de so per a l'instrument.");
+                return;
+            }
+        } else {
+            sinteViu = new SinteViu(so, Mesclador.lineal(t.volumDb));
+            if (!sinteViu.comenca()) {
+                sinteViu = null;
+                Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
+                return;
+            }
         }
         gravant = true;
         gravantSinte = true;
@@ -1859,8 +1899,10 @@ public class ProjecteActivity extends Activity {
         if (!motor.comenca(iniciMs)) {
             gravant = false;
             gravantSinte = false;
-            sinteViu.atura();
+            if (sinteViu != null) sinteViu.atura();
             sinteViu = null;
+            if (midiViu != null) midiViu.atura();
+            midiViu = null;
             motor.posaClic(false);
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
@@ -1875,6 +1917,115 @@ public class ProjecteActivity extends Activity {
         pistes.postOnAnimation(segueix);
     }
 
+    /** Els acords de cada tecla (es recorden). */
+    private Acords acords() {
+        return Acords.deText(Ui.prefs(this).getString("acords_mapa", ""));
+    }
+
+    /** Tria quin acord fa cada tecla (Do … Si): primer la tecla, després l'arrel i el tipus. */
+    private void editaAcords(TeclatView teclat) {
+        Acords a = acords();
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int pc = 0; pc < 12; pc++) {
+            int k = pc;
+            ops.add(new Full.Accio(Icona.MIDI, "Tecla " + Acords.nomNota(k) + "  →  " + a.nom(k), false, () -> triaArrel(teclat, k)));
+        }
+        ops.add(new Full.Accio(Icona.HISTORIAL, "Torna als acords de Do major", false, () -> {
+            Ui.prefs(this).edit().putString("acords_mapa", Acords.perDefecte().text()).apply();
+            if (teclat.acords() != null) teclat.posaAcords(acords());
+        }));
+        Full.llista(this, "Acords de cada tecla", "Quan els acords estan encesos, cada tecla fa sonar el seu acord "
+                + "(l'arrel, a la nota més propera a la tecla).", ops);
+    }
+
+    private void triaArrel(TeclatView teclat, int pc) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int r = 0; r < 12; r++) {
+            int rr = r;
+            ops.add(new Full.Accio(Icona.MIDI, Acords.nomNota(r), false, () -> triaTipus(teclat, pc, rr)));
+        }
+        Full.llista(this, "Tecla " + Acords.nomNota(pc) + ": arrel de l'acord", null, ops);
+    }
+
+    private void triaTipus(TeclatView teclat, int pc, int arrel) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int k = 0; k < Acords.TIPUS.length; k++) {
+            int kk = k;
+            ops.add(new Full.Accio(Icona.MIDI, Acords.nomNota(arrel) + Acords.TIPUS[k].sufix + "  ·  " + Acords.TIPUS[k].nom, false, () -> {
+                Acords a = acords();
+                a.arrel[pc] = arrel;
+                a.tipus[pc] = kk;
+                Ui.prefs(this).edit().putString("acords_mapa", a.text()).apply();
+                if (teclat.acords() != null) teclat.posaAcords(a);
+                else teclat.invalidate();
+                Ui.avis(this, "Tecla " + Acords.nomNota(pc) + " → " + a.nom(pc));
+            }));
+        }
+        Full.llista(this, "Tecla " + Acords.nomNota(pc) + ": tipus d'acord", null, ops);
+    }
+
+    // ---------- MIDI ----------
+
+    /** «Pista nova → MIDI»: quin instrument (família i instrument). */
+    private void triaInstrumentNou(Runnable despres) {
+        if (!Banc.hiEs()) {
+            Full.avis(this, "Cal el banc de sons", "Les pistes MIDI fan servir un banc amb els 128 instruments (uns 31 MB). "
+                            + "Baixa'l una vegada i torna aquí.",
+                    "Baixa'l", () -> {
+                        android.content.Intent i = new android.content.Intent(this, BancActivity.class);
+                        i.putExtra(BancActivity.EXTRA_BAIXA, true);
+                        startActivity(i);
+                    });
+            return;
+        }
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int f = 0; f < Gm.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.MIDI, Gm.FAMILIES[f], false, () -> {
+                List<Full.Accio> ins = new ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                    int prog = ff * 8 + i;
+                    ins.add(new Full.Accio(Icona.MIDI, Gm.nom(prog), false, () -> {
+                        creaMidi(prog);
+                        if (despres != null) despres.run();
+                    }));
+                }
+                Full.llista(this, Gm.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", ins);
+            }));
+        }
+        Full.llista(this, "Instrument MIDI", "Polifònic: pots fer acords. Tria una família.", ops);
+    }
+
+    /** Crea una pista MIDI buida amb aquest instrument. */
+    private void creaMidi(int programa) {
+        atura();
+        String wav;
+        try {
+            Melodia m = Melodia.novaMidi(programa, projecte.compas);
+            wav = projecte.wavMidiLliure();
+            m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
+            long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            int n = 1;
+            for (Projecte.Pista x : projecte.pistes) if (x.esMidi()) n++;
+            synchronized (projecte) {
+                projecte.afegeixSinte(wav, durada, Gm.nom(programa) + (n > 1 ? " " + n : ""));
+            }
+            carregaSo(wav);
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la pista MIDI");
+            return;
+        }
+        new Thread(Banc::actual, "banc").start();
+        desa();
+        Ui.historial(this, "Pista MIDI nova («" + Gm.nom(programa) + "») a «" + projecte.carpeta.getName() + "»");
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        pistes.requestLayout();
+        pistes.invalidate();
+        textInfo.setTextColor(Ui.MIDI);
+        textInfo.setText("Mantén premut a la fila per posar-hi una frase, o grava-hi amb el teclat");
+    }
+
     /** El teclat virtual, als dos terços de baix de la pantalla (per sobre de les pistes). */
     private void mostraTeclat(Projecte.Pista t, int doEsquerra) {
         amagaTeclat();
@@ -1882,7 +2033,9 @@ public class ProjecteActivity extends Activity {
         panell.setBackgroundColor(Ui.FONS);
         panell.setClickable(true);   // que els tocs no passin a les pistes de sota
         View vora = new View(this);
-        vora.setBackgroundColor(Ui.SINTE);
+        int color = Ui.colorPista(t);
+        boolean poli = midiViu != null;
+        vora.setBackgroundColor(color);
         panell.addView(vora, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
 
         TeclatView teclat = new TeclatView(this);
@@ -1890,7 +2043,7 @@ public class ProjecteActivity extends Activity {
         LinearLayout barra = Ui.fila(this);
         barra.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
         barra.setGravity(Gravity.CENTER_VERTICAL);
-        barra.addView(Ui.imatge(this, Icona.SINTE, Ui.SINTE, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        barra.addView(Ui.imatge(this, Ui.iconaPista(t), color, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
         barra.addView(Ui.espai(this, 8));
         barra.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT)));
         barra.addView(Ui.espai(this, 16));
@@ -1912,6 +2065,31 @@ public class ProjecteActivity extends Activity {
         barra.addView(rang);
         barra.addView(Ui.espai(this, 8));
         barra.addView(mes);
+        if (poli) {
+            // pads d'acords: cada tecla fa sonar el seu acord
+            barra.addView(Ui.espai(this, 12));
+            LinearLayout boto = Ui.pastilla(this, 0, "Acords", Ui.SUPERFICIE2, Ui.TEXT);
+            boto.setMinimumHeight(Ui.dp(this, 36));
+            TextView tb = (TextView) boto.getChildAt(boto.getChildCount() - 1);
+            Runnable pinta = () -> {
+                boolean on = teclat.acords() != null;
+                boto.setBackground(Ui.tocable(on ? Ui.MIDI : Ui.SUPERFICIE2, Ui.dp(this, 24)));
+                tb.setTextColor(on ? Ui.SOBRE_COLOR : Ui.TEXT);
+            };
+            boto.setOnClickListener(v -> {
+                boolean on = teclat.acords() == null;
+                teclat.posaAcords(on ? acords() : null);
+                Ui.prefs(this).edit().putBoolean("acords_encesos", on).apply();
+                pinta.run();
+            });
+            if (Ui.prefs(this).getBoolean("acords_encesos", false)) teclat.posaAcords(acords());
+            pinta.run();
+            barra.addView(boto, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(Ui.espai(this, 8));
+            FrameLayout edita = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Tria quin acord fa cada tecla");
+            edita.setOnClickListener(v -> editaAcords(teclat));
+            barra.addView(edita);
+        }
         textTeclat = Ui.text(this, "Toca el teclat · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
         textTeclat.setGravity(Gravity.END);
         LinearLayout.LayoutParams lt = Ui.pes(1);
@@ -1920,6 +2098,27 @@ public class ProjecteActivity extends Activity {
         panell.addView(barra);
 
         teclat.setPadding(0, 0, 0, 0);
+        if (poli) {
+            teclat.posaOientPoli(new TeclatView.OientPoli() {
+                @Override
+                public void encen(int nota, long nanos) {
+                    if (!gravantSinte || midiViu == null) return;
+                    midiViu.encen(nota, MidiSo.velocitat(2));
+                    notesGravades.encen(nota, 2, msDeNano(nanos));
+                    textTeclat.setTextColor(Ui.MIDI);
+                    textTeclat.setText(Melodia.nomNota(nota));
+                }
+
+                @Override
+                public void apaga(int nota, long nanos) {
+                    if (!gravantSinte || midiViu == null) return;
+                    midiViu.apaga(nota);
+                    notesGravades.apaga(nota, msDeNano(nanos));
+                    textTeclat.setTextColor(Ui.APAGAT);
+                    textTeclat.setText(notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
+                }
+            });
+        }
         teclat.posaOient((nota, lligada, nanos) -> {
             if (!gravantSinte || sinteViu == null) return;
             if (nota >= 0) sinteViu.nota(nota, lligada);
@@ -2086,6 +2285,7 @@ public class ProjecteActivity extends Activity {
 
     /** Atura la gravació del sinte i posa el que s'ha tocat en finestres noves de la pista (a partir de l'entrada). */
     private void aturaGravacioSinte(String motiu) {
+        Projecte.Pista t0 = pistaSinte;
         gravant = false;
         gravantSinte = false;
         double araMs = msDeNano(System.nanoTime());
@@ -2095,10 +2295,12 @@ public class ProjecteActivity extends Activity {
         motor.atura();
         if (sinteViu != null) sinteViu.atura();
         sinteViu = null;
+        if (midiViu != null) midiViu.atura();
+        midiViu = null;
         amagaTeclat();
         pistes.removeCallbacks(segueix);
         Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 18);
-        textInfo.setTextColor(Ui.SINTE);
+        textInfo.setTextColor(t0 != null ? Ui.colorPista(t0) : Ui.SINTE);
         vista.capcalMs = entradaMs;
         Projecte.Pista t = pistaSinte;
         if (t != null && t.esTeremin()) {
@@ -2106,7 +2308,8 @@ public class ProjecteActivity extends Activity {
             return;
         }
         int ppc = Patro.passosDe(projecte.compas);
-        List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS);
+        List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS,
+                t != null && t.esMidi());
         if (t == null || !projecte.pistes.contains(t) || frases.isEmpty()) {
             textInfo.setText(motiu != null ? motiu : "No has tocat cap nota després del compte: no s'ha desat res");
             refresca();
@@ -2125,7 +2328,7 @@ public class ProjecteActivity extends Activity {
             notes += m.notes.size();
             try {
                 String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
-                        ? t.wav : projecte.wavSinteLliure();
+                        ? t.wav : projecte.wavNotesLliure(t.wav);
                 m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
                 long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
                 Projecte.Clip c;
@@ -2267,13 +2470,66 @@ public class ProjecteActivity extends Activity {
     }
 
     private void desa() {
+        String foto;
         try {
             synchronized (projecte) {
                 projecte.desa();
+                foto = desfent ? null : projecte.foto();
             }
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar el projecte.");
+            return;
         }
+        if (foto != null && desfes.registra(foto)) pintaDesfes();
+    }
+
+    private void pintaDesfes() {
+        if (botoDesfes == null) return;
+        boolean pot = desfes.pot();
+        botoDesfes.setAlpha(pot ? 1f : 0.35f);
+    }
+
+    /** Desfà l'últim canvi del projecte (moure, retallar, esborrar, pistes, volums, tempo, gravacions…). */
+    private void desfes() {
+        if (gravant) return;
+        String foto = desfes.desfes();
+        if (foto == null) {
+            Ui.avis(this, "No hi ha res per desfer");
+            return;
+        }
+        atura();
+        double bpm0 = projecte.bpm;
+        int compas0 = projecte.compas;
+        synchronized (projecte) {
+            projecte.tornaA(foto);
+        }
+        if (bpm0 != projecte.bpm || compas0 != projecte.compas) {
+            // el so de la bateria, el sinte i el teremin es torna a fer al tempo d'abans
+            for (String w : projecte.wavsBateria()) refaBateria(w, false, 1);
+            for (String w : projecte.wavsSinte()) refaBateria(w, false, 1);
+            for (String w : projecte.wavsTeremin()) refaBateria(w, false, 1);
+            mostraTempo();
+        }
+        // sons que potser encara no s'havien carregat
+        java.util.Set<String> falten = new java.util.LinkedHashSet<>();
+        synchronized (projecte) {
+            for (String w : projecte.presesEnUs()) if (!audio.containsKey(w)) falten.add(w);
+        }
+        for (String w : falten) carregaSo(w);
+        desfent = true;
+        desa();
+        desfent = false;
+        vista.tria(-1, null);
+        actualitzaAccions();
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        if (taulaVisible) ompleTaula();
+        pistes.requestLayout();
+        vista.avisa();
+        refresca();
+        pintaDesfes();
+        textInfo.setTextColor(Ui.SUAU);
+        textInfo.setText(desfes.pot() ? "Desfet (queden " + desfes.passos() + " passos)" : "Desfet");
     }
 
     @Override

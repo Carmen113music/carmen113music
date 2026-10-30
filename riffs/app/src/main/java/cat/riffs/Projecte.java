@@ -58,19 +58,31 @@ public final class Projecte {
         return wav != null && wav.startsWith(DIR_TEREMIN + "/");
     }
 
-    /** So generat per l'app (bateria, sinte o teremin), no una gravació: cada finestra és un ritme o una frase sencera. */
+    /** Carpeta amagada on van les notes i el so de les pistes MIDI (instruments del banc). */
+    public static final String DIR_MIDI = ".midi";
+
+    public static boolean esMidi(String wav) {
+        return wav != null && wav.startsWith(DIR_MIDI + "/");
+    }
+
+    /** Pistes de notes (piano roll): sinte propi o MIDI. Les dues fan servir {@code Melodia}. */
+    public static boolean esNotes(String wav) {
+        return esSinte(wav) || esMidi(wav);
+    }
+
+    /** So generat per l'app (bateria, sinte, MIDI o teremin), no una gravació: cada finestra és un ritme o una frase sencera. */
     public static boolean esGenerat(String wav) {
-        return esBateria(wav) || esSinte(wav) || esTeremin(wav);
+        return esBateria(wav) || esSinte(wav) || esMidi(wav) || esTeremin(wav);
     }
 
-    /** Instrument que es toca en directe amb el sinte (sinte de teclat o teremin): té botó de gravar. */
+    /** Instrument que es toca en directe (sinte, MIDI o teremin): té botó de gravar. */
     public static boolean esInstrument(String wav) {
-        return esSinte(wav) || esTeremin(wav);
+        return esSinte(wav) || esMidi(wav) || esTeremin(wav);
     }
 
-    /** Nom de les preses generades: «Bateria», «Sinte» o «Teremin». */
+    /** Nom de les preses generades: «Bateria», «Sinte», «MIDI» o «Teremin». */
     public static String nomGenerat(String wav) {
-        return esSinte(wav) ? "Sinte" : esTeremin(wav) ? "Teremin" : "Bateria";
+        return esSinte(wav) ? "Sinte" : esMidi(wav) ? "MIDI" : esTeremin(wav) ? "Teremin" : "Bateria";
     }
 
     /** Una gravació de la carpeta. La bandera del primer temps és seva (la comparteixen tots els seus clips). */
@@ -173,7 +185,17 @@ public final class Projecte {
             return Projecte.esTeremin(wav);
         }
 
-        /** Sinte de teclat o teremin (es grava tocant en directe). */
+        /** Pista MIDI (instrument del banc). */
+        public boolean esMidi() {
+            return Projecte.esMidi(wav);
+        }
+
+        /** Pista de notes: sinte o MIDI (piano roll). */
+        public boolean esNotes() {
+            return Projecte.esNotes(wav);
+        }
+
+        /** Sinte, MIDI o teremin (es grava tocant en directe). */
         public boolean esInstrument() {
             return Projecte.esInstrument(wav);
         }
@@ -429,9 +451,19 @@ public final class Projecte {
         return wavLliure(DIR_TEREMIN + "/t");
     }
 
-    /** El mateix tipus de nom lliure que {@code wav} (bateria, sinte o teremin). */
+    /** Un nom de fitxer lliure per a una frase MIDI nova: «.midi/m1.wav»… */
+    public String wavMidiLliure() {
+        return wavLliure(DIR_MIDI + "/m");
+    }
+
+    /** Un nom lliure del mateix tipus que la pista de notes {@code wav} (sinte o MIDI). */
+    public String wavNotesLliure(String wav) {
+        return esMidi(wav) ? wavMidiLliure() : wavSinteLliure();
+    }
+
+    /** El mateix tipus de nom lliure que {@code wav} (bateria, sinte, MIDI o teremin). */
     public String wavLliureCom(String wav) {
-        return esSinte(wav) ? wavSinteLliure() : esTeremin(wav) ? wavTereminLliure() : wavBateriaLliure();
+        return esSinte(wav) ? wavSinteLliure() : esMidi(wav) ? wavMidiLliure() : esTeremin(wav) ? wavTereminLliure() : wavBateriaLliure();
     }
 
     private String wavLliure(String prefix) {
@@ -487,7 +519,7 @@ public final class Projecte {
         File de = new File(carpeta, wav), a = new File(carpeta, nou);
         a.getParentFile().mkdirs();
         java.nio.file.Files.copy(de.toPath(), a.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        String ext = esSinte(wav) ? ".melodia" : esTeremin(wav) ? ".gest" : ".patro";
+        String ext = esNotes(wav) ? ".melodia" : esTeremin(wav) ? ".gest" : ".patro";
         File pDe = new File(carpeta, wav.replaceAll("\\.wav$", ext));
         File pA = new File(carpeta, nou.replaceAll("\\.wav$", ext));
         if (pDe.isFile()) java.nio.file.Files.copy(pDe.toPath(), pA.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -587,11 +619,11 @@ public final class Projecte {
         return r;
     }
 
-    /** Totes les frases de sinte del projecte. */
+    /** Totes les frases de notes (sinte i MIDI) del projecte. */
     public List<String> wavsSinte() {
         List<String> r = new ArrayList<>();
-        for (String w : preses.keySet()) if (esSinte(w)) r.add(w);
-        for (Pista p : pistes) if (p.esSinte() && !r.contains(p.wav)) r.add(p.wav);
+        for (String w : preses.keySet()) if (esNotes(w)) r.add(w);
+        for (Pista p : pistes) if (p.esNotes() && !r.contains(p.wav)) r.add(p.wav);
         return r;
     }
 
@@ -754,6 +786,47 @@ public final class Projecte {
         } catch (IOException e) {
             return pr;
         }
+        return dePropietats(carpeta, p);
+    }
+
+    /** Una «foto» del projecte en text (per desfer). */
+    public String foto() {
+        java.io.StringWriter w = new java.io.StringWriter();
+        try {
+            propietats().store(w, null);
+        } catch (IOException e) {
+            return "";
+        }
+        // sense la línia de la data, perquè dues fotos iguals siguin iguals
+        StringBuilder sb = new StringBuilder();
+        for (String l : w.toString().split("\n")) if (!l.startsWith("#")) sb.append(l).append('\n');
+        return sb.toString();
+    }
+
+    /**
+     * Torna el projecte a com era en una foto. Les preses que coneix ara es conserven (així una gravació
+     * desfeta no torna a sortir com a pista nova: continua a la biblioteca, però fora de les pistes).
+     */
+    public void tornaA(String foto) {
+        Properties p = new Properties();
+        try {
+            p.load(new java.io.StringReader(foto));
+        } catch (IOException e) {
+            return;
+        }
+        Projecte vell = dePropietats(carpeta, p);
+        Map<String, Presa> ara = new LinkedHashMap<>(preses);
+        bpm = vell.bpm;
+        compas = vell.compas;
+        pistes.clear();
+        pistes.addAll(vell.pistes);
+        preses.clear();
+        preses.putAll(vell.preses);
+        for (Map.Entry<String, Presa> e : ara.entrySet()) preses.putIfAbsent(e.getKey(), e.getValue());
+    }
+
+    private static Projecte dePropietats(File carpeta, Properties p) {
+        Projecte pr = new Projecte(carpeta);
         pr.bpm = Ritme.limita(dec(p.getProperty("tempo"), 120));
         pr.compas = (int) Math.max(1, Math.min(12, dec(p.getProperty("compas"), 4)));
         // preses (des de la 2.5)
@@ -826,6 +899,19 @@ public final class Projecte {
     }
 
     public void desa() throws IOException {
+        Properties p = propietats();
+        File f = new File(carpeta, FITXER);
+        File temp = new File(carpeta, FITXER + ".tmp");
+        try (Writer w = new OutputStreamWriter(new FileOutputStream(temp), StandardCharsets.UTF_8)) {
+            p.store(w, "Projecte de l'Estudi (Riffs)");
+        }
+        if (!temp.renameTo(f)) {
+            f.delete();
+            if (!temp.renameTo(f)) throw new IOException("No s'ha pogut desar el projecte.");
+        }
+    }
+
+    private Properties propietats() {
         Properties p = new Properties();
         p.setProperty("tempo", String.format(Locale.ROOT, "%.2f", bpm));
         p.setProperty("compas", Integer.toString(compas));
@@ -864,15 +950,7 @@ public final class Projecte {
                 p.setProperty(kc + "guany", String.format(Locale.ROOT, "%.2f", c.guanyDb));
             }
         }
-        File f = new File(carpeta, FITXER);
-        File temp = new File(carpeta, FITXER + ".tmp");
-        try (Writer w = new OutputStreamWriter(new FileOutputStream(temp), StandardCharsets.UTF_8)) {
-            p.store(w, "Projecte de l'Estudi (Riffs)");
-        }
-        if (!temp.renameTo(f)) {
-            f.delete();
-            if (!temp.renameTo(f)) throw new IOException("No s'ha pogut desar el projecte.");
-        }
+        return p;
     }
 
     private static double dec(String s, double perDefecte) {

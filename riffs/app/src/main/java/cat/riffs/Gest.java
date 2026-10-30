@@ -286,6 +286,10 @@ public final class Gest {
         } catch (IOException e) {
             return null;
         }
+        return deProps(p);
+    }
+
+    private static Gest deProps(Properties p) {
         Gest g = new Gest();
         g.compassos = Math.max(1, Math.min(Melodia.MAX_COMPASSOS, enter(p.getProperty("compassos"), 1)));
         g.compas = enter(p.getProperty("metre"), 4);
@@ -310,6 +314,20 @@ public final class Gest {
     }
 
     public void desa(File f) throws IOException {
+        Properties p = props();
+        File pare = f.getAbsoluteFile().getParentFile();
+        if (pare != null) pare.mkdirs();
+        File tmp = new File(f.getPath() + ".tmp");
+        try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
+            p.store(w, "Gest de teremin (Riffs)");
+        }
+        if (!tmp.renameTo(f)) {
+            f.delete();
+            if (!tmp.renameTo(f)) throw new IOException("no s'ha pogut desar el gest");
+        }
+    }
+
+    private Properties props() {
         Properties p = new Properties();
         p.setProperty("compassos", Integer.toString(compassos));
         p.setProperty("metre", Integer.toString(compas));
@@ -325,16 +343,31 @@ public final class Gest {
             }
         }
         p.setProperty("trossos", sb.toString());
-        File pare = f.getAbsoluteFile().getParentFile();
-        if (pare != null) pare.mkdirs();
-        File tmp = new File(f.getPath() + ".tmp");
-        try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
-            p.store(w, "Gest de teremin (Riffs)");
+        return p;
+    }
+
+    /** L'estat en text (per desfer). */
+    public String text() {
+        java.io.StringWriter w = new java.io.StringWriter();
+        try {
+            props().store(w, null);
+        } catch (IOException e) {
+            return "";
         }
-        if (!tmp.renameTo(f)) {
-            f.delete();
-            if (!tmp.renameTo(f)) throw new IOException("no s'ha pogut desar el gest");
+        StringBuilder sb = new StringBuilder();
+        for (String l : w.toString().split("\n")) if (!l.startsWith("#")) sb.append(l).append('\n');
+        return sb.toString();
+    }
+
+    /** Llegeix un estat en text (null si no es pot). */
+    public static Gest deText(String text) {
+        Properties p = new Properties();
+        try {
+            p.load(new java.io.StringReader(text));
+        } catch (IOException e) {
+            return null;
         }
+        return deProps(p);
     }
 
     private static int enter(String s, int def) {

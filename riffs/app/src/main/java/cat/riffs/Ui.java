@@ -42,6 +42,7 @@ public final class Ui {
     public static final int BATERIA = 0xFFB18CFF;   // lila (pistes de bateria)
     public static final int SINTE = 0xFF7FD67A;     // verd (pistes de sinte)
     public static final int TEREMIN = 0xFFFF8FC4;   // rosa (pistes de teremin)
+    public static final int MIDI = 0xFF6FA8FF;      // blau (pistes MIDI: instruments del banc)
     public static final int SOBRE_COLOR = 0xFF141416; // text sobre ambre o turquesa
 
     public static final Typeface MITJA = Typeface.create("sans-serif-medium", Typeface.NORMAL);
@@ -113,11 +114,11 @@ public final class Ui {
     /** Color amb transparència (0..255). */
     /** Color d'una pista de l'Estudi: lila la bateria, turquesa la veu, ambre la guitarra. */
     public static int colorPista(Projecte.Pista t) {
-        return t.esBateria() ? BATERIA : t.esSinte() ? SINTE : t.esTeremin() ? TEREMIN : t.veu ? VEU : GUITARRA;
+        return t.esBateria() ? BATERIA : t.esSinte() ? SINTE : t.esTeremin() ? TEREMIN : t.esMidi() ? MIDI : t.veu ? VEU : GUITARRA;
     }
 
     public static int iconaPista(Projecte.Pista t) {
-        return t.esBateria() ? Icona.BATERIA : t.esSinte() ? Icona.SINTE : t.esTeremin() ? Icona.TEREMIN : t.veu ? Icona.MIC : Icona.GUITARRA;
+        return t.esBateria() ? Icona.BATERIA : t.esSinte() ? Icona.SINTE : t.esTeremin() ? Icona.TEREMIN : t.esMidi() ? Icona.MIDI : t.veu ? Icona.MIC : Icona.GUITARRA;
     }
 
     public static int alfa(int color, int alfa) {

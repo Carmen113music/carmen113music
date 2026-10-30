@@ -33,6 +33,22 @@ public final class GravacioNotes {
 
     private final List<Tros> trossos = new ArrayList<>();
     private Tros obert;
+    /** Polifònic: les notes que estan sonant ara (una per altura). */
+    private final java.util.Map<Integer, Tros> oberts = new java.util.HashMap<>();
+
+    /** Polifònic: comença a sonar {@code nota} al moment {@code ms}. */
+    public synchronized void encen(int nota, int forca, double ms) {
+        apaga(nota, ms);
+        Tros t = new Tros(ms, nota, forca);
+        trossos.add(t);
+        oberts.put(nota, t);
+    }
+
+    /** Polifònic: deixa de sonar {@code nota}. */
+    public synchronized void apaga(int nota, double ms) {
+        Tros t = oberts.remove(nota);
+        if (t != null) t.fiMs = ms;
+    }
 
     /** La nota que sona ha canviat ({@code nota} &lt; 0 = ja no en sona cap) al moment {@code ms}. */
     public synchronized void canvi(int nota, int forca, double ms) {
@@ -49,6 +65,8 @@ public final class GravacioNotes {
     /** Tanca la nota que encara sona (en aturar). */
     public synchronized void tanca(double ms) {
         canvi(-1, 0, ms);
+        for (Tros t : oberts.values()) t.fiMs = ms;
+        oberts.clear();
     }
 
     public synchronized int compte() {
@@ -61,6 +79,11 @@ public final class GravacioNotes {
      * Si una nota passa d'una frase a la següent, es parteix.
      */
     public synchronized List<Frase> frases(double entradaMs, double msPerCompas, int ppc, int maxCompassos) {
+        return frases(entradaMs, msPerCompas, ppc, maxCompassos, false);
+    }
+
+    /** Com l'altra; si {@code poli}, les notes poden sonar juntes (acords). */
+    public synchronized List<Frase> frases(double entradaMs, double msPerCompas, int ppc, int maxCompassos, boolean poli) {
         double msPas = msPerCompas / ppc;
         List<int[]> qs = new ArrayList<>();   // {pas, fi, nota, forca}, en caselles des de l'entrada
         int ultim = 0;
@@ -84,6 +107,7 @@ public final class GravacioNotes {
             f.compassos = Math.min(maxCompassos, totalCompassos - c0);
             int ini = c0 * ppc, fi = (c0 + f.compassos) * ppc;
             Melodia m = new Melodia();
+            if (poli) m.programa = 0;
             m.passosPerCompas = ppc;
             m.compassos = f.compassos;
             for (int[] q : qs) {

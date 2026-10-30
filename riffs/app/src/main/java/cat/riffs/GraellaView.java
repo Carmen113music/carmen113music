@@ -68,6 +68,16 @@ public class GraellaView extends View {
         invalidate();
     }
 
+    /** Canvia el ritme (desfer) mantenint el compàs que es veu. */
+    public void canviaPatro(Patro p) {
+        patro = p;
+        filaToc = -1;
+        forcant = false;
+        posaCompas(compasVisible);
+        requestLayout();
+        invalidate();
+    }
+
     public void posaCompas(int c) {
         compasVisible = Math.max(0, Math.min(patro == null ? 0 : patro.compassos - 1, c));
         invalidate();

@@ -314,6 +314,10 @@ public final class Patro {
         } catch (IOException e) {
             return null;
         }
+        return deProps(p);
+    }
+
+    private static Patro deProps(Properties p) {
         Patro pt = new Patro();
         pt.kit = p.getProperty("kit", "");
         pt.compassos = Math.max(1, Math.min(MAX_COMPASSOS, enter(p.getProperty("compassos"), 1)));
@@ -343,6 +347,20 @@ public final class Patro {
     }
 
     public void desa(File f) throws IOException {
+        Properties p = props();
+        File pare = f.getAbsoluteFile().getParentFile();
+        if (pare != null) pare.mkdirs();
+        File tmp = new File(f.getPath() + ".tmp");
+        try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
+            p.store(w, "Ritme de bateria (Riffs)");
+        }
+        if (!tmp.renameTo(f)) {
+            f.delete();
+            if (!tmp.renameTo(f)) throw new IOException("no s'ha pogut desar el ritme");
+        }
+    }
+
+    private Properties props() {
         Properties p = new Properties();
         p.setProperty("kit", kit);
         p.setProperty("compassos", Integer.toString(compassos));
@@ -360,16 +378,31 @@ public final class Patro {
             for (int c : fl.cops) sb.append((char) ('0' + c));
             p.setProperty(k + "cops", sb.toString());
         }
-        File pare = f.getAbsoluteFile().getParentFile();
-        if (pare != null) pare.mkdirs();
-        File tmp = new File(f.getPath() + ".tmp");
-        try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
-            p.store(w, "Ritme de bateria (Riffs)");
+        return p;
+    }
+
+    /** L'estat en text (per desfer). */
+    public String text() {
+        java.io.StringWriter w = new java.io.StringWriter();
+        try {
+            props().store(w, null);
+        } catch (IOException e) {
+            return "";
         }
-        if (!tmp.renameTo(f)) {
-            f.delete();
-            if (!tmp.renameTo(f)) throw new IOException("no s'ha pogut desar el ritme");
+        StringBuilder sb = new StringBuilder();
+        for (String l : w.toString().split("\n")) if (!l.startsWith("#")) sb.append(l).append('\n');
+        return sb.toString();
+    }
+
+    /** Llegeix un estat en text (null si no es pot). */
+    public static Patro deText(String text) {
+        Properties p = new Properties();
+        try {
+            p.load(new java.io.StringReader(text));
+        } catch (IOException e) {
+            return null;
         }
+        return deProps(p);
     }
 
     private static int enter(String s, int def) {

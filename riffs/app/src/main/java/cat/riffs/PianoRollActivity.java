@@ -43,6 +43,9 @@ public class PianoRollActivity extends Activity {
     private LinearLayout filaCompassos;
     private TextView textSo, textCompassos, textDivisio;
     private FrameLayout botoPlay;
+    private FrameLayout botoDesfes;
+    private final Desfes desfes = new Desfes();
+    private boolean desfent = false;
     private BotoSolo botoSolo;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
 
@@ -82,6 +85,7 @@ public class PianoRollActivity extends Activity {
             finish();
             return;
         }
+        BancActivity.prepara(this);
         melodia = Melodia.llegeix(Melodia.fitxerDe(carpeta, wav));
         if (melodia == null) {
             melodia = Melodia.nova(Sinte.PRESETS[0], compas);
@@ -90,6 +94,9 @@ public class PianoRollActivity extends Activity {
             canviat = true;
         }
 
+        desfes.inici(melodia.text());
+        // el banc MIDI es llegeix d'entrada (el primer cop triga una mica)
+        if (melodia.poli()) new Thread(Banc::actual, "banc").start();
         LinearLayout arrel = Ui.pantalla(this);
 
         // barra de dalt
@@ -106,7 +113,11 @@ public class PianoRollActivity extends Activity {
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
 
-        LinearLayout so = Ui.pastilla(this, Icona.SINTE, "", Ui.SUPERFICIE2, Ui.TEXT);
+        botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
+        botoDesfes.setOnClickListener(v -> desfes());
+        dalt.addView(botoDesfes);
+        dalt.addView(Ui.espai(this, 8));
+        LinearLayout so = Ui.pastilla(this, melodia.poli() ? Icona.MIDI : Icona.SINTE, "", Ui.SUPERFICIE2, Ui.TEXT);
         textSo = (TextView) so.getChildAt(so.getChildCount() - 1);
         so.setOnClickListener(v -> triaSo());
         dalt.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
@@ -121,12 +132,12 @@ public class PianoRollActivity extends Activity {
         div.setOnClickListener(v -> triaDivisio());
         dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
-        botoSolo = new BotoSolo(this, Ui.SINTE, () -> {
+        botoSolo = new BotoSolo(this, color(), () -> {
             if (bucle != null) reprenBucle();
         });
         dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
-        botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.SINTE, 44, 20, "Escolta la frase");
+        botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, color(), 44, 20, "Escolta la frase");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
             else sonaBucle(0);
@@ -150,6 +161,7 @@ public class PianoRollActivity extends Activity {
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(true);
         roll = new PianoRollView(this);
+        roll.posaColor(color());
         roll.setPadding(0, 0, Ui.dp(this, 6), 0);
         scroll.addView(roll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -186,6 +198,7 @@ public class PianoRollActivity extends Activity {
             }
         });
         actualitzaCapcalera();
+        pintaDesfes();
         // una octava i mitja a la pantalla, centrada on hi ha les notes (o on toca segons el so)
         scroll.post(() -> {
             int h = scroll.getHeight();
@@ -220,14 +233,73 @@ public class PianoRollActivity extends Activity {
         if (melodia.compassos > 1) {
             String[] ops = new String[melodia.compassos];
             for (int i = 0; i < ops.length; i++) ops[i] = melodia.compassos > 4 ? Integer.toString(i + 1) : "Compàs " + (i + 1);
-            filaCompassos.addView(Ui.segmentat(this, ops, roll.compasVisible(), Ui.SINTE, i -> roll.posaCompas(i)));
+            filaCompassos.addView(Ui.segmentat(this, ops, roll.compasVisible(), color(), i -> roll.posaCompas(i)));
         }
         roll.invalidate();
     }
 
     // ---------- Opcions ----------
 
+    private int color() {
+        return melodia != null && melodia.poli() ? Ui.MIDI : Ui.SINTE;
+    }
+
+    /** Pista MIDI: primer la família i després l'instrument (cada un sona en tocar-lo). */
+    private void triaInstrument() {
+        if (Banc.actual() == null) {
+            Full.avis(this, "No hi ha banc de sons", "Cal baixar el banc MIDI: Gravar → botó d'ajustos → Instruments MIDI.",
+                    "Obre", () -> startActivity(new Intent(this, BancActivity.class)));
+            return;
+        }
+        List<Full.Accio> ops = new ArrayList<>();
+        int actual = melodia.programa / 8;
+        for (int f = 0; f < Gm.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.MIDI, Gm.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaDeFamilia(ff)));
+        }
+        Full.llista(this, "Instrument", "Ara: " + Gm.nom(melodia.programa) + ". Tria una família.", ops);
+    }
+
+    private void triaDeFamilia(int f) {
+        String[] noms = new String[8];
+        for (int i = 0; i < 8; i++) noms[i] = Gm.nom(f * 8 + i);
+        int triat = melodia.programa / 8 == f ? melodia.programa % 8 : -1;
+        Full.triaAmbProva(this, Gm.FAMILIES[f], "Toca un instrument per escoltar-lo; queda triat. «Fet» per tancar. "
+                        + "Totes les finestres d'aquesta pista agafaran aquest instrument.",
+                noms, triat, Ui.MIDI,
+                i -> provaInstrument(f * 8 + i),
+                i -> {
+                    int prog = f * 8 + i;
+                    if (prog == melodia.programa) return;
+                    melodia.posaInstrument(prog);
+                    canviat = true;
+                    soCanviat = true;
+                    desaMelodia();
+                    actualitzaCapcalera();
+                    if (bucle != null) reprenBucle();
+                });
+    }
+
+    /** Un arpegi i un acord curts amb l'instrument, per sentir com sona. */
+    private void provaInstrument(int prog) {
+        boolean greu = Gm.esGreu(prog);
+        int base = greu ? 36 : 60;
+        int pas = (int) Math.round(60000.0 / bpm / 2 * Sinte.MOSTREIG / 1000.0);
+        List<Sinte.Toc> t = new ArrayList<>();
+        int[] ns = {0, 4, 7, 12};
+        for (int i = 0; i < ns.length; i++) t.add(new Sinte.Toc(i * pas, i * pas + pas * 9 / 10, base + ns[i], 2));
+        for (int n : new int[]{0, 4, 7}) t.add(new Sinte.Toc(4 * pas, 8 * pas, base + n, 2));
+        float[] x = MidiSo.toca(Banc.actual(), 0, prog, t, 8 * pas, false);
+        int fi = x.length;
+        while (fi > 8 * pas && Math.abs(x[fi - 1]) < 1e-4f) fi--;
+        sona(Sinte.a16(java.util.Arrays.copyOf(x, fi), 0));
+    }
+
     private void triaSo() {
+        if (melodia.poli()) {
+            triaInstrument();
+            return;
+        }
         String[] noms = new String[Sinte.PRESETS.length];
         int triat = -1;
         for (int i = 0; i < noms.length; i++) {
@@ -315,7 +387,7 @@ public class PianoRollActivity extends Activity {
     }
 
     private void provaNota(int nota) {
-        sona(Melodia.provaNota(melodia.so, nota, 2, 380));
+        sona(melodia.prova(nota, 380));
     }
 
     /** Un trosset de frase amb el so de fàbrica, per sentir com sona abans de triar-lo. */
@@ -422,7 +494,38 @@ public class PianoRollActivity extends Activity {
         } catch (IOException e) {
             Ui.avis(this, "No s'ha pogut desar la frase");
         }
+        if (!desfent && desfes.registra(melodia.text())) pintaDesfes();
     }
+
+    private void actualitzaPantalla() {
+        actualitzaCapcalera();
+    }
+
+    private void pintaDesfes() {
+        if (botoDesfes != null) botoDesfes.setAlpha(desfes.pot() ? 1f : 0.35f);
+    }
+
+    /** Desfà l'últim canvi (notes, llargada, graella, so…). */
+    private void desfes() {
+        String foto = desfes.desfes();
+        Melodia anterior = foto == null ? null : Melodia.deText(foto);
+        if (anterior == null) {
+            Ui.avis(this, "No hi ha res per desfer");
+            pintaDesfes();
+            return;
+        }
+        if (!java.util.Objects.equals(anterior.preset, melodia.preset)) soCanviat = true;
+        melodia = anterior;
+        roll.canviaMelodia(anterior);
+        canviat = true;
+        desfent = true;
+        desaMelodia();
+        desfent = false;
+        pintaDesfes();
+        actualitzaPantalla();
+        if (bucle != null) reprenBucle();
+    }
+
 
     private void generaSo() {
         if (!canviat && new File(carpeta, wav).isFile()) return;
