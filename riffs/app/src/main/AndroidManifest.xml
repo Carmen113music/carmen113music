@@ -4,6 +4,9 @@
     <!-- Per gravar (es demana el primer cop que toques el botó) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Per baixar els kits de bateria de GitHub (no es demana: Android el dona sol) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -44,6 +47,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:screenOrientation="sensorLandscape" />
+
+        <activity
+            android:name=".KitsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".HistorialActivity"

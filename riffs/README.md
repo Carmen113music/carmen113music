@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.13:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Pròximes fases: marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.16:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14). Pròximes fases: pistes de bateria amb drumpad, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -61,6 +61,14 @@ El primer cop l'app demana permís de micròfon.
 - **Capçalera de cada pista**: **M** (silenci), **S** (solo), **cercle de gravar** (la pista on va la gravació) i el **fader** de volum (de -∞ a +6 dB; s'enganxa a 0 dB).
 - Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
 
+### Kits de bateria
+- S'hi entra des de **Diagnòstic i ajustos** (botó d'ajustos de la pantalla Gravar), apartat **Bateria virtual**: **Importa samples de bateria** obre directament el selector de carpetes; **Baixa els kits de GitHub** baixa el zip dels kits del grup (vegeu més avall) i l'importa; la fila «N kits importats» obre la llista de kits.
+- **Importar**: posa la carpeta dels kits al mòbil (per exemple a Baixades), toca el **+** i tria-la. Pots triar la carpeta d'un sol kit o la que en conté uns quants: **cada carpeta amb fitxers WAV es converteix en un kit** amb el nom de la carpeta.
+- L'app llegeix qualsevol WAV habitual (mono o estèreo; 8, 16, 24 o 32 bits; 44,1, 48, 88,2 o 96 kHz) i el **converteix** al format de l'app (mono, 44.100 Hz, 16 bits), en treu el silenci de l'inici i del final, i l'**endreça pel nom del fitxer**: Kick, Snare, Rimshot, Palmes, Hihat tancat/obert/pedal, Toms, Ride, Crash, Percussió. El que no reconeix va a **Altres**. Del nom es treu el prefix comú («Gimme_Kick1» → «Kick 1»). En acabar surt un resum amb el format original dels fitxers.
+- **Kits a GitHub**: el fitxer `kits-bateria.zip` va adjunt a una *release* del repositori amb l'etiqueta `kits` (adreça: `https://github.com/Carmen113music/carmen113music/releases/download/kits/kits-bateria.zip`). Dins el zip, una carpeta per kit (pot haver-hi una carpeta mare). Els kits que ja tens no es tornen a importar. Per canviar els kits: edita la release, esborra el zip vell i puja'n un de nou amb el mateix nom. Millor sense accents als noms de les carpetes (els zips de Windows els poden desfigurar).
+- Els kits es guarden **dins l'app** (carpeta `kits`): no cal tornar-los a importar quan instal·les una versió nova. Si es desinstal·la l'app, es perden. Els fitxers originals no es toquen.
+- Toca un kit per desplegar-ne els sons, agrupats per tipus. **Toca un so per escoltar-lo.** Els tres punts (o mantenir premut) d'un so: **Canvia el tipus** (a quina fila del drumpad sortirà), **Canvia el nom** i **Treu del kit**. D'un kit: **Canvia el nom** i **Esborra**.
+
 ### Diagnòstic
 Estat del micròfon i de l'espai, i **tria de la font del micròfon**: prova-les amb «Prova 3 segons» i queda't la que soni millor. «Copia el diagnòstic» el copia per enganxar-lo al xat.
 
@@ -83,6 +91,9 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.16** (30/10/2026) — **Baixa els kits de GitHub** (a Diagnòstic i ajustos i a la pantalla de kits buida): baixa `kits-bateria.zip` de la release «kits», l'obre i importa cada carpeta com a kit, saltant els que ja tens. L'app demana permís d'internet (Android el dona sol).
+- **2.15** (30/10/2026) — La importació de kits passa a **Diagnòstic i ajustos** (apartat «Bateria virtual», botó «Importa samples de bateria»); l'Estudi ja no té el botó de la bateria. El diagnòstic copiat diu quants kits hi ha.
+- **2.14** (30/10/2026) — **Kits de bateria**: importar carpetes de WAV des del mòbil (un o diversos kits de cop), amb conversió automàtica a mono 44.100 Hz 16 bits, silencis retallats i classificació pel nom (Kick, Snare, Hihat…). Pantalla per escoltar els sons, canviar-ne el tipus o el nom i esborrar. Primer pas de les pistes de bateria.
 - **2.13** (30/10/2026) — Taula de so: número i nom més petits en una línia, M/S/gravar en una columna fina al costat del fader (més llarg), dos dits per desplaçar-la, i es pot girar en vertical. Taulell: el desplaçament amb dos dits ja no tremola (el zoom no comença fins que els dits s'obren o es tanquen prou, i un sol sentit per gest).
 - **2.12** (30/10/2026) — Estudi: pistes numerades; el menú de la pista permet esborrar-la (puja/baixa ja es fa arrossegant); espai amb «+ Pista nova» sota l'última pista; tira de pestanyes a l'esquerra amb la nova **taula de so** (faders grossos, vúmetres i dB, M, S i gravar).
 - **2.11** (30/10/2026) — Estudi: els clips (sols o en grup) es passen a una altra pista arrossegant amunt o avall, sense moure's en el temps. La graella és una icona amb desplegable (Compàs / Temps / Lliure). Corregit: un text llarg a la barra de dalt podia amagar el play; ja no surt «Es gravarà a…».

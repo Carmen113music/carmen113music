@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -57,6 +58,8 @@ public class DiagnosticActivity extends Activity {
     private String sortidaRetard = "", nomSortidaRetard = "";
     private boolean provantRetard = false;
     private LinearLayout llistaRetards;
+    private LinearLayout filaKits;
+    private TextView textKits;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -137,6 +140,29 @@ public class DiagnosticActivity extends Activity {
         posaAjudaRetard();
         mostraMesures();
 
+        // Bateria virtual: importar kits de samples
+        cos.addView(Ui.etiqueta(this, "Bateria virtual"), Ui.ample(this, 28));
+        TextView ajudaKits = Ui.text(this, "Baixa els kits del grup des de GitHub, o tria una carpeta de kits (WAV) del mòbil. Cada carpeta amb WAV es converteix en un kit: "
+                + "l'app converteix els sons, en treu el silenci i els endreça pel nom (Kick, Snare, Hihat…). Només cal fer-ho una vegada.", 14, Ui.SUAU);
+        ajudaKits.setLineSpacing(0, 1.2f);
+        cos.addView(ajudaKits, Ui.ample(this, 8));
+        LinearLayout importa = Ui.pastilla(this, Icona.BATERIA, "Importa samples de bateria", Ui.GUITARRA, Ui.SOBRE_COLOR);
+        importa.setOnClickListener(v -> obreKits(KitsActivity.EXTRA_IMPORTA));
+        cos.addView(importa, Ui.ample(this, 12));
+        LinearLayout baixa = Ui.pastilla(this, Icona.BAIXA, "Baixa els kits de GitHub", Ui.SUPERFICIE2, Ui.TEXT);
+        baixa.setOnClickListener(v -> obreKits(KitsActivity.EXTRA_BAIXA));
+        cos.addView(baixa, Ui.ample(this, 8));
+        filaKits = Ui.targeta(this);
+        filaKits.addView(Ui.rajola(this, Icona.BATERIA, Ui.GUITARRA, Ui.alfa(Ui.GUITARRA, 36), 40));
+        textKits = Ui.unaLinia(Ui.negreta(this, "", 15, Ui.TEXT));
+        LinearLayout.LayoutParams lk = Ui.pes(1);
+        lk.leftMargin = Ui.dp(this, 12);
+        filaKits.addView(textKits, lk);
+        filaKits.addView(Ui.imatge(this, Icona.XEVRO, Ui.APAGAT, 20), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 24)));
+        filaKits.setOnClickListener(v -> obreKits(null));
+        cos.addView(filaKits, Ui.ample(this, 10));
+        ompleKits();
+
         cos.addView(Ui.etiqueta(this, "Estat"), Ui.ample(this, 28));
         estat = Ui.text(this, "", 13, Ui.TEXT);
         estat.setTextIsSelectable(true);
@@ -163,6 +189,19 @@ public class DiagnosticActivity extends Activity {
         estat.setText(textDiagnostic());
     }
 
+    private void obreKits(String accio) {
+        Intent i = new Intent(this, KitsActivity.class);
+        if (accio != null) i.putExtra(accio, true);
+        startActivity(i);
+    }
+
+    private void ompleKits() {
+        if (filaKits == null) return;
+        int n = Kits.llista(KitsActivity.arrel(this)).size();
+        filaKits.setVisibility(n == 0 ? View.GONE : View.VISIBLE);
+        textKits.setText(n == 1 ? "1 kit importat" : n + " kits importats");
+    }
+
     private String textDiagnostic() {
         StringBuilder s = new StringBuilder();
         String versio = "?";
@@ -171,6 +210,7 @@ public class DiagnosticActivity extends Activity {
         } catch (PackageManager.NameNotFoundException ignored) {
         }
         s.append("Riffs ").append(versio).append('\n');
+        s.append("Kits de bateria: ").append(Kits.llista(KitsActivity.arrel(this)).size()).append('\n');
         s.append("Mòbil: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                 .append(" · Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
         boolean permis = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
@@ -631,6 +671,7 @@ public class DiagnosticActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ompleKits();
         posaAjudaRetard();
         ompleRetards();
     }
