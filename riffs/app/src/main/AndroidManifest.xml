@@ -59,6 +59,11 @@
             android:screenOrientation="sensorLandscape" />
 
         <activity
+            android:name=".TereminActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".KitsActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

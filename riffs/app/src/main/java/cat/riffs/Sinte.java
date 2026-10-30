@@ -324,7 +324,104 @@ public final class Sinte {
 
     public static Preset preset(String nom) {
         for (Preset p : PRESETS) if (p.nom.equals(nom)) return p;
+        for (Preset p : PRESETS_TEREMIN) if (p.nom.equals(nom)) return p;
         return null;
+    }
+
+    /** Sons del teremin: el to i el volum els porta el dit; el glide suavitza el to, i l'envolupant només fa d'entrada i sortida. */
+    public static final Preset[] PRESETS_TEREMIN = presetsTeremin();
+
+    private static So teremin() {
+        So o = new So();
+        o.a = 25;
+        o.d = 100;
+        o.s = 1;
+        o.r = 160;
+        o.fa = 0;
+        o.fs = 1;
+        o.envFiltre = 0;
+        o.seguiment = 0.6;
+        o.resso = 0;
+        o.glideMs = 18;
+        return o;
+    }
+
+    private static Preset[] presetsTeremin() {
+        So t1 = teremin();         // clàssic: gairebé pur, amb vibrato
+        t1.ona1 = SINUS;
+        t1.ona2 = TRIANGLE;
+        t1.mescla2 = 0.25;
+        t1.tallHz = 3500;
+        t1.lfoHz = 5.5;
+        t1.lfoTo = 12;
+        t1.lfoRetardMs = 300;
+        t1.distorsio = 0.08;
+
+        So t2 = teremin();         // de pel·lícula antiga: més aspre
+        t2.ona1 = TRIANGLE;
+        t2.ona2 = QUADRADA;
+        t2.pols = 0.42;
+        t2.mescla2 = 0.25;
+        t2.tallHz = 1800;
+        t2.resso = 0.2;
+        t2.lfoHz = 6;
+        t2.lfoTo = 22;
+        t2.lfoRetardMs = 200;
+        t2.distorsio = 0.3;
+        t2.volumDb = -2;
+
+        So t3 = teremin();         // vidre: sinus amb l'octava a sobre
+        t3.ona1 = SINUS;
+        t3.ona2 = SINUS;
+        t3.semitons2 = 12;
+        t3.mescla2 = 0.3;
+        t3.tallHz = 6000;
+        t3.r = 350;
+        t3.lfoHz = 4.5;
+        t3.lfoTo = 8;
+
+        So t4 = teremin();         // veu: serra amb el filtre ressonant (sona com una vocal)
+        t4.ona1 = SERRA;
+        t4.tallHz = 650;
+        t4.resso = 0.6;
+        t4.seguiment = 0.8;
+        t4.lfoHz = 5;
+        t4.lfoTo = 15;
+        t4.lfoFiltre = 0.15;
+        t4.lfoRetardMs = 250;
+        t4.volumDb = -3;
+
+        So t5 = teremin();         // violoncel: dues serres, entrada suau
+        t5.ona1 = SERRA;
+        t5.ona2 = SERRA;
+        t5.mescla2 = 0.5;
+        t5.cents2 = 8;
+        t5.tallHz = 1300;
+        t5.resso = 0.15;
+        t5.a = 60;
+        t5.r = 220;
+        t5.lfoHz = 5.2;
+        t5.lfoTo = 18;
+        t5.lfoRetardMs = 400;
+        t5.volumDb = 1;
+
+        So t6 = teremin();         // sirena: quadrada brillant i distorsionada, llisca molt
+        t6.ona1 = QUADRADA;
+        t6.pols = 0.5;
+        t6.tallHz = 2600;
+        t6.resso = 0.25;
+        t6.glideMs = 70;
+        t6.distorsio = 0.45;
+        t6.volumDb = -5;
+
+        return new Preset[]{
+                new Preset("Teremin clàssic", false, t1),
+                new Preset("Teremin de pel·lícula", false, t2),
+                new Preset("Teremin de vidre", false, t3),
+                new Preset("Teremin veu", false, t4),
+                new Preset("Teremin violoncel", false, t5),
+                new Preset("Teremin sirena", false, t6),
+        };
     }
 
     // ---------- So ----------
@@ -432,6 +529,11 @@ public final class Sinte {
                 etapaF = 1;
                 desDeNota = 0;
             }
+        }
+
+        /** Canvia el to que ha de sonar (pot tenir decimals: teremin). Hi llisca amb el glide del so. */
+        public void posaNota(double nota) {
+            notaObjectiu = nota;
         }
 
         /** Deixa anar la nota (comença la cua). */

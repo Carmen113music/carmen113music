@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -398,6 +398,15 @@ public class Icona extends Drawable {
                 c.drawArc(r, 0, 180, false, traz);
                 linia(c, 10.5f, 10.5f, 6, 3.5f);
                 linia(c, 13.5f, 10.5f, 18, 3.5f);
+                break;
+            case TEREMIN:
+                // caixa amb l'antena dreta i l'antena en anella
+                r.set(3, 15, 17, 20);
+                c.drawRoundRect(r, 1.5f, 1.5f, traz);
+                linia(c, 14, 15, 14, 3);
+                r.set(17, 15.5f, 22, 18.5f);
+                c.drawOval(r, traz);
+                linia(c, 6.5f, 17.5f, 9, 17.5f);
                 break;
             case SINTE:
                 // teclat: tres tecles blanques i dues de negres

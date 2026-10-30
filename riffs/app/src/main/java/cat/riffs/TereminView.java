@@ -1,0 +1,180 @@
+package cat.riffs;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.view.MotionEvent;
+import android.view.View;
+
+/**
+ * Superfície per tocar el teremin: una quadrícula amb un punt al mig. Amb el dit a la dreta del punt sona més agut,
+ * a l'esquerra més greu (una línia per semitò, més marcada a cada Do); amunt més fort, avall més fluix.
+ * Només compta un dit. Si «notes justes» està encès, el to salta a la nota més propera (amb el glide del so).
+ */
+public class TereminView extends View {
+
+    public interface Oient {
+        /** {@code posat}: el dit es posa ara; després, a cada moviment, {@code posat} = false. */
+        void toca(double nota, double vol, boolean posat, long nanos);
+
+        void aixeca(long nanos);
+    }
+
+    /** Semitons a cada costat del punt del mig. */
+    public static final int RANG = 12;
+
+    private int centre = 72;
+    private boolean justes = false;
+    private Oient oient;
+    private int dit = -1;
+    private float xd = -1, yd = -1;
+    private double notaAra, volAra;
+
+    private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final float d;
+
+    public TereminView(Context c) {
+        super(c);
+        d = c.getResources().getDisplayMetrics().density;
+        p.setTypeface(Ui.MITJA);
+    }
+
+    public void posaOient(Oient o) {
+        oient = o;
+    }
+
+    public void posaCentre(int nota) {
+        centre = Math.max(Melodia.NOTA_MIN + RANG, Math.min(Melodia.NOTA_MAX - RANG, nota));
+        invalidate();
+    }
+
+    public int centre() {
+        return centre;
+    }
+
+    public void posaJustes(boolean j) {
+        justes = j;
+    }
+
+    public boolean justes() {
+        return justes;
+    }
+
+    private double notaDeX(float x) {
+        double n = centre + (x / Math.max(1, getWidth()) - 0.5) * 2 * RANG;
+        return justes ? Math.round(n) : n;
+    }
+
+    private double volDeY(float y) {
+        return Math.max(0, Math.min(1, 1 - y / Math.max(1, getHeight())));
+    }
+
+    private float xDeNota(double n) {
+        return (float) ((0.5 + (n - centre) / (2.0 * RANG)) * getWidth());
+    }
+
+    @Override
+    protected void onDraw(Canvas c) {
+        float w = getWidth(), h = getHeight();
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Ui.SUPERFICIE);
+        c.drawRoundRect(0, 0, w, h, 14 * d, 14 * d, p);
+        // línies de volum (cada quart)
+        p.setColor(Ui.LINIA);
+        for (int k = 1; k < 4; k++) c.drawRect(0, h * k / 4f - 0.5f * d, w, h * k / 4f + 0.5f * d, p);
+        // una línia per semitò; més forta a cada Do, amb el nom
+        p.setTextSize(11 * d);
+        for (int n = centre - RANG; n <= centre + RANG; n++) {
+            float x = xDeNota(n);
+            boolean esDo = Math.floorMod(n, 12) == 0;
+            p.setColor(esDo ? Ui.alfa(Ui.TEXT, 90) : Melodia.esNegra(n) ? Ui.alfa(Ui.TEXT, 14) : Ui.alfa(Ui.TEXT, 30));
+            float g = (esDo ? 1.5f : 0.8f) * d;
+            c.drawRect(x - g / 2, 0, x + g / 2, h, p);
+            if (esDo || n == centre) {
+                p.setColor(Ui.SUAU);
+                String t = Melodia.nomNota(n);
+                c.drawText(t, x + 4 * d, h - 8 * d, p);
+            }
+        }
+        // rètols de volum
+        p.setColor(Ui.APAGAT);
+        c.drawText("fort", 8 * d, 16 * d, p);
+        c.drawText("fluix", 8 * d, h - 24 * d, p);
+        // el punt del mig
+        p.setColor(Ui.alfa(Ui.TEREMIN, 110));
+        c.drawCircle(w / 2f, h / 2f, 7 * d, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1.5f * d);
+        c.drawCircle(w / 2f, h / 2f, 14 * d, p);
+        p.setStyle(Paint.Style.FILL);
+        // el dit
+        if (dit >= 0) {
+            float x = justes ? xDeNota(notaAra) : xd;
+            p.setColor(Ui.alfa(Ui.TEREMIN, 60));
+            c.drawRect(x - 1 * d, 0, x + 1 * d, h, p);
+            c.drawRect(0, yd - 1 * d, w, yd + 1 * d, p);
+            float radi = (float) (14 + 22 * volAra) * d;
+            p.setColor(Ui.alfa(Ui.TEREMIN, 90));
+            c.drawCircle(x, yd, radi, p);
+            p.setColor(Ui.TEREMIN);
+            c.drawCircle(x, yd, 8 * d, p);
+            // nota i desafinació
+            long cents = Math.round((notaAra - Math.round(notaAra)) * 100);
+            String t = Melodia.nomNota((int) Math.round(notaAra)) + (cents == 0 ? "" : String.format(" %+d", cents));
+            p.setTextSize(15 * d);
+            p.setColor(Ui.TEXT);
+            float tx = Math.min(w - p.measureText(t) - 8 * d, x + radi + 6 * d);
+            c.drawText(t, Math.max(8 * d, tx), Math.max(20 * d, yd - radi - 6 * d), p);
+        }
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        int acc = ev.getActionMasked();
+        long nanos = ev.getEventTime() * 1_000_000L;
+        switch (acc) {
+            case MotionEvent.ACTION_DOWN: {
+                dit = ev.getPointerId(0);
+                getParent().requestDisallowInterceptTouchEvent(true);
+                mou(ev.getX(0), ev.getY(0), true, nanos);
+                return true;
+            }
+            case MotionEvent.ACTION_MOVE: {
+                int i = ev.findPointerIndex(dit);
+                if (dit < 0 || i < 0) return true;
+                // tots els punts que hi ha hagut entre dos esdeveniments (el dit es mou de pressa)
+                for (int h = 0; h < ev.getHistorySize(); h++) {
+                    mou(ev.getHistoricalX(i, h), ev.getHistoricalY(i, h), false, ev.getHistoricalEventTime(h) * 1_000_000L);
+                }
+                mou(ev.getX(i), ev.getY(i), false, nanos);
+                return true;
+            }
+            case MotionEvent.ACTION_POINTER_UP:
+                if (ev.getPointerId(ev.getActionIndex()) != dit) return true;
+                // el dit que tocava s'aixeca: s'acaba (els altres dits no compten)
+                aixeca(nanos);
+                return true;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (dit >= 0) aixeca(nanos);
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    private void mou(float x, float y, boolean posat, long nanos) {
+        xd = Math.max(0, Math.min(getWidth(), x));
+        yd = Math.max(0, Math.min(getHeight(), y));
+        notaAra = notaDeX(xd);
+        volAra = volDeY(yd);
+        invalidate();
+        if (oient != null) oient.toca(notaAra, volAra, posat, nanos);
+    }
+
+    private void aixeca(long nanos) {
+        dit = -1;
+        invalidate();
+        if (oient != null) oient.aixeca(nanos);
+    }
+}

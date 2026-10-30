@@ -20,6 +20,9 @@ final class SinteViu {
     private AudioTrack track;
     private Thread fil;
     private volatile boolean viu;
+    // teremin: to i volum continus (els posa el dit)
+    private volatile double notaCont = 60, volCont = 0;
+    private volatile boolean teremin = false;
 
     /** {@code guanyPista}: el fader de la pista (1 = 0 dB). */
     SinteViu(Sinte.So so, double guanyPista) {
@@ -70,20 +73,46 @@ final class SinteViu {
         cua.add(new int[]{-1, 0});
     }
 
+    /** Teremin: el dit es posa (comença a sonar) a aquest to (amb decimals) i volum (0 a 1). */
+    void engega(double nota, double vol) {
+        teremin = true;
+        notaCont = nota;
+        volCont = vol;
+        cua.add(new int[]{(int) Math.round(nota), 2});   // 2 = començar el teremin
+    }
+
+    /** Teremin: el dit es mou. */
+    void posa(double nota, double vol) {
+        notaCont = nota;
+        volCont = vol;
+    }
+
     private void bucle() {
         Sinte.Veu veu = new Sinte.Veu(so);
         short[] tros = new short[TROS];
+        double cG = 1 - Math.exp(-1.0 / (0.008 * Sinte.MOSTREIG));
+        double g = 1;
         while (viu) {
             int[] e;
             while ((e = cua.poll()) != null) {
-                if (e[0] < 0) veu.deixa();
-                else veu.toca(e[0], 2, e[1] == 1);
+                if (e[0] < 0) {
+                    veu.deixa();
+                } else if (e[1] == 2) {
+                    veu.toca(e[0], 2, false);
+                    veu.notaAra = notaCont;
+                    g = Gest.guanyDeVolum(volCont);
+                } else {
+                    veu.toca(e[0], 2, e[1] == 1);
+                }
             }
+            if (teremin) veu.posaNota(notaCont);
+            double objectiu = teremin ? Gest.guanyDeVolum(volCont) : 1;
             if (veu.callada()) {
                 java.util.Arrays.fill(tros, (short) 0);
             } else {
                 for (int i = 0; i < TROS; i++) {
-                    float v = veu.mostra() * guany;
+                    g += (objectiu - g) * cG;
+                    float v = (float) (veu.mostra() * guany * g);
                     float av = Math.abs(v);
                     if (av > 0.9f) v = Math.signum(v) * (0.9f + 0.1f * (float) Math.tanh((av - 0.9f) / 0.1f));
                     tros[i] = (short) Math.round(v * 32767f);

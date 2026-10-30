@@ -50,14 +50,27 @@ public final class Projecte {
         return wav != null && wav.startsWith(DIR_SINTE + "/");
     }
 
-    /** So generat per l'app (bateria o sinte), no una gravació: cada finestra és un ritme o una frase sencera. */
-    public static boolean esGenerat(String wav) {
-        return esBateria(wav) || esSinte(wav);
+    /** Carpeta amagada on van els gestos i el so de les pistes de teremin. */
+    public static final String DIR_TEREMIN = ".teremin";
+
+    /** Si un so és d'una pista de teremin (generat a partir d'un gest gravat). */
+    public static boolean esTeremin(String wav) {
+        return wav != null && wav.startsWith(DIR_TEREMIN + "/");
     }
 
-    /** Nom de les preses generades: «Bateria» o «Sinte». */
+    /** So generat per l'app (bateria, sinte o teremin), no una gravació: cada finestra és un ritme o una frase sencera. */
+    public static boolean esGenerat(String wav) {
+        return esBateria(wav) || esSinte(wav) || esTeremin(wav);
+    }
+
+    /** Instrument que es toca en directe amb el sinte (sinte de teclat o teremin): té botó de gravar. */
+    public static boolean esInstrument(String wav) {
+        return esSinte(wav) || esTeremin(wav);
+    }
+
+    /** Nom de les preses generades: «Bateria», «Sinte» o «Teremin». */
     public static String nomGenerat(String wav) {
-        return esSinte(wav) ? "Sinte" : "Bateria";
+        return esSinte(wav) ? "Sinte" : esTeremin(wav) ? "Teremin" : "Bateria";
     }
 
     /** Una gravació de la carpeta. La bandera del primer temps és seva (la comparteixen tots els seus clips). */
@@ -155,7 +168,17 @@ public final class Projecte {
             return Projecte.esSinte(wav);
         }
 
-        /** Bateria o sinte: no s'hi grava; mantenir premut posa una finestra, doble toc l'edita. */
+        /** Pista de teremin. */
+        public boolean esTeremin() {
+            return Projecte.esTeremin(wav);
+        }
+
+        /** Sinte de teclat o teremin (es grava tocant en directe). */
+        public boolean esInstrument() {
+            return Projecte.esInstrument(wav);
+        }
+
+        /** Bateria, sinte o teremin: so fet per l'app; doble toc a una finestra l'edita. */
         public boolean esGenerat() {
             return Projecte.esGenerat(wav);
         }
@@ -401,9 +424,14 @@ public final class Projecte {
         return wavLliure(DIR_SINTE + "/s");
     }
 
-    /** El mateix tipus de nom lliure que {@code wav} (bateria o sinte). */
+    /** Un nom de fitxer lliure per a un gest de teremin nou: «.teremin/t1.wav»… */
+    public String wavTereminLliure() {
+        return wavLliure(DIR_TEREMIN + "/t");
+    }
+
+    /** El mateix tipus de nom lliure que {@code wav} (bateria, sinte o teremin). */
     public String wavLliureCom(String wav) {
-        return esSinte(wav) ? wavSinteLliure() : wavBateriaLliure();
+        return esSinte(wav) ? wavSinteLliure() : esTeremin(wav) ? wavTereminLliure() : wavBateriaLliure();
     }
 
     private String wavLliure(String prefix) {
@@ -439,12 +467,12 @@ public final class Projecte {
     public Pista afegeixSinte(String wav, long duradaMs, String nom) {
         Presa pr = new Presa();
         pr.wav = wav;
-        pr.nom = "Sinte";
+        pr.nom = nomGenerat(wav);
         pr.duradaMs = duradaMs;
         preses.put(wav, pr);
         Pista p = new Pista();
         p.wav = wav;
-        p.nom = "Sinte";
+        p.nom = nomGenerat(wav);
         if (nom != null && !nom.isEmpty()) p.nomPropi = nom;
         pistes.add(p);
         return p;
@@ -459,7 +487,7 @@ public final class Projecte {
         File de = new File(carpeta, wav), a = new File(carpeta, nou);
         a.getParentFile().mkdirs();
         java.nio.file.Files.copy(de.toPath(), a.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        String ext = esSinte(wav) ? ".melodia" : ".patro";
+        String ext = esSinte(wav) ? ".melodia" : esTeremin(wav) ? ".gest" : ".patro";
         File pDe = new File(carpeta, wav.replaceAll("\\.wav$", ext));
         File pA = new File(carpeta, nou.replaceAll("\\.wav$", ext));
         if (pDe.isFile()) java.nio.file.Files.copy(pDe.toPath(), pA.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -548,6 +576,14 @@ public final class Projecte {
         List<String> r = new ArrayList<>();
         for (String w : preses.keySet()) if (esBateria(w)) r.add(w);
         for (Pista p : pistes) if (p.esBateria() && !r.contains(p.wav)) r.add(p.wav);
+        return r;
+    }
+
+    /** Tots els gestos de teremin del projecte. */
+    public List<String> wavsTeremin() {
+        List<String> r = new ArrayList<>();
+        for (String w : preses.keySet()) if (esTeremin(w)) r.add(w);
+        for (Pista p : pistes) if (p.esTeremin() && !r.contains(p.wav)) r.add(p.wav);
         return r;
     }
 

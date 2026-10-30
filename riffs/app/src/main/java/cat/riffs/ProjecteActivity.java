@@ -37,6 +37,7 @@ public class ProjecteActivity extends Activity {
     private final Map<String, short[]> audio = new HashMap<>();
     private static final int DRUMPAD = 31;
     private static final int PIANO_ROLL = 32;
+    private static final int TEREMIN = 33;
     private Motor motor;
     private boolean carregat = false;
 
@@ -72,6 +73,7 @@ public class ProjecteActivity extends Activity {
     private boolean gravantSinte = false;
     private Projecte.Pista pistaSinte;
     private GravacioNotes notesGravades;
+    private Gest.Gravacio gestGravat;      // teremin
     private SinteViu sinteViu;
     private View panellTeclat;
     private TextView textTeclat;
@@ -99,7 +101,7 @@ public class ProjecteActivity extends Activity {
                     textInfo.setText("Compte: " + Math.max(1, falten));
                 } else {
                     textInfo.setTextColor(Ui.ACCENT);
-                    textInfo.setText(gravantSinte ? "● Gravant el sinte" : "● Gravant");
+                    textInfo.setText(!gravantSinte ? "● Gravant" : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
                 }
             } else if (ms > projecte.finalMs() + 800) {
                 atura();
@@ -412,6 +414,7 @@ public class ProjecteActivity extends Activity {
             @Override
             public void obreBateria(int i, Projecte.Clip clip) {
                 if (Projecte.esSinte(clip.wav)) obrePianoRoll(clip);
+                else if (Projecte.esTeremin(clip.wav)) obreTeremin(clip);
                 else obreDrumpad(clip);
             }
         });
@@ -463,6 +466,11 @@ public class ProjecteActivity extends Activity {
             if (t.esBateria() && t.clips.isEmpty()) {
                 textInfo.setTextColor(Ui.BATERIA);
                 textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+                return;
+            }
+            if (t.esTeremin() && t.clips.isEmpty()) {
+                textInfo.setTextColor(Ui.TEREMIN);
+                textInfo.setText("Encén el botó de gravar del teremin i mantén premut el play per tocar-lo");
                 return;
             }
             if (t.esSinte() && t.clips.isEmpty()) {
@@ -718,6 +726,11 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Icona.BATERIA, "Obre el drumpad", false, () -> obreDrumpad(k)));
         }
+        if (t.esTeremin()) {
+            Projecte.Clip u = vista.unic();
+            Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
+            if (k != null) ops.add(new Full.Accio(Icona.TEREMIN, "Obre el teremin", false, () -> obreTeremin(k)));
+        }
         if (t.esSinte()) {
             Projecte.Clip u = vista.unic();
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
@@ -896,8 +909,9 @@ public class ProjecteActivity extends Activity {
             if (despres != null) despres.run();
         }));
         ops.add(new Full.Accio(Icona.SINTE, "Sinte", false, () -> triaPresetNou(despres)));
+        ops.add(new Full.Accio(Icona.TEREMIN, "Teremin", false, () -> triaPresetTeremin(despres)));
         Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits. "
-                + "Sinte: baixos i melodies amb el piano roll.", ops);
+                + "Sinte: baixos i melodies amb el piano roll. Teremin: es toca en directe lliscant el dit.", ops);
     }
 
     private void afegeixPistaAudio() {
@@ -964,6 +978,11 @@ public class ProjecteActivity extends Activity {
             posaFinestraSinte(i, ms);
             return;
         }
+        if (t.esTeremin()) {
+            textInfo.setTextColor(Ui.TEREMIN);
+            textInfo.setText("El teremin no es dibuixa: encén el seu botó de gravar i mantén premut el play per tocar-lo");
+            return;
+        }
         if (!t.esBateria()) return;
         atura();
         int compas = (int) Math.max(1, Math.floor(ms / projecte.msPerCompas()) + 1);
@@ -1025,11 +1044,11 @@ public class ProjecteActivity extends Activity {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int req, int res, android.content.Intent data) {
         super.onActivityResult(req, res, data);
-        if ((req != DRUMPAD && req != PIANO_ROLL) || data == null) return;
+        if ((req != DRUMPAD && req != PIANO_ROLL && req != TEREMIN) || data == null) return;
         String wav = data.getStringExtra(DrumpadActivity.EXTRA_WAV);
         if (wav == null) return;
         refaBateria(wav, true, 1);
-        if (req == PIANO_ROLL && data.getBooleanExtra(PianoRollActivity.EXTRA_SO_CANVIAT, false)) {
+        if (req != DRUMPAD && data.getBooleanExtra(PianoRollActivity.EXTRA_SO_CANVIAT, false)) {
             sonsIgualsALaPista(wav);
         }
         desa();
@@ -1049,6 +1068,7 @@ public class ProjecteActivity extends Activity {
         try {
             if (jaFet) durada = -1;
             else if (Projecte.esSinte(wav)) durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            else if (Projecte.esTeremin(wav)) durada = Gest.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
             else durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
         } catch (IOException e) {
             durada = -1;
@@ -1182,30 +1202,128 @@ public class ProjecteActivity extends Activity {
      * (un sinte per pista, com en un estudi de debò). Les notes de cada finestra no es toquen.
      */
     private void sonsIgualsALaPista(String wav) {
-        Melodia font = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, wav));
-        if (font == null) return;
+        boolean ter = Projecte.esTeremin(wav);
+        String preset;
+        Sinte.So so;
+        if (ter) {
+            Gest g = Gest.llegeix(Gest.fitxerDe(projecte.carpeta, wav));
+            if (g == null) return;
+            preset = g.preset;
+            so = g.so;
+        } else {
+            Melodia m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, wav));
+            if (m == null) return;
+            preset = m.preset;
+            so = m.so;
+        }
         java.util.Set<String> germans = new java.util.LinkedHashSet<>();
         for (Projecte.Pista p : projecte.pistes) {
             boolean hiEs = false;
             for (Projecte.Clip k : p.clips) if (k.wav.equals(wav)) hiEs = true;
             if (!hiEs) continue;
-            if (p.esSinte()) germans.add(p.wav);
-            for (Projecte.Clip k : p.clips) if (Projecte.esSinte(k.wav)) germans.add(k.wav);
+            if (ter ? p.esTeremin() : p.esSinte()) germans.add(p.wav);
+            for (Projecte.Clip k : p.clips) if (ter ? Projecte.esTeremin(k.wav) : Projecte.esSinte(k.wav)) germans.add(k.wav);
         }
         germans.remove(wav);
         for (String w : germans) {
-            File f = Melodia.fitxerDe(projecte.carpeta, w);
-            Melodia m = Melodia.llegeix(f);
-            if (m == null) continue;
-            m.preset = font.preset;
-            m.so = font.so.copia();
             try {
-                m.desa(f);
+                if (ter) {
+                    File f = Gest.fitxerDe(projecte.carpeta, w);
+                    Gest g = Gest.llegeix(f);
+                    if (g == null) continue;
+                    g.preset = preset;
+                    g.so = so.copia();
+                    g.desa(f);
+                } else {
+                    File f = Melodia.fitxerDe(projecte.carpeta, w);
+                    Melodia m = Melodia.llegeix(f);
+                    if (m == null) continue;
+                    m.preset = preset;
+                    m.so = so.copia();
+                    m.desa(f);
+                }
             } catch (IOException e) {
                 continue;
             }
             refaBateria(w, false, 1);
         }
+    }
+
+    // ---------- Teremin ----------
+
+    /** «Pista nova → Teremin»: quin so (després es pot canviar a la pantalla del teremin). */
+    private void triaPresetTeremin(Runnable despres) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (Sinte.Preset p : Sinte.PRESETS_TEREMIN) {
+            ops.add(new Full.Accio(Icona.TEREMIN, p.nom, false, () -> {
+                creaTeremin(p);
+                if (despres != null) despres.run();
+            }));
+        }
+        Full.llista(this, "So del teremin", "Es toca en directe: encén el botó de gravar de la pista i mantén premut el play. "
+                + "Després pots canviar el so i el que has tocat sonarà amb el nou.", ops);
+    }
+
+    /** Crea una pista de teremin buida, ja armada per gravar. */
+    private void creaTeremin(Sinte.Preset preset) {
+        atura();
+        String wav;
+        Projecte.Pista p;
+        try {
+            Gest g = Gest.nou(preset, projecte.compas);
+            wav = projecte.wavTereminLliure();
+            g.desa(Gest.fitxerDe(projecte.carpeta, wav));
+            long durada = g.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            int n = 1;
+            for (Projecte.Pista x : projecte.pistes) if (x.esTeremin()) n++;
+            synchronized (projecte) {
+                p = projecte.afegeixSinte(wav, durada, n > 1 ? "Teremin " + n : "Teremin");
+                projecte.armaRec(p);
+            }
+            carregaSo(wav);
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la pista de teremin");
+            return;
+        }
+        desa();
+        Ui.historial(this, "Pista de teremin nova («" + preset.nom + "») a «" + projecte.carpeta.getName() + "»");
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        pistes.requestLayout();
+        pistes.invalidate();
+        textInfo.setTextColor(Ui.TEREMIN);
+        textInfo.setText("Teremin a punt: mantén premut el play per tocar-lo");
+    }
+
+    /** Obre la pantalla d'una finestra de teremin (veure el gest, escoltar-lo, canviar el so). */
+    private void obreTeremin(Projecte.Clip clip) {
+        if (gravant || clip == null) return;
+        atura();
+        long compas = Math.round(clip.iniciVisible() / projecte.msPerCompas()) + 1;
+        String nomPista = "Teremin";
+        for (Projecte.Pista p : projecte.pistes) for (Projecte.Clip k : p.clips) if (k == clip) nomPista = p.nomVisible();
+        desa();
+        android.content.Intent i = new android.content.Intent(this, TereminActivity.class);
+        i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
+        i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
+        i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
+        i.putExtra(DrumpadActivity.EXTRA_NOM, nomPista + " · compàs " + compas);
+        i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
+        i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
+        startActivityForResult(i, TEREMIN);
+    }
+
+    /** El gest (per saber-ne el so) d'una pista de teremin. */
+    private Gest gestDeLaPista(Projecte.Pista t) {
+        Gest g = Gest.llegeix(Gest.fitxerDe(projecte.carpeta, t.wav));
+        if (g == null) {
+            for (Projecte.Clip k : t.clips) {
+                if (!Projecte.esTeremin(k.wav)) continue;
+                g = Gest.llegeix(Gest.fitxerDe(projecte.carpeta, k.wav));
+                if (g != null) break;
+            }
+        }
+        return g != null ? g : Gest.nou(Sinte.PRESETS_TEREMIN[0], projecte.compas);
     }
 
     /** Llegeix el so d'una presa i la seva ona perquè l'Estudi la faci sonar i la dibuixi. */
@@ -1447,8 +1565,8 @@ public class ProjecteActivity extends Activity {
     private void triaPistaGravar() {
         if (!carregat || motor == null) return;
         Projecte.Pista armada = projecte.pistaRec();
-        if (armada != null && armada.esSinte()) {
-            // el sinte es grava tocant el teclat virtual (no cal micròfon)
+        if (armada != null && armada.esInstrument()) {
+            // el sinte i el teremin es graven tocant en directe (no cal micròfon)
             comencaGravacioSinte(armada);
             return;
         }
@@ -1472,8 +1590,8 @@ public class ProjecteActivity extends Activity {
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
             if (t.esBateria()) continue;
-            if (t.esSinte()) {
-                ops.add(new Full.Accio(Icona.SINTE, t.nomVisible() + " · teclat", false, () -> {
+            if (t.esInstrument()) {
+                ops.add(new Full.Accio(t.esTeremin() ? Icona.TEREMIN : Icona.SINTE, t.nomVisible() + (t.esTeremin() ? " · teremin" : " · teclat"), false, () -> {
                     synchronized (projecte) {
                         projecte.armaRec(t);
                     }
@@ -1720,12 +1838,15 @@ public class ProjecteActivity extends Activity {
     private void comencaGravacioSinte(Projecte.Pista t) {
         if (gravant || motor == null) return;
         atura();
-        Melodia base = soDeLaPista(t);
+        boolean ter = t.esTeremin();
+        Melodia base = ter ? null : soDeLaPista(t);
+        Sinte.So so = ter ? gestDeLaPista(t).so : base.so;
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
         long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
         notesGravades = new GravacioNotes();
+        gestGravat = new Gest.Gravacio();
         pistaSinte = t;
-        sinteViu = new SinteViu(base.so, Mesclador.lineal(t.volumDb));
+        sinteViu = new SinteViu(so, Mesclador.lineal(t.volumDb));
         if (!sinteViu.comenca()) {
             sinteViu = null;
             Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
@@ -1744,7 +1865,8 @@ public class ProjecteActivity extends Activity {
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
         }
-        mostraTeclat(t, base.esGreu() ? 36 : 60);
+        if (ter) mostraTeremin(t);
+        else mostraTeclat(t, base.esGreu() ? 36 : 60);
         vista.tria(-1, null);
         actualitzaAccions();
         vista.capcalMs = iniciMs;
@@ -1817,6 +1939,143 @@ public class ProjecteActivity extends Activity {
         panellTeclat = panell;
     }
 
+    /** La quadrícula del teremin, als dos terços de baix. */
+    private void mostraTeremin(Projecte.Pista t) {
+        amagaTeclat();
+        LinearLayout panell = Ui.columna(this);
+        panell.setBackgroundColor(Ui.FONS);
+        panell.setClickable(true);
+        View vora = new View(this);
+        vora.setBackgroundColor(Ui.TEREMIN);
+        panell.addView(vora, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
+
+        TereminView pad = new TereminView(this);
+        pad.posaCentre(Ui.prefs(this).getInt("teremin_centre", 72));
+        pad.posaJustes(Ui.prefs(this).getBoolean("teremin_justes", false));
+        LinearLayout barra = Ui.fila(this);
+        barra.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
+        barra.setGravity(Gravity.CENTER_VERTICAL);
+        barra.addView(Ui.imatge(this, Icona.TEREMIN, Ui.TEREMIN, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT)));
+        barra.addView(Ui.espai(this, 16));
+        FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
+        TextView rang = Ui.negreta(this, "", 13, Ui.SUAU);
+        FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
+        Runnable posaRang = () -> rang.setText("Mig: " + Melodia.nomNota(pad.centre()));
+        menys.setOnClickListener(v -> {
+            pad.posaCentre(pad.centre() - 12);
+            Ui.prefs(this).edit().putInt("teremin_centre", pad.centre()).apply();
+            posaRang.run();
+        });
+        mes.setOnClickListener(v -> {
+            pad.posaCentre(pad.centre() + 12);
+            Ui.prefs(this).edit().putInt("teremin_centre", pad.centre()).apply();
+            posaRang.run();
+        });
+        posaRang.run();
+        barra.addView(menys);
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(rang);
+        barra.addView(Ui.espai(this, 8));
+        barra.addView(mes);
+        barra.addView(Ui.espai(this, 12));
+        LinearLayout justes = Ui.pastilla(this, 0, "Notes justes", Ui.SUPERFICIE2, Ui.TEXT);
+        justes.setMinimumHeight(Ui.dp(this, 36));
+        TextView tj = (TextView) justes.getChildAt(justes.getChildCount() - 1);
+        Runnable pintaJustes = () -> {
+            justes.setBackground(Ui.tocable(pad.justes() ? Ui.TEREMIN : Ui.SUPERFICIE2, Ui.dp(this, 24)));
+            tj.setTextColor(pad.justes() ? Ui.SOBRE_COLOR : Ui.TEXT);
+        };
+        justes.setOnClickListener(v -> {
+            pad.posaJustes(!pad.justes());
+            Ui.prefs(this).edit().putBoolean("teremin_justes", pad.justes()).apply();
+            pintaJustes.run();
+            Ui.avis(this, pad.justes() ? "Notes justes: el to salta a la nota més propera" : "Lliure: com un teremin de debò");
+        });
+        pintaJustes.run();
+        barra.addView(justes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        textTeclat = Ui.text(this, "Dreta = agut, amunt = fort · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
+        textTeclat.setGravity(Gravity.END);
+        LinearLayout.LayoutParams lt = Ui.pes(1);
+        lt.leftMargin = Ui.dp(this, 12);
+        barra.addView(Ui.unaLinia(textTeclat), lt);
+        panell.addView(barra);
+
+        pad.posaOient(new TereminView.Oient() {
+            @Override
+            public void toca(double nota, double vol, boolean posat, long nanos) {
+                if (!gravantSinte || sinteViu == null) return;
+                if (posat) sinteViu.engega(nota, vol);
+                else sinteViu.posa(nota, vol);
+                gestGravat.posa(msDeNano(nanos), nota, vol);
+            }
+
+            @Override
+            public void aixeca(long nanos) {
+                if (!gravantSinte || sinteViu == null) return;
+                sinteViu.deixa();
+                gestGravat.aixeca(msDeNano(nanos));
+            }
+        });
+        LinearLayout.LayoutParams lk = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        lk.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 8), Ui.dp(this, 8));
+        panell.addView(pad, lk);
+
+        int alt = getWindow().getDecorView().getHeight();
+        if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, alt * 2 / 3, Gravity.BOTTOM);
+        addContentView(panell, lp);
+        panellTeclat = panell;
+    }
+
+    /** Posa el gest gravat al teremin en finestres noves (a partir de l'entrada). */
+    private void desaGestGravat(Projecte.Pista t, String motiu) {
+        textInfo.setTextColor(Ui.TEREMIN);
+        List<Object[]> gestos = gestGravat.gestos(entradaMs, projecte.msPerCompas(), Melodia.MAX_COMPASSOS);
+        if (!projecte.pistes.contains(t) || gestos.isEmpty()) {
+            textInfo.setText(motiu != null ? motiu : "No has tocat res després del compte: no s'ha desat res");
+            refresca();
+            return;
+        }
+        Gest base = gestDeLaPista(t);
+        int compasEntrada = (int) Math.round(entradaMs / projecte.msPerCompas()) + 1;
+        Projecte.Clip primer = null;
+        int finestres = 0;
+        for (Object[] o : gestos) {
+            int des = (Integer) o[0];
+            Gest g = (Gest) o[1];
+            g.compas = projecte.compas;
+            g.preset = base.preset;
+            g.so = base.so.copia();
+            try {
+                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
+                        ? t.wav : projecte.wavTereminLliure();
+                g.desa(Gest.fitxerDe(projecte.carpeta, wav));
+                long durada = g.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+                Projecte.Clip c;
+                synchronized (projecte) {
+                    c = projecte.afegeixFinestraBateria(t, wav, durada, compasEntrada + des);
+                }
+                carregaSo(wav);
+                finestres++;
+                if (primer == null) primer = c;
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar una part de la gravació");
+            }
+        }
+        desa();
+        Ui.historial(this, "Gravat el teremin «" + t.nomVisible() + "», entra al compàs " + compasEntrada
+                + (finestres > 1 ? ", " + finestres + " finestres" : ""));
+        int ip = projecte.pistes.indexOf(t);
+        if (primer != null) vista.tria(ip, primer);
+        actualitzaAccions();
+        if (taulaVisible) ompleTaula();
+        textInfo.setText(motiu != null ? motiu : "Teremin gravat · doble toc per escoltar-lo i canviar-ne el so");
+        vista.avisa();
+        refresca();
+    }
+
     private void amagaTeclat() {
         if (panellTeclat != null && panellTeclat.getParent() instanceof android.view.ViewGroup) {
             ((android.view.ViewGroup) panellTeclat.getParent()).removeView(panellTeclat);
@@ -1829,7 +2088,9 @@ public class ProjecteActivity extends Activity {
     private void aturaGravacioSinte(String motiu) {
         gravant = false;
         gravantSinte = false;
-        notesGravades.tanca(msDeNano(System.nanoTime()));
+        double araMs = msDeNano(System.nanoTime());
+        notesGravades.tanca(araMs);
+        gestGravat.aixeca(araMs);
         motor.posaClic(false);
         motor.atura();
         if (sinteViu != null) sinteViu.atura();
@@ -1840,6 +2101,10 @@ public class ProjecteActivity extends Activity {
         textInfo.setTextColor(Ui.SINTE);
         vista.capcalMs = entradaMs;
         Projecte.Pista t = pistaSinte;
+        if (t != null && t.esTeremin()) {
+            desaGestGravat(t, motiu);
+            return;
+        }
         int ppc = Patro.passosDe(projecte.compas);
         List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS);
         if (t == null || !projecte.pistes.contains(t) || frases.isEmpty()) {
@@ -1924,6 +2189,7 @@ public class ProjecteActivity extends Activity {
             double factor = projecte.msPerCompas() / vell;
             for (String w : projecte.wavsBateria()) refaBateria(w, false, factor);
             for (String w : projecte.wavsSinte()) refaBateria(w, false, factor);
+            for (String w : projecte.wavsTeremin()) refaBateria(w, false, factor);
             desa();
             mostraTempo();
             refresca();

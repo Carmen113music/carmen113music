@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.24:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.25:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22). Pròximes fases: editor del so del sinte, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -90,6 +90,17 @@ El primer cop l'app demana permís de micròfon.
   - Toca el **quadrat de dalt** per aturar: el que has tocat es posa a la pista en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos cadascuna), **ajustat a semicorxeres**, i ho pots retocar al **piano roll** (doble toc). El que toques durant el compte no es desa (si una nota comença just abans de l'entrada, comença a l'entrada).
   - Si a la pista ja hi havia finestres en aquell tros, no es treuen: sonarien juntes (com els clips d'àudio que es trepitgen).
 
+### Pistes de teremin
+- **+ Pista nova → Teremin** i tria un so: *clàssic*, *de pel·lícula*, *de vidre*, *veu*, *violoncel* o *sirena*. La pista és **rosa**, amb la icona d'una antena, i ja surt amb el **botó de gravar encès**.
+- El teremin **no es dibuixa**: es toca. **Mantén premut el play**: sona el projecte des d'un compàs abans (amb el compte i el clic) i als dos terços de baix surt una **quadrícula amb un punt al mig**:
+  - **A la dreta del punt, més agut; a l'esquerra, més greu.** Hi ha una línia per semitò (més marcada a cada Do, amb el nom) i, d'un costat a l'altre, dues octaves. El to és **continu**, com un teremin de debò: pots lliscar i fer vibrato amb el dit.
+  - **Amunt, més fort; avall, més fluix.** Quan aixeques el dit, calla.
+  - Amb **−** i **+** canvies l'octava del punt del mig (es recorda).
+  - **Notes justes**: si l'encens, el to salta a la nota més propera (més fàcil per afinar). Apagat, és lliure.
+  - Toca el **quadrat de dalt** per aturar: el que has tocat queda en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos).
+- **Es desa el gest del dit, no el so.** Amb **doble toc** a una finestra (o mantenint premut el nom de la pista → *Obre el teremin*) veus el camí del dit (el to amunt i avall, més gruixut on sonava més fort), l'escoltes en bucle (amb **Solo** o amb la resta de pistes) i pots **canviar el so**: cada so que toques sona i, en triar-lo, el que vas tocar es torna a fer amb el so nou a **totes les finestres de la pista**. El gest no s'edita: si no t'agrada, torna'l a gravar.
+- Les finestres es mouen, es retallen i es dupliquen com les altres. Si canvies el tempo, el gest es manté als mateixos compassos. Es guarda a la carpeta amagada `.teremin` de la cançó.
+
 ### Solo als editors (drumpad i piano roll)
 - El botó **Solo** de dalt tria què sona amb el play: **encès**, només el que estàs editant; **apagat** (per defecte), sona **amb la resta de pistes de l'Estudi** que no estiguin mutejades (amb els seus faders i el solo de la taula), just al tros on és la finestra, i el bucle es repeteix sobre aquell tros. La tria es recorda i és la mateixa als dos editors.
 
@@ -123,6 +134,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.25** (30/10/2026) — **Teremin**: nou tipus de pista amb 6 sons. Es toca en directe sobre una quadrícula (de costat el to, continu; amunt i avall el volum; opció «Notes justes»). Es desa el gest i no el so, així es pot canviar de so després de gravar. Pantalla del teremin per veure el gest, escoltar-lo i canviar-ne el so.
 - **2.24** (30/10/2026) — **Gravar el sinte en directe**: les pistes de sinte tenen botó de gravar; mantenint premut el play surt un **teclat virtual de dues octaves** als dos terços de baix, el sinte sona en directe (amb la mateixa veu que el piano roll) i, en aturar, el que has tocat queda en finestres noves, ajustat a semicorxeres.
 - **2.23** (30/10/2026) — Piano roll: **zoom amb dos dits** (de costat, el temps; amunt i avall, l'alçada de les files, que es recorda) i **arrossegar amb dos dits** per moure's; així és més fàcil allargar i escurçar les notes. Drumpad i piano roll: botó **Solo**; amb el Solo apagat, el bucle sona amb la resta de pistes de l'Estudi que no estan mutejades.
 - **2.22** (30/10/2026) — **Pistes de sinte**: «+ Pista nova» ara pregunta **Àudio, Bateria o Sinte**. Sinte monofònic propi (dos osciladors, sub, soroll, filtre amb ressonància i envolupant, LFO, glide i distorsió) amb **10 sons de fàbrica** (baixos i leads). **Piano roll** amb teclat de Do0 a Do6, una octava i mitja a la vista, notes que es posen, es mouen i s'allarguen amb el dit, bucle, 1–8 compassos i graella triable.
