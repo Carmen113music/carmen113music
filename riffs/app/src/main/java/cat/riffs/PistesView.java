@@ -652,7 +652,7 @@ public class PistesView extends View {
         if (y < top || y > baix) return;
         Projecte.Clip k = t.clipA(vista.ms(x));
         if (k == null) {
-            if (t.esBateria()) postDelayed(premutBuit, TEMPS_PREMUT);
+            if (t.esGenerat()) postDelayed(premutBuit, TEMPS_PREMUT);
             return;
         }
 
@@ -691,7 +691,7 @@ public class PistesView extends View {
     /** Mantenir premut un espai buit d'una pista de bateria: finestra nova on és el dit. */
     private void premutBuit() {
         if (mode != BUIT || mogut || pista < 0 || pista >= projecte.pistes.size()) return;
-        if (!projecte.pistes.get(pista).esBateria()) return;
+        if (!projecte.pistes.get(pista).esGenerat()) return;
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         mode = CAP;
         if (oient != null) oient.finestraBateria(pista, Math.max(0, Math.round(vista.ms(x0))));
@@ -881,8 +881,8 @@ public class PistesView extends View {
             return;
         }
         if (!mogut && mode == MOU && clip != null && pista >= 0 && pista < projecte.pistes.size()
-                && projecte.pistes.get(pista).esBateria()) {
-            // doble toc a una finestra de bateria: s'obre el drumpad
+                && projecte.pistes.get(pista).esGenerat()) {
+            // doble toc a una finestra de bateria o de sinte: s'obre el drumpad o el piano roll
             long ara = android.os.SystemClock.uptimeMillis();
             if (clip == darrerClipTocat && ara - darrerToc < 400) {
                 darrerClipTocat = null;

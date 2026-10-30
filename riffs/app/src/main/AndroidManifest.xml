@@ -54,6 +54,11 @@
             android:screenOrientation="sensorLandscape" />
 
         <activity
+            android:name=".PianoRollActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".KitsActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

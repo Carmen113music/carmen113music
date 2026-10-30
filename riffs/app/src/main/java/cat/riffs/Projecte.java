@@ -42,6 +42,24 @@ public final class Projecte {
         return wav != null && wav.startsWith(DIR_BATERIA + "/");
     }
 
+    /** Carpeta amagada on van les notes i el so de les pistes de sinte (piano roll). */
+    public static final String DIR_SINTE = ".sinte";
+
+    /** Si un so és d'una pista de sinte (generat pel piano roll). */
+    public static boolean esSinte(String wav) {
+        return wav != null && wav.startsWith(DIR_SINTE + "/");
+    }
+
+    /** So generat per l'app (bateria o sinte), no una gravació: cada finestra és un ritme o una frase sencera. */
+    public static boolean esGenerat(String wav) {
+        return esBateria(wav) || esSinte(wav);
+    }
+
+    /** Nom de les preses generades: «Bateria» o «Sinte». */
+    public static String nomGenerat(String wav) {
+        return esSinte(wav) ? "Sinte" : "Bateria";
+    }
+
     /** Una gravació de la carpeta. La bandera del primer temps és seva (la comparteixen tots els seus clips). */
     public static final class Presa {
         public String wav;
@@ -130,6 +148,16 @@ public final class Projecte {
         /** Pista de bateria (el seu so el fa el drumpad). */
         public boolean esBateria() {
             return Projecte.esBateria(wav);
+        }
+
+        /** Pista de sinte (el seu so el fa el piano roll). */
+        public boolean esSinte() {
+            return Projecte.esSinte(wav);
+        }
+
+        /** Bateria o sinte: no s'hi grava; mantenir premut posa una finestra, doble toc l'edita. */
+        public boolean esGenerat() {
+            return Projecte.esGenerat(wav);
         }
 
         /** Pista creada amb el «+», encara sense cap gravació pròpia. */
@@ -365,10 +393,24 @@ public final class Projecte {
 
     /** Un nom de fitxer lliure per a una pista de bateria nova: «.bateria/b1.wav», «.bateria/b2.wav»… */
     public String wavBateriaLliure() {
+        return wavLliure(DIR_BATERIA + "/b");
+    }
+
+    /** Un nom de fitxer lliure per a una frase de sinte nova: «.sinte/s1.wav», «.sinte/s2.wav»… */
+    public String wavSinteLliure() {
+        return wavLliure(DIR_SINTE + "/s");
+    }
+
+    /** El mateix tipus de nom lliure que {@code wav} (bateria o sinte). */
+    public String wavLliureCom(String wav) {
+        return esSinte(wav) ? wavSinteLliure() : wavBateriaLliure();
+    }
+
+    private String wavLliure(String prefix) {
         Set<String> usats = new HashSet<>(preses.keySet());
         for (Pista p : pistes) usats.add(p.wav);
         for (int i = 1; ; i++) {
-            String w = DIR_BATERIA + "/b" + i + ".wav";
+            String w = prefix + i + ".wav";
             if (!usats.contains(w) && !new File(carpeta, w).exists()) return w;
         }
     }
@@ -393,22 +435,38 @@ public final class Projecte {
         return p;
     }
 
+    /** Afegeix una pista de sinte buida al final ({@code wav} és la seva primera frase, ja feta). */
+    public Pista afegeixSinte(String wav, long duradaMs, String nom) {
+        Presa pr = new Presa();
+        pr.wav = wav;
+        pr.nom = "Sinte";
+        pr.duradaMs = duradaMs;
+        preses.put(wav, pr);
+        Pista p = new Pista();
+        p.wav = wav;
+        p.nom = "Sinte";
+        if (nom != null && !nom.isEmpty()) p.nomPropi = nom;
+        pistes.add(p);
+        return p;
+    }
+
     /**
      * Fa una còpia independent d'un ritme de bateria (el .patro i el seu so) amb un nom nou,
      * perquè una finestra duplicada es pugui editar sense tocar l'original. Torna el nom del so nou.
      */
     public String copiaBateria(String wav) throws IOException {
-        String nou = wavBateriaLliure();
+        String nou = wavLliureCom(wav);
         File de = new File(carpeta, wav), a = new File(carpeta, nou);
         a.getParentFile().mkdirs();
         java.nio.file.Files.copy(de.toPath(), a.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        File pDe = new File(carpeta, wav.replaceAll("\\.wav$", ".patro"));
-        File pA = new File(carpeta, nou.replaceAll("\\.wav$", ".patro"));
+        String ext = esSinte(wav) ? ".melodia" : ".patro";
+        File pDe = new File(carpeta, wav.replaceAll("\\.wav$", ext));
+        File pA = new File(carpeta, nou.replaceAll("\\.wav$", ext));
         if (pDe.isFile()) java.nio.file.Files.copy(pDe.toPath(), pA.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         Presa vella = preses.get(wav);
         Presa pr = new Presa();
         pr.wav = nou;
-        pr.nom = "Bateria";
+        pr.nom = nomGenerat(wav);
         pr.duradaMs = vella != null ? vella.duradaMs : 0;
         preses.put(nou, pr);
         return nou;
@@ -436,7 +494,7 @@ public final class Projecte {
         if (pr == null) {
             pr = new Presa();
             pr.wav = wav;
-            pr.nom = "Bateria";
+            pr.nom = nomGenerat(wav);
             preses.put(wav, pr);
         }
         pr.duradaMs = duradaMs;
@@ -474,7 +532,7 @@ public final class Projecte {
     public void escalaBateria(double factor) {
         for (Pista p : pistes) {
             for (Clip c : p.clips) {
-                if (!esBateria(c.wav)) continue;
+                if (!esGenerat(c.wav)) continue;
                 c.posMs = Math.round(c.posMs * factor);
                 c.iniciMs = Math.round(c.iniciMs * factor);
                 c.fiMs = Math.round(c.fiMs * factor);
@@ -490,6 +548,14 @@ public final class Projecte {
         List<String> r = new ArrayList<>();
         for (String w : preses.keySet()) if (esBateria(w)) r.add(w);
         for (Pista p : pistes) if (p.esBateria() && !r.contains(p.wav)) r.add(p.wav);
+        return r;
+    }
+
+    /** Totes les frases de sinte del projecte. */
+    public List<String> wavsSinte() {
+        List<String> r = new ArrayList<>();
+        for (String w : preses.keySet()) if (esSinte(w)) r.add(w);
+        for (Pista p : pistes) if (p.esSinte() && !r.contains(p.wav)) r.add(p.wav);
         return r;
     }
 
@@ -575,10 +641,10 @@ public final class Projecte {
         for (Biblioteca.Gravacio g : gs) hiSon.add(g.wav.getName());
         // la bateria no és a la biblioteca: hi és si hi ha el seu so
         for (String w : new ArrayList<>(preses.keySet())) {
-            if (esBateria(w) && new File(carpeta, w).isFile()) hiSon.add(w);
+            if (esGenerat(w) && new File(carpeta, w).isFile()) hiSon.add(w);
         }
         for (Pista p : pistes) {
-            if (p.esBateria() && new File(carpeta, p.wav).isFile()) hiSon.add(p.wav);
+            if (p.esGenerat() && new File(carpeta, p.wav).isFile()) hiSon.add(p.wav);
         }
 
         // gravacions esborrades de la biblioteca: fora les preses i els seus clips

@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.21:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17). Pròximes fases: bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.22:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22). Pròximes fases: editor del so del sinte, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -62,7 +62,7 @@ El primer cop l'app demana permís de micròfon.
 - Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
 
 ### Pistes de bateria (drumpad)
-- **+ Pista nova** pregunta de quin tipus: **Àudio** (per gravar guitarra o veu, com sempre) o **Bateria**. (Més endavant hi haurà *Instrument*, per als sintes.)
+- **+ Pista nova** pregunta de quin tipus: **Àudio** (per gravar guitarra o veu, com sempre), **Bateria** o **Sinte** (vegeu més avall).
 - La pista de **bateria** és **lila**, té la icona del tambor i es crea **buida**.
 - **Mantén premut** en un espai buit de la fila de la bateria (vibra): hi apareix una **finestra amb un ritme d'un compàs**, a l'inici del compàs on tens el dit. La primera porta un ritme bàsic (bombo, caixa i hihat); les següents són una **còpia del ritme de la finestra d'abans**, per continuar-lo i fer-ne variacions sense tocar l'altra.
 - **Doble toc a una finestra** obre el **drumpad** amb el seu ritme. També: mantén premut el nom de la pista i deixa'l anar → *Obre el drumpad* (obre la finestra triada, o la primera).
@@ -71,6 +71,19 @@ El primer cop l'app demana permís de micròfon.
 - A dalt: el **kit** (canviar-lo manté els cops), la **llargada** del ritme (1 a 4 compassos; els compassos nous surten **en blanc**; amb més d'un compàs surten pestanyes per anar de l'un a l'altre, o **llisca amb dos dits de costat** per passar al compàs següent o a l'anterior) i el **play**, que fa sonar el ritme en bucle (es pot editar mentre sona). La columna que s'il·lumina segueix el so que surt de debò per l'altaveu o els auriculars.
 - En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria no tenen botó de gravar.
 - Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
+
+### Pistes de sinte (piano roll)
+- **+ Pista nova → Sinte** i tria un **so de fàbrica**: *Baix sub*, *Baix gros*, *Baix àcid*, *Baix pluck*, *Lead serra*, *Lead quadrat*, *Lead suau*, *Lead brut*, *Pluck* o *Pad*. El sinte és **monofònic**: toca una sola nota alhora (com un baix o una melodia).
+- La pista de sinte és **verda**, amb la icona d'un teclat, i es crea **buida**. Funciona com la bateria: **mantén premut** un espai buit de la fila per posar-hi una **finestra d'un compàs** (les noves surten buides, amb el mateix so), i **doble toc** a la finestra per obrir el **piano roll**. També: mantén premut el nom de la pista i deixa'l anar → *Obre el piano roll*. **Duplica** fa còpies independents.
+- **Piano roll** (en horitzontal): a l'esquerra un **teclat** (de Do0 a Do6; el Do central és el **Do3**) i a la dreta la graella del compàs. Es veu una **octava i mitja**; **llisca amunt o avall** per anar a les notes greus o agudes. S'obre a la zona de les notes que ja hi ha (o a la dels baixos o dels leads, segons el so).
+  - **Toca una casella buida**: hi posa una nota (sona). **Toca una nota**: la treu.
+  - **Arrossega una nota** per moure-la de costat (en el temps) o amunt i avall (d'altura; va sonant a cada nota).
+  - **Arrossega la punta dreta** d'una nota per allargar-la o escurçar-la. Les notes noves surten amb la llargada de l'última que has allargat (al principi, una corxera).
+  - Com que només sona una nota alhora, si en poses una a sobre d'una altra, la de davant s'escurça (o es treu).
+  - **Toca el teclat** per escoltar una nota.
+  - A dalt: el **so** (cada so que toques sona amb una frase curta i queda triat; s'aplica a **totes les finestres de la pista**), la **llargada** (1 a 8 compassos), la **graella** (4, 8, 3 o 6 caselles per temps) i el **play** (en bucle; es pot editar mentre sona). Amb més d'un compàs, pestanyes o **dos dits de costat** per canviar de compàs.
+  - En els sons amb *glide* (els leads i el *Baix àcid*), dues notes que es toquen (l'una acaba on comença l'altra) **llisquen** l'una cap a l'altra; si vols que no llisquin, deixa una casella buida entre mig.
+- En sortir, la frase es converteix en el so de la finestra. Si canvies el tempo o el compàs del projecte, es torna a fer al tempo nou. Les frases es guarden a la carpeta amagada `.sinte` de la cançó.
 
 ### Kits de bateria
 - S'hi entra des de **Diagnòstic i ajustos** (botó d'ajustos de la pantalla Gravar), apartat **Bateria virtual**: **Importa samples de bateria** obre directament el selector de carpetes; **Baixa els kits de GitHub** baixa el zip dels kits del grup (vegeu més avall) i l'importa; la fila «N kits importats» obre la llista de kits.
@@ -102,6 +115,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.22** (30/10/2026) — **Pistes de sinte**: «+ Pista nova» ara pregunta **Àudio, Bateria o Sinte**. Sinte monofònic propi (dos osciladors, sub, soroll, filtre amb ressonància i envolupant, LFO, glide i distorsió) amb **10 sons de fàbrica** (baixos i leads). **Piano roll** amb teclat de Do0 a Do6, una octava i mitja a la vista, notes que es posen, es mouen i s'allarguen amb el dit, bucle, 1–8 compassos i graella triable.
 - **2.21** (30/10/2026) — Drumpad: la columna que s'il·lumina va sincronitzada amb el que sona (abans anava per davant pel retard del mòbil). Botó **Graella** per triar 4, 8, 3 o 6 caselles per temps (2 o 4 en 6/8).
 - **2.20** (30/10/2026) — Drumpad: en triar el so d'una fila, cada so que toques sona i el panell es queda obert (*Fet* per tancar). Els compassos nous surten en blanc. Dos dits de costat sobre la graella per canviar de compàs.
 - **2.19** (30/10/2026) — Bateria: **Duplica** fa còpies independents de les finestres (cada una amb el seu ritme), per poder canviar-ne una sense tocar les altres.

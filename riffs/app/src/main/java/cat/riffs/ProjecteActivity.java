@@ -36,6 +36,7 @@ public class ProjecteActivity extends Activity {
     private final Vista vista = new Vista();
     private final Map<String, short[]> audio = new HashMap<>();
     private static final int DRUMPAD = 31;
+    private static final int PIANO_ROLL = 32;
     private Motor motor;
     private boolean carregat = false;
 
@@ -403,7 +404,8 @@ public class ProjecteActivity extends Activity {
 
             @Override
             public void obreBateria(int i, Projecte.Clip clip) {
-                obreDrumpad(clip);
+                if (Projecte.esSinte(clip.wav)) obrePianoRoll(clip);
+                else obreDrumpad(clip);
             }
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -454,6 +456,11 @@ public class ProjecteActivity extends Activity {
             if (t.esBateria() && t.clips.isEmpty()) {
                 textInfo.setTextColor(Ui.BATERIA);
                 textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+                return;
+            }
+            if (t.esSinte() && t.clips.isEmpty()) {
+                textInfo.setTextColor(Ui.SINTE);
+                textInfo.setText("Mantén premut a la fila del sinte per posar-hi una frase");
                 return;
             }
             if (t.clips.isEmpty() && t.esBuida()) {
@@ -523,7 +530,7 @@ public class ProjecteActivity extends Activity {
             }
         });
         rec.setTag("rec");
-        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
+        if (t.esGenerat()) rec.setVisibility(View.INVISIBLE);
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
@@ -704,6 +711,11 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Icona.BATERIA, "Obre el drumpad", false, () -> obreDrumpad(k)));
         }
+        if (t.esSinte()) {
+            Projecte.Clip u = vista.unic();
+            Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
+            if (k != null) ops.add(new Full.Accio(Icona.SINTE, "Obre el piano roll", false, () -> obrePianoRoll(k)));
+        }
         ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
                 Full.demanaText(this, "Nom de la pista", t.nomVisible(), "Desa", text -> {
                     String n = text == null ? "" : text.trim();
@@ -796,15 +808,16 @@ public class ProjecteActivity extends Activity {
             nous = Projecte.duplica(t, new java.util.ArrayList<>(vista.triats));
             // a la bateria, cada còpia té el seu propi ritme (per poder-la canviar sense tocar l'original)
             for (Projecte.Clip c : nous) {
-                if (!Projecte.esBateria(c.wav)) continue;
+                if (!Projecte.esGenerat(c.wav)) continue;
                 try {
                     c.wav = projecte.copiaBateria(c.wav);
                 } catch (IOException e) {
-                    Ui.avis(this, "No s'ha pogut copiar el ritme: la còpia el comparteix");
+                    Ui.avis(this, Projecte.esSinte(c.wav) ? "No s'ha pogut copiar la frase: la còpia la comparteix"
+                            : "No s'ha pogut copiar el ritme: la còpia el comparteix");
                 }
             }
         }
-        for (Projecte.Clip c : nous) if (Projecte.esBateria(c.wav)) carregaSo(c.wav);
+        for (Projecte.Clip c : nous) if (Projecte.esGenerat(c.wav)) carregaSo(c.wav);
         vista.triats.clear();
         vista.triats.addAll(nous);
         desa();
@@ -875,7 +888,9 @@ public class ProjecteActivity extends Activity {
             creaBateria();
             if (despres != null) despres.run();
         }));
-        Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits.", ops);
+        ops.add(new Full.Accio(Icona.SINTE, "Sinte", false, () -> triaPresetNou(despres)));
+        Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits. "
+                + "Sinte: baixos i melodies amb el piano roll.", ops);
     }
 
     private void afegeixPistaAudio() {
@@ -938,6 +953,10 @@ public class ProjecteActivity extends Activity {
     private void posaFinestraBateria(int i, long ms) {
         if (gravant || i < 0 || i >= projecte.pistes.size()) return;
         Projecte.Pista t = projecte.pistes.get(i);
+        if (t.esSinte()) {
+            posaFinestraSinte(i, ms);
+            return;
+        }
         if (!t.esBateria()) return;
         atura();
         int compas = (int) Math.max(1, Math.floor(ms / projecte.msPerCompas()) + 1);
@@ -997,10 +1016,13 @@ public class ProjecteActivity extends Activity {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int req, int res, android.content.Intent data) {
         super.onActivityResult(req, res, data);
-        if (req != DRUMPAD || data == null) return;
+        if ((req != DRUMPAD && req != PIANO_ROLL) || data == null) return;
         String wav = data.getStringExtra(DrumpadActivity.EXTRA_WAV);
         if (wav == null) return;
         refaBateria(wav, true, 1);
+        if (req == PIANO_ROLL && data.getBooleanExtra(PianoRollActivity.EXTRA_SO_CANVIAT, false)) {
+            sonsIgualsALaPista(wav);
+        }
         desa();
         ompleCapcaleres();
         if (taulaVisible) ompleTaula();
@@ -1016,7 +1038,9 @@ public class ProjecteActivity extends Activity {
     private void refaBateria(String wav, boolean jaFet, double factor) {
         long durada;
         try {
-            durada = jaFet ? -1 : Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+            if (jaFet) durada = -1;
+            else if (Projecte.esSinte(wav)) durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            else durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
         } catch (IOException e) {
             durada = -1;
         }
@@ -1032,6 +1056,145 @@ public class ProjecteActivity extends Activity {
             projecte.canviaDurada(wav, vella, durada);
         }
         carregaSo(wav);
+    }
+
+    // ---------- Sinte ----------
+
+    /** «Pista nova → Sinte»: quin so de fàbrica (després es pot canviar al piano roll). */
+    private void triaPresetNou(Runnable despres) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (Sinte.Preset p : Sinte.PRESETS) {
+            ops.add(new Full.Accio(Icona.SINTE, p.nom, false, () -> {
+                creaSinte(p);
+                if (despres != null) despres.run();
+            }));
+        }
+        Full.llista(this, "So del sinte", "Els baixos s'obren a les notes greus i els leads a les agudes. "
+                + "Al piano roll el pots canviar escoltant-los.", ops);
+    }
+
+    /** Crea una pista de sinte buida (amb una primera frase buida a punt per a la primera finestra). */
+    private void creaSinte(Sinte.Preset preset) {
+        atura();
+        String wav;
+        try {
+            Melodia m = Melodia.nova(preset, projecte.compas);
+            wav = projecte.wavSinteLliure();
+            m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
+            long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            int n = 1;
+            for (Projecte.Pista x : projecte.pistes) if (x.esSinte()) n++;
+            synchronized (projecte) {
+                projecte.afegeixSinte(wav, durada, n > 1 ? preset.nom + " " + n : preset.nom);
+            }
+            carregaSo(wav);
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la pista de sinte");
+            return;
+        }
+        desa();
+        Ui.historial(this, "Pista de sinte nova («" + preset.nom + "») a «" + projecte.carpeta.getName() + "»");
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        pistes.requestLayout();
+        pistes.invalidate();
+        textInfo.setTextColor(Ui.SINTE);
+        textInfo.setText("Mantén premut a la fila del sinte per posar-hi una frase");
+    }
+
+    /**
+     * Mantenir premut un espai buit del sinte: finestra nova (buida, amb el so de la finestra d'abans)
+     * a l'inici d'aquell compàs.
+     */
+    private void posaFinestraSinte(int i, long ms) {
+        Projecte.Pista t = projecte.pistes.get(i);
+        atura();
+        int compas = (int) Math.max(1, Math.floor(ms / projecte.msPerCompas()) + 1);
+        String wav;
+        long durada;
+        try {
+            if (!projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()) {
+                wav = t.wav;
+            } else {
+                Projecte.Clip abans = Projecte.clipAbans(t, ms);
+                Melodia ma = abans == null ? null : Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, abans.wav));
+                if (ma == null) ma = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, t.wav));
+                Melodia m = ma != null ? ma.buidaAmbElMateixSo() : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
+                wav = projecte.wavSinteLliure();
+                m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
+            }
+            durada = Melodia.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+            if (durada < 0) throw new IOException("sense frase");
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la finestra del sinte");
+            return;
+        }
+        Projecte.Clip c;
+        synchronized (projecte) {
+            c = projecte.afegeixFinestraBateria(t, wav, durada, compas);
+        }
+        carregaSo(wav);
+        vista.tria(i, c);
+        actualitzaAccions();
+        desa();
+        textInfo.setTextColor(Ui.SINTE);
+        textInfo.setText("Frase al compàs " + compas + " · doble toc per escriure-hi notes");
+        vista.avisa();
+        refresca();
+    }
+
+    /** Obre el piano roll amb la frase d'una finestra de sinte. */
+    private void obrePianoRoll(Projecte.Clip clip) {
+        if (gravant || clip == null) return;
+        atura();
+        long compas = Math.round(clip.iniciVisible() / projecte.msPerCompas()) + 1;
+        int copies = 0;
+        String nomPista = "Sinte";
+        for (Projecte.Pista p : projecte.pistes) {
+            for (Projecte.Clip k : p.clips) {
+                if (k.wav.equals(clip.wav)) copies++;
+                if (k == clip) nomPista = p.nomVisible();
+            }
+        }
+        String nom = nomPista + " · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        android.content.Intent i = new android.content.Intent(this, PianoRollActivity.class);
+        i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
+        i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
+        i.putExtra(DrumpadActivity.EXTRA_NOM, nom);
+        i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
+        i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
+        startActivityForResult(i, PIANO_ROLL);
+    }
+
+    /**
+     * S'ha canviat el so d'una finestra de sinte: totes les finestres de la mateixa pista agafen aquest so
+     * (un sinte per pista, com en un estudi de debò). Les notes de cada finestra no es toquen.
+     */
+    private void sonsIgualsALaPista(String wav) {
+        Melodia font = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, wav));
+        if (font == null) return;
+        java.util.Set<String> germans = new java.util.LinkedHashSet<>();
+        for (Projecte.Pista p : projecte.pistes) {
+            boolean hiEs = false;
+            for (Projecte.Clip k : p.clips) if (k.wav.equals(wav)) hiEs = true;
+            if (!hiEs) continue;
+            if (p.esSinte()) germans.add(p.wav);
+            for (Projecte.Clip k : p.clips) if (Projecte.esSinte(k.wav)) germans.add(k.wav);
+        }
+        germans.remove(wav);
+        for (String w : germans) {
+            File f = Melodia.fitxerDe(projecte.carpeta, w);
+            Melodia m = Melodia.llegeix(f);
+            if (m == null) continue;
+            m.preset = font.preset;
+            m.so = font.so.copia();
+            try {
+                m.desa(f);
+            } catch (IOException e) {
+                continue;
+            }
+            refaBateria(w, false, 1);
+        }
     }
 
     /** Llegeix el so d'una presa i la seva ona perquè l'Estudi la faci sonar i la dibuixi. */
@@ -1159,7 +1322,7 @@ public class ProjecteActivity extends Activity {
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
         col.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
-        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
+        if (t.esGenerat()) rec.setVisibility(View.INVISIBLE);
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
             synchronized (projecte) {
@@ -1277,7 +1440,7 @@ public class ProjecteActivity extends Activity {
         }
         atura();
         Projecte.Pista armada = projecte.pistaRec();
-        if (armada != null && armada.esBateria()) armada = null;
+        if (armada != null && armada.esGenerat()) armada = null;
         if (armada != null) {
             comencaGravacio(armada, armada.veu);
             return;
@@ -1291,7 +1454,7 @@ public class ProjecteActivity extends Activity {
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
-            if (t.esBateria()) continue;
+            if (t.esGenerat()) continue;
             ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> {
                 synchronized (projecte) {
                     projecte.armaRec(t);
@@ -1534,6 +1697,7 @@ public class ProjecteActivity extends Activity {
             }
             double factor = projecte.msPerCompas() / vell;
             for (String w : projecte.wavsBateria()) refaBateria(w, false, factor);
+            for (String w : projecte.wavsSinte()) refaBateria(w, false, factor);
             desa();
             mostraTempo();
             refresca();
