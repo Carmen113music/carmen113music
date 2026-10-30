@@ -34,6 +34,14 @@ public final class Projecte {
     /** Fins on es pot allargar un clip més enllà del so (és silenci). */
     public static final long ALLARGA_MAX_MS = 10 * 60_000;
 
+    /** Carpeta amagada (dins la de la cançó) on van el ritme i el so de les pistes de bateria. */
+    public static final String DIR_BATERIA = ".bateria";
+
+    /** Si un so és d'una pista de bateria (generat pel drumpad, no una gravació). */
+    public static boolean esBateria(String wav) {
+        return wav != null && wav.startsWith(DIR_BATERIA + "/");
+    }
+
     /** Una gravació de la carpeta. La bandera del primer temps és seva (la comparteixen tots els seus clips). */
     public static final class Presa {
         public String wav;
@@ -117,6 +125,11 @@ public final class Projecte {
         public String nomVisible() {
             if (nomPropi != null && !nomPropi.trim().isEmpty()) return nomPropi.trim();
             return nom == null || nom.isEmpty() ? "Pista" : nom;
+        }
+
+        /** Pista de bateria (el seu so el fa el drumpad). */
+        public boolean esBateria() {
+            return Projecte.esBateria(wav);
         }
 
         /** Pista creada amb el «+», encara sense cap gravació pròpia. */
@@ -348,6 +361,138 @@ public final class Projecte {
         return p;
     }
 
+    // ---------- Pistes de bateria ----------
+
+    /** Un nom de fitxer lliure per a una pista de bateria nova: «.bateria/b1.wav», «.bateria/b2.wav»… */
+    public String wavBateriaLliure() {
+        Set<String> usats = new HashSet<>(preses.keySet());
+        for (Pista p : pistes) usats.add(p.wav);
+        for (int i = 1; ; i++) {
+            String w = DIR_BATERIA + "/b" + i + ".wav";
+            if (!usats.contains(w) && !new File(carpeta, w).exists()) return w;
+        }
+    }
+
+    /**
+     * Afegeix una pista de bateria buida al final. {@code wav} és el seu primer ritme (ja fet),
+     * que farà servir la primera finestra que s'hi posi.
+     */
+    public Pista afegeixBateria(String wav, long duradaMs) {
+        Presa pr = new Presa();
+        pr.wav = wav;
+        pr.nom = "Bateria";
+        pr.duradaMs = duradaMs;
+        preses.put(wav, pr);
+        Pista p = new Pista();
+        p.wav = wav;
+        p.nom = "Bateria";
+        int n = 1;
+        for (Pista x : pistes) if (x.esBateria()) n++;
+        if (n > 1) p.nomPropi = "Bateria " + n;
+        pistes.add(p);
+        return p;
+    }
+
+    /**
+     * Fa una còpia independent d'un ritme de bateria (el .patro i el seu so) amb un nom nou,
+     * perquè una finestra duplicada es pugui editar sense tocar l'original. Torna el nom del so nou.
+     */
+    public String copiaBateria(String wav) throws IOException {
+        String nou = wavBateriaLliure();
+        File de = new File(carpeta, wav), a = new File(carpeta, nou);
+        a.getParentFile().mkdirs();
+        java.nio.file.Files.copy(de.toPath(), a.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        File pDe = new File(carpeta, wav.replaceAll("\\.wav$", ".patro"));
+        File pA = new File(carpeta, nou.replaceAll("\\.wav$", ".patro"));
+        if (pDe.isFile()) java.nio.file.Files.copy(pDe.toPath(), pA.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        Presa vella = preses.get(wav);
+        Presa pr = new Presa();
+        pr.wav = nou;
+        pr.nom = "Bateria";
+        pr.duradaMs = vella != null ? vella.duradaMs : 0;
+        preses.put(nou, pr);
+        return nou;
+    }
+
+    /** Si algun clip del projecte fa servir aquest so. */
+    public boolean enUs(String wav) {
+        for (Pista p : pistes) for (Clip c : p.clips) if (c.wav.equals(wav)) return true;
+        return false;
+    }
+
+    /** El clip de la pista que comença just abans de {@code ms} (o el primer, si no n'hi ha cap abans), o null. */
+    public static Clip clipAbans(Pista p, double ms) {
+        Clip millor = null;
+        for (Clip c : p.clips) {
+            if (c.iniciVisible() <= ms && (millor == null || c.iniciVisible() > millor.iniciVisible())) millor = c;
+        }
+        if (millor == null && !p.clips.isEmpty()) millor = p.clips.get(0);
+        return millor;
+    }
+
+    /** Posa una finestra de bateria (un ritme sencer) a l'inici del compàs {@code compas}. Torna el clip. */
+    public Clip afegeixFinestraBateria(Pista p, String wav, long duradaMs, int compas) {
+        Presa pr = preses.get(wav);
+        if (pr == null) {
+            pr = new Presa();
+            pr.wav = wav;
+            pr.nom = "Bateria";
+            preses.put(wav, pr);
+        }
+        pr.duradaMs = duradaMs;
+        Clip c = new Clip();
+        c.wav = wav;
+        c.posMs = Math.round(iniciCompas(Math.max(1, compas)));
+        c.iniciMs = 0;
+        c.fiMs = duradaMs;
+        p.clips.add(c);
+        p.ordena();
+        return c;
+    }
+
+    /**
+     * El so d'un ritme ha canviat de llargada: les finestres que el mostraven sencer
+     * (acabaven a {@code vellaMs}) passen a mostrar-lo sencer amb la llargada nova.
+     */
+    public void canviaDurada(String wav, long vellaMs, long novaMs) {
+        Presa pr = preses.get(wav);
+        if (pr != null) pr.duradaMs = novaMs;
+        for (Pista p : pistes) {
+            for (Clip c : p.clips) {
+                if (!c.wav.equals(wav)) continue;
+                if (Math.abs(c.fiMs - vellaMs) <= 3) c.fiMs = novaMs;
+                c.normalitza(novaMs);
+            }
+            p.ordena();
+        }
+    }
+
+    /**
+     * El tempo o el compàs del projecte han canviat: els clips de bateria es mouen perquè continuïn
+     * als mateixos compassos ({@code factor} = durada nova d'un compàs / durada vella).
+     */
+    public void escalaBateria(double factor) {
+        for (Pista p : pistes) {
+            for (Clip c : p.clips) {
+                if (!esBateria(c.wav)) continue;
+                c.posMs = Math.round(c.posMs * factor);
+                c.iniciMs = Math.round(c.iniciMs * factor);
+                c.fiMs = Math.round(c.fiMs * factor);
+                c.fadeInMs = Math.round(c.fadeInMs * factor);
+                c.fadeOutMs = Math.round(c.fadeOutMs * factor);
+            }
+            p.ordena();
+        }
+    }
+
+    /** Totes les preses de bateria del projecte. */
+    public List<String> wavsBateria() {
+        List<String> r = new ArrayList<>();
+        for (String w : preses.keySet()) if (esBateria(w)) r.add(w);
+        for (Pista p : pistes) if (p.esBateria() && !r.contains(p.wav)) r.add(p.wav);
+        return r;
+    }
+
     /** Treu una pista del projecte (les gravacions continuen a la biblioteca). */
     public void esborraPista(int i) {
         if (i >= 0 && i < pistes.size()) pistes.remove(i);
@@ -428,6 +573,13 @@ public final class Projecte {
         List<Biblioteca.Gravacio> gs = b.gravacions(carpeta);
         Set<String> hiSon = new HashSet<>();
         for (Biblioteca.Gravacio g : gs) hiSon.add(g.wav.getName());
+        // la bateria no és a la biblioteca: hi és si hi ha el seu so
+        for (String w : new ArrayList<>(preses.keySet())) {
+            if (esBateria(w) && new File(carpeta, w).isFile()) hiSon.add(w);
+        }
+        for (Pista p : pistes) {
+            if (p.esBateria() && new File(carpeta, p.wav).isFile()) hiSon.add(p.wav);
+        }
 
         // gravacions esborrades de la biblioteca: fora les preses i els seus clips
         for (String w : new ArrayList<>(preses.keySet())) {

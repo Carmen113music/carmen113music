@@ -44,6 +44,12 @@ public class PistesView extends View {
 
         /** Ha canviat l'alçada de les pistes (zoom vertical). */
         void alcada(int altPistaPx);
+
+        /** Mantenir premut un espai buit d'una pista de bateria: posar-hi una finestra nova. */
+        default void finestraBateria(int pista, long ms) {}
+
+        /** Doble toc a una finestra de bateria: obrir el drumpad. */
+        default void obreBateria(int pista, Projecte.Clip clip) {}
     }
 
     private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6,
@@ -88,6 +94,10 @@ public class PistesView extends View {
     private int carrilOrig, carrilActual;
 
     private final Runnable premut = this::comencaTria;
+    // pistes de bateria: mantenir premut l'espai buit i doble toc a una finestra
+    private final Runnable premutBuit = this::premutBuit;
+    private Projecte.Clip darrerClipTocat;
+    private long darrerToc;
 
     public PistesView(Context c, Projecte p, Vista v, int altPistaPx) {
         super(c);
@@ -290,7 +300,7 @@ public class PistesView extends View {
 
     private void dibuixaClip(Canvas c, int i, Projecte.Pista t, Projecte.Clip k, float w) {
         boolean sona = projecte.sona(t);
-        int color = t.veu ? Ui.VEU : Ui.GUITARRA;
+        int color = Ui.colorPista(t);
         if (!sona) color = Ui.APAGAT;
         boolean triat = vista.triats.contains(k);
         boolean manetes = triat && vista.triats.size() == 1;
@@ -449,6 +459,7 @@ public class PistesView extends View {
                 if (!mogut && (Math.abs(x - x0) > dp(4) || Math.abs(y - y0) > dp(4))) {
                     mogut = true;
                     removeCallbacks(premut);
+                removeCallbacks(premutBuit);
                 }
                 if ((mode == MOU || mode == TRIA) && !eixDecidit) {
                     // el primer moviment clar decideix el sentit
@@ -476,10 +487,12 @@ public class PistesView extends View {
                 return true;
             case MotionEvent.ACTION_UP:
                 removeCallbacks(premut);
+                removeCallbacks(premutBuit);
                 acaba(e.getX());
                 return true;
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(premut);
+                removeCallbacks(premutBuit);
                 if (mode == CARRIL) {
                     acabaCarril();
                     mode = CAP;
@@ -499,6 +512,7 @@ public class PistesView extends View {
     /** Comença el gest de dos dits. Si s'estava editant un clip, el deixa com estava. */
     private void dosDits(MotionEvent e) {
         removeCallbacks(premut);
+                removeCallbacks(premutBuit);
         if (mode >= MOU && mode <= GUANY && clip != null && pista >= 0 && pista < projecte.pistes.size()) {
             synchronized (projecte) {
                 for (int i = 0; i < grup.size(); i++) grup.get(i).posMs = posGrup0[i];
@@ -637,7 +651,10 @@ public class PistesView extends View {
         }
         if (y < top || y > baix) return;
         Projecte.Clip k = t.clipA(vista.ms(x));
-        if (k == null) return;
+        if (k == null) {
+            if (t.esBateria()) postDelayed(premutBuit, TEMPS_PREMUT);
+            return;
+        }
 
         mode = MOU;
         triatAbans = vista.triats.contains(k) && vista.triats.size() > 1;
@@ -671,6 +688,15 @@ public class PistesView extends View {
         visFi0 = k.fiVisible();
     }
 
+    /** Mantenir premut un espai buit d'una pista de bateria: finestra nova on és el dit. */
+    private void premutBuit() {
+        if (mode != BUIT || mogut || pista < 0 || pista >= projecte.pistes.size()) return;
+        if (!projecte.pistes.get(pista).esBateria()) return;
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        mode = CAP;
+        if (oient != null) oient.finestraBateria(pista, Math.max(0, Math.round(vista.ms(x0))));
+    }
+
     /** Mantenir premut sense moure: comença a triar clips consecutius. */
     private void comencaTria() {
         if (mode != MOU || mogut || clip == null || pista < 0) return;
@@ -696,6 +722,7 @@ public class PistesView extends View {
 
     private void comencaCarril() {
         removeCallbacks(premut);
+                removeCallbacks(premutBuit);
         mode = CARRIL;
         if (grup.isEmpty()) grup.addAll(vista.triats);
         if (grup.isEmpty() && clip != null) grup.add(clip);
@@ -852,6 +879,19 @@ public class PistesView extends View {
             }
             mode = CAP;
             return;
+        }
+        if (!mogut && mode == MOU && clip != null && pista >= 0 && pista < projecte.pistes.size()
+                && projecte.pistes.get(pista).esBateria()) {
+            // doble toc a una finestra de bateria: s'obre el drumpad
+            long ara = android.os.SystemClock.uptimeMillis();
+            if (clip == darrerClipTocat && ara - darrerToc < 400) {
+                darrerClipTocat = null;
+                mode = CAP;
+                if (oient != null) oient.obreBateria(pista, clip);
+                return;
+            }
+            darrerClipTocat = clip;
+            darrerToc = ara;
         }
         if (!mogut) {
             if (mode == BUIT) {

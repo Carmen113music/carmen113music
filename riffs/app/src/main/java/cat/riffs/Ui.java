@@ -39,6 +39,7 @@ public final class Ui {
     public static final int ACCENT = 0xFFFF4B3E;    // vermell de gravar
     public static final int GUITARRA = 0xFFF5B445;  // ambre
     public static final int VEU = 0xFF59D0D6;       // turquesa
+    public static final int BATERIA = 0xFFB18CFF;   // lila (pistes de bateria)
     public static final int SOBRE_COLOR = 0xFF141416; // text sobre ambre o turquesa
 
     public static final Typeface MITJA = Typeface.create("sans-serif-medium", Typeface.NORMAL);
@@ -108,6 +109,15 @@ public final class Ui {
     }
 
     /** Color amb transparència (0..255). */
+    /** Color d'una pista de l'Estudi: lila la bateria, turquesa la veu, ambre la guitarra. */
+    public static int colorPista(Projecte.Pista t) {
+        return t.esBateria() ? BATERIA : t.veu ? VEU : GUITARRA;
+    }
+
+    public static int iconaPista(Projecte.Pista t) {
+        return t.esBateria() ? Icona.BATERIA : t.veu ? Icona.MIC : Icona.GUITARRA;
+    }
+
     public static int alfa(int color, int alfa) {
         return (color & 0x00FFFFFF) | (alfa << 24);
     }

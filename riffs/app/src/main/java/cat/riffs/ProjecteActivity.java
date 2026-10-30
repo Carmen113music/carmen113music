@@ -35,6 +35,7 @@ public class ProjecteActivity extends Activity {
     private Projecte projecte;
     private final Vista vista = new Vista();
     private final Map<String, short[]> audio = new HashMap<>();
+    private static final int DRUMPAD = 31;
     private Motor motor;
     private boolean carregat = false;
 
@@ -394,6 +395,16 @@ public class ProjecteActivity extends Activity {
                 Ui.prefs(ProjecteActivity.this).edit()
                         .putInt("alt_pista_dp", Math.round(px / getResources().getDisplayMetrics().density)).apply();
             }
+
+            @Override
+            public void finestraBateria(int i, long ms) {
+                posaFinestraBateria(i, ms);
+            }
+
+            @Override
+            public void obreBateria(int i, Projecte.Clip clip) {
+                obreDrumpad(clip);
+            }
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         scroll.addView(fila);
@@ -420,7 +431,7 @@ public class ProjecteActivity extends Activity {
         mes.setGravity(Gravity.CENTER_VERTICAL);
         mes.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 8), 0);
         LinearLayout boto = Ui.pastilla(this, Icona.MES, "Pista nova", Ui.SUPERFICIE2, Ui.SUAU);
-        boto.setOnClickListener(v -> afegeixPista());
+        boto.setOnClickListener(v -> afegeixPista(null));
         mes.addView(boto, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         mes.setTag("mes");
         capcaleres.addView(mes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
@@ -429,7 +440,7 @@ public class ProjecteActivity extends Activity {
 
     private View capcalera(int i) {
         Projecte.Pista t = projecte.pistes.get(i);
-        int color = t.veu ? Ui.VEU : Ui.GUITARRA;
+        int color = Ui.colorPista(t);
         LinearLayout fora = Ui.fila(this);
         fora.setGravity(Gravity.TOP);
         View franja = new View(this);
@@ -440,6 +451,11 @@ public class ProjecteActivity extends Activity {
         c.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 4));
         c.setClickable(true);
         c.setOnClickListener(v -> {
+            if (t.esBateria() && t.clips.isEmpty()) {
+                textInfo.setTextColor(Ui.BATERIA);
+                textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+                return;
+            }
             if (t.clips.isEmpty() && t.esBuida()) {
                 textInfo.setTextColor(Ui.GUITARRA);
                 textInfo.setText("Pista buida: encén el seu botó de gravar i mantén premut el play");
@@ -478,7 +494,7 @@ public class ProjecteActivity extends Activity {
         num.setMinWidth(Ui.dp(this, 16));
         dalt.addView(num);
         dalt.addView(Ui.espai(this, 4));
-        dalt.addView(Ui.imatge(this, t.veu ? Icona.MIC : Icona.GUITARRA, color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
+        dalt.addView(Ui.imatge(this, Ui.iconaPista(t), color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         dalt.addView(Ui.espai(this, 6));
         dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 13, Ui.TEXT)), Ui.pes(1));
         c.addView(dalt);
@@ -507,6 +523,7 @@ public class ProjecteActivity extends Activity {
             }
         });
         rec.setTag("rec");
+        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
@@ -681,6 +698,12 @@ public class ProjecteActivity extends Activity {
         if (i < 0 || i >= projecte.pistes.size()) return;
         Projecte.Pista t = projecte.pistes.get(i);
         List<Full.Accio> ops = new ArrayList<>();
+        if (t.esBateria()) {
+            // el ritme de la finestra triada d'aquesta pista, o el de la primera
+            Projecte.Clip u = vista.unic();
+            Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
+            if (k != null) ops.add(new Full.Accio(Icona.BATERIA, "Obre el drumpad", false, () -> obreDrumpad(k)));
+        }
         ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
                 Full.demanaText(this, "Nom de la pista", t.nomVisible(), "Desa", text -> {
                     String n = text == null ? "" : text.trim();
@@ -718,7 +741,7 @@ public class ProjecteActivity extends Activity {
                             vista.avisa();
                             refresca();
                         })));
-        Full.accions(this, t.veu ? Icona.MIC : Icona.GUITARRA, t.veu ? Ui.VEU : Ui.GUITARRA,
+        Full.accions(this, Ui.iconaPista(t), Ui.colorPista(t),
                 (i + 1) + " · " + t.nomVisible(), "Per moure-la, mantén premut i arrossega", ops);
     }
 
@@ -771,7 +794,17 @@ public class ProjecteActivity extends Activity {
         java.util.List<Projecte.Clip> nous;
         synchronized (projecte) {
             nous = Projecte.duplica(t, new java.util.ArrayList<>(vista.triats));
+            // a la bateria, cada còpia té el seu propi ritme (per poder-la canviar sense tocar l'original)
+            for (Projecte.Clip c : nous) {
+                if (!Projecte.esBateria(c.wav)) continue;
+                try {
+                    c.wav = projecte.copiaBateria(c.wav);
+                } catch (IOException e) {
+                    Ui.avis(this, "No s'ha pogut copiar el ritme: la còpia el comparteix");
+                }
+            }
         }
+        for (Projecte.Clip c : nous) if (Projecte.esBateria(c.wav)) carregaSo(c.wav);
         vista.triats.clear();
         vista.triats.addAll(nous);
         desa();
@@ -830,7 +863,22 @@ public class ProjecteActivity extends Activity {
     }
 
     /** «+»: afegeix una pista buida al final i la deixa a punt per gravar-hi. */
-    private void afegeixPista() {
+    /** «+ Pista nova»: pregunta de quin tipus ({@code despres} s'executa quan ja s'ha creat). */
+    private void afegeixPista(Runnable despres) {
+        if (gravant) return;
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.MIC, "Àudio", false, () -> {
+            afegeixPistaAudio();
+            if (despres != null) despres.run();
+        }));
+        ops.add(new Full.Accio(Icona.BATERIA, "Bateria", false, () -> {
+            creaBateria();
+            if (despres != null) despres.run();
+        }));
+        Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits.", ops);
+    }
+
+    private void afegeixPistaAudio() {
         if (gravant) return;
         Projecte.Pista p;
         synchronized (projecte) {
@@ -844,6 +892,157 @@ public class ProjecteActivity extends Activity {
         pistes.invalidate();
         textInfo.setTextColor(Ui.GUITARRA);
         textInfo.setText("«" + p.nomVisible() + "» a punt: mantén premut el play per gravar-hi");
+    }
+
+    // ---------- Bateria ----------
+
+    /** Crea una pista de bateria buida (amb un primer ritme bàsic a punt per a la primera finestra). */
+    private void creaBateria() {
+        List<Kits.Kit> kits = Kits.llista(KitsActivity.arrel(this));
+        if (kits.isEmpty()) {
+            Full.avis(this, "Encara no tens kits de bateria",
+                    "Primer cal baixar-los o importar-los: Gravar → botó d'ajustos → Bateria virtual.",
+                    "Obre els kits", () -> startActivity(new android.content.Intent(this, KitsActivity.class)));
+            return;
+        }
+        atura();
+        try {
+            Patro patro = Patro.nou(kits.get(0), projecte.compas);
+            String wav = projecte.wavBateriaLliure();
+            patro.desa(Patro.fitxerDe(projecte.carpeta, wav));
+            long durada = patro.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas,
+                    Patro.lectorSons(KitsActivity.arrel(this), new HashMap<>()));
+            synchronized (projecte) {
+                projecte.afegeixBateria(wav, durada);
+            }
+            carregaSo(wav);
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la pista de bateria");
+            return;
+        }
+        desa();
+        Ui.historial(this, "Pista de bateria nova a «" + projecte.carpeta.getName() + "»");
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        pistes.requestLayout();
+        pistes.invalidate();
+        textInfo.setTextColor(Ui.BATERIA);
+        textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+    }
+
+    /**
+     * Mantenir premut un espai buit de la bateria: finestra nova a l'inici d'aquell compàs.
+     * Fa servir el primer ritme de la pista si encara no s'ha fet servir; si no, una còpia del ritme
+     * de la finestra d'abans (per continuar-lo), que es pot editar sense tocar les altres.
+     */
+    private void posaFinestraBateria(int i, long ms) {
+        if (gravant || i < 0 || i >= projecte.pistes.size()) return;
+        Projecte.Pista t = projecte.pistes.get(i);
+        if (!t.esBateria()) return;
+        atura();
+        int compas = (int) Math.max(1, Math.floor(ms / projecte.msPerCompas()) + 1);
+        String wav;
+        long durada;
+        try {
+            if (!projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()) {
+                wav = t.wav;
+            } else {
+                Projecte.Clip abans = Projecte.clipAbans(t, ms);
+                Patro p = abans == null ? null : Patro.llegeix(Patro.fitxerDe(projecte.carpeta, abans.wav));
+                if (p == null) {
+                    List<Kits.Kit> kits = Kits.llista(KitsActivity.arrel(this));
+                    p = Patro.nou(kits.isEmpty() ? null : kits.get(0), projecte.compas);
+                }
+                wav = projecte.wavBateriaLliure();
+                p.desa(Patro.fitxerDe(projecte.carpeta, wav));
+            }
+            durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+            if (durada < 0) throw new IOException("sense ritme");
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut crear la finestra de bateria");
+            return;
+        }
+        Projecte.Clip c;
+        synchronized (projecte) {
+            c = projecte.afegeixFinestraBateria(t, wav, durada, compas);
+        }
+        carregaSo(wav);
+        vista.tria(i, c);
+        actualitzaAccions();
+        desa();
+        textInfo.setTextColor(Ui.BATERIA);
+        textInfo.setText("Ritme al compàs " + compas + " · doble toc per editar-lo");
+        vista.avisa();
+        refresca();
+    }
+
+    /** Obre el drumpad amb el ritme d'una finestra de bateria. */
+    private void obreDrumpad(Projecte.Clip clip) {
+        if (gravant || clip == null) return;
+        atura();
+        long compas = Math.round(clip.iniciVisible() / projecte.msPerCompas()) + 1;
+        int copies = 0;
+        for (Projecte.Pista p : projecte.pistes) for (Projecte.Clip k : p.clips) if (k.wav.equals(clip.wav)) copies++;
+        String nom = "Bateria · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        android.content.Intent i = new android.content.Intent(this, DrumpadActivity.class);
+        i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
+        i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
+        i.putExtra(DrumpadActivity.EXTRA_NOM, nom);
+        i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
+        i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
+        startActivityForResult(i, DRUMPAD);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void onActivityResult(int req, int res, android.content.Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != DRUMPAD || data == null) return;
+        String wav = data.getStringExtra(DrumpadActivity.EXTRA_WAV);
+        if (wav == null) return;
+        refaBateria(wav, true, 1);
+        desa();
+        ompleCapcaleres();
+        if (taulaVisible) ompleTaula();
+        vista.avisa();
+        refresca();
+    }
+
+    /**
+     * Torna a llegir (o, si {@code jaFet} és false, torna a fer) el so d'un ritme de bateria.
+     * {@code factor}: quant s'ha allargat un compàs (1 si no ha canviat el tempo). Les finestres que el mostraven
+     * sencer el continuen mostrant sencer amb la llargada nova.
+     */
+    private void refaBateria(String wav, boolean jaFet, double factor) {
+        long durada;
+        try {
+            durada = jaFet ? -1 : Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+        } catch (IOException e) {
+            durada = -1;
+        }
+        File f = new File(projecte.carpeta, wav);
+        if (durada < 0) {
+            Wav.Info in = Wav.llegeixInfo(f);
+            if (in == null) return;
+            durada = in.duradaMs;
+        }
+        synchronized (projecte) {
+            Projecte.Presa pr = projecte.preses.get(wav);
+            long vella = pr == null ? durada : Math.round(pr.duradaMs * factor);
+            projecte.canviaDurada(wav, vella, durada);
+        }
+        carregaSo(wav);
+    }
+
+    /** Llegeix el so d'una presa i la seva ona perquè l'Estudi la faci sonar i la dibuixi. */
+    private void carregaSo(String wav) {
+        File f = new File(projecte.carpeta, wav);
+        short[] so = Wav.llegeixMostres(f);
+        float[] pics = Ona.pics(f);
+        synchronized (projecte) {
+            if (so != null) audio.put(wav, so);
+        }
+        if (pics != null) pistes.posaOna(wav, pics);
     }
 
     // ---------- Taula de so ----------
@@ -898,10 +1097,7 @@ public class ProjecteActivity extends Activity {
         LinearLayout mes = Ui.columna(this);
         mes.setGravity(Gravity.CENTER);
         FrameLayout b = Ui.botoIcona(this, Icona.MES, Ui.SUAU, Ui.SUPERFICIE2, 44, 22, "Pista nova");
-        b.setOnClickListener(v -> {
-            afegeixPista();
-            ompleTaula();
-        });
+        b.setOnClickListener(v -> afegeixPista(this::ompleTaula));
         mes.addView(b);
         filaTaula.addView(mes, new LinearLayout.LayoutParams(Ui.dp(this, 64), LinearLayout.LayoutParams.MATCH_PARENT));
     }
@@ -912,7 +1108,7 @@ public class ProjecteActivity extends Activity {
      */
     private View canal(int i) {
         Projecte.Pista t = projecte.pistes.get(i);
-        int color = t.veu ? Ui.VEU : Ui.GUITARRA;
+        int color = Ui.colorPista(t);
         LinearLayout c = Ui.columna(this);
         c.setPadding(Ui.dp(this, 3), 0, Ui.dp(this, 3), Ui.dp(this, 4));
         c.setBackgroundColor(i % 2 == 0 ? Ui.SUPERFICIE : 0xFF141418);
@@ -963,6 +1159,7 @@ public class ProjecteActivity extends Activity {
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
         col.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
+        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
             synchronized (projecte) {
@@ -1080,6 +1277,7 @@ public class ProjecteActivity extends Activity {
         }
         atura();
         Projecte.Pista armada = projecte.pistaRec();
+        if (armada != null && armada.esBateria()) armada = null;
         if (armada != null) {
             comencaGravacio(armada, armada.veu);
             return;
@@ -1093,6 +1291,7 @@ public class ProjecteActivity extends Activity {
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
+            if (t.esBateria()) continue;
             ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> {
                 synchronized (projecte) {
                     projecte.armaRec(t);
@@ -1325,10 +1524,16 @@ public class ProjecteActivity extends Activity {
         f.compas = projecte.compas;
         Full.tempo(this, f, (bpm, compas) -> {
             if (bpm <= 0) return;   // un projecte sempre té tempo
+            atura();
+            double vell = projecte.msPerCompas();
             synchronized (projecte) {
                 projecte.bpm = bpm;
                 projecte.compas = compas;
+                // la bateria segueix els compassos: es mou i es torna a fer al tempo nou
+                projecte.escalaBateria(projecte.msPerCompas() / vell);
             }
+            double factor = projecte.msPerCompas() / vell;
+            for (String w : projecte.wavsBateria()) refaBateria(w, false, factor);
             desa();
             mostraTempo();
             refresca();

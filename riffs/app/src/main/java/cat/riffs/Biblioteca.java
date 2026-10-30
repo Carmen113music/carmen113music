@@ -67,7 +67,8 @@ public final class Biblioteca {
     public List<File> carpetes(File dir) {
         List<File> r = new ArrayList<>();
         File[] fs = dir.listFiles();
-        if (fs != null) for (File f : fs) if (f.isDirectory()) r.add(f);
+        // les carpetes amagades («.bateria») són de l'app, no de l'usuari
+        if (fs != null) for (File f : fs) if (f.isDirectory() && !f.getName().startsWith(".")) r.add(f);
         r.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
         return r;
     }
@@ -103,7 +104,9 @@ public final class Biblioteca {
         File[] fs = dir.listFiles();
         if (fs == null) return 0;
         for (File f : fs) {
-            if (f.isDirectory()) n += compta(f);
+            if (f.isDirectory()) {
+                if (!f.getName().startsWith(".")) n += compta(f);
+            }
             else if (f.getName().toLowerCase(Locale.ROOT).endsWith(".wav")) n++;
         }
         return n;

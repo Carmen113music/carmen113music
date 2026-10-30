@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.16:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14). Pròximes fases: pistes de bateria amb drumpad, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.19:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17). Pròximes fases: bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -61,6 +61,17 @@ El primer cop l'app demana permís de micròfon.
 - **Capçalera de cada pista**: **M** (silenci), **S** (solo), **cercle de gravar** (la pista on va la gravació) i el **fader** de volum (de -∞ a +6 dB; s'enganxa a 0 dB).
 - Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
 
+### Pistes de bateria (drumpad)
+- **+ Pista nova** pregunta de quin tipus: **Àudio** (per gravar guitarra o veu, com sempre) o **Bateria**. (Més endavant hi haurà *Instrument*, per als sintes.)
+- La pista de **bateria** és **lila**, té la icona del tambor i es crea **buida**.
+- **Mantén premut** en un espai buit de la fila de la bateria (vibra): hi apareix una **finestra amb un ritme d'un compàs**, a l'inici del compàs on tens el dit. La primera porta un ritme bàsic (bombo, caixa i hihat); les següents són una **còpia del ritme de la finestra d'abans**, per continuar-lo i fer-ne variacions sense tocar l'altra.
+- **Doble toc a una finestra** obre el **drumpad** amb el seu ritme. També: mantén premut el nom de la pista i deixa'l anar → *Obre el drumpad* (obre la finestra triada, o la primera).
+- Les finestres es mouen, es retallen i tenen fades com els altres clips. **Duplica** fa còpies **independents**: cada còpia té el seu propi ritme, i si n'edites una, les altres no canvien.
+- **Drumpad** (en horitzontal): una fila per cada tipus de so del kit (Kick, Snare, Hihat…) i una casella per semicorxera (16 en 4/4, 12 en 3/4 i 6/8). **Toca una casella** per posar o treure un cop (sona). **Mantén-la premuda i arrossega amunt o avall** per canviar-ne la força (suau, normal, fort: es veu per la intensitat del color i les barretes). **Toca el nom d'una fila**: *Tria el so* (variants d'aquell tipus de tots els kits), *Volum*, *Silencia* i *Treu els cops*.
+- A dalt: el **kit** (canviar-lo manté els cops), la **llargada** del ritme (1 a 4 compassos; si l'allargues es copien els compassos que ja hi havia; amb més d'un compàs surten pestanyes per anar de l'un a l'altre) i el **play**, que fa sonar el ritme en bucle (es pot editar mentre sona).
+- En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria no tenen botó de gravar.
+- Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
+
 ### Kits de bateria
 - S'hi entra des de **Diagnòstic i ajustos** (botó d'ajustos de la pantalla Gravar), apartat **Bateria virtual**: **Importa samples de bateria** obre directament el selector de carpetes; **Baixa els kits de GitHub** baixa el zip dels kits del grup (vegeu més avall) i l'importa; la fila «N kits importats» obre la llista de kits.
 - **Importar**: posa la carpeta dels kits al mòbil (per exemple a Baixades), toca el **+** i tria-la. Pots triar la carpeta d'un sol kit o la que en conté uns quants: **cada carpeta amb fitxers WAV es converteix en un kit** amb el nom de la carpeta.
@@ -91,6 +102,9 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.19** (30/10/2026) — Bateria: **Duplica** fa còpies independents de les finestres (cada una amb el seu ritme), per poder canviar-ne una sense tocar les altres.
+- **2.18** (30/10/2026) — La pista de bateria es crea **buida**: **mantenir premut** un espai buit de la fila hi posa una **finestra d'un compàs** (la primera amb un ritme bàsic, les altres amb una còpia del ritme d'abans) i el **doble toc** a una finestra obre el seu drumpad. Ja no s'omple sola fins al final.
+- **2.17** (30/10/2026) — **Pistes de bateria**: «+ Pista nova» pregunta Àudio o Bateria. La bateria (lila) es crea amb un ritme bàsic i s'edita amb el **drumpad** (graella de semicorxeres, força per cop, so, volum i silenci per fila, kit, 1–4 compassos, bucle). Doble toc al nom de la pista per obrir-lo. Segueix els canvis de tempo i compàs del projecte.
 - **2.16** (30/10/2026) — **Baixa els kits de GitHub** (a Diagnòstic i ajustos i a la pantalla de kits buida): baixa `kits-bateria.zip` de la release «kits», l'obre i importa cada carpeta com a kit, saltant els que ja tens. L'app demana permís d'internet (Android el dona sol).
 - **2.15** (30/10/2026) — La importació de kits passa a **Diagnòstic i ajustos** (apartat «Bateria virtual», botó «Importa samples de bateria»); l'Estudi ja no té el botó de la bateria. El diagnòstic copiat diu quants kits hi ha.
 - **2.14** (30/10/2026) — **Kits de bateria**: importar carpetes de WAV des del mòbil (un o diversos kits de cop), amb conversió automàtica a mono 44.100 Hz 16 bits, silencis retallats i classificació pel nom (Kick, Snare, Hihat…). Pantalla per escoltar els sons, canviar-ne el tipus o el nom i esborrar. Primer pas de les pistes de bateria.
