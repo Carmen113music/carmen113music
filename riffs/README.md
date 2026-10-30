@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.27:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.28:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22). Pròximes fases: editor del so del sinte, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -90,6 +90,11 @@ El primer cop l'app demana permís de micròfon.
   - Toca el **quadrat de dalt** per aturar: el que has tocat es posa a la pista en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos cadascuna), **ajustat a semicorxeres**, i ho pots retocar al **piano roll** (doble toc). El que toques durant el compte no es desa (si una nota comença just abans de l'entrada, comença a l'entrada).
   - Si a la pista ja hi havia finestres en aquell tros, no es treuen: sonarien juntes (com els clips d'àudio que es trepitgen).
 
+### Tocar sense gravar (assajar)
+- Les pistes de **sinte**, **MIDI** i **teremin** tenen un **botó petit amb l'instrument** a la capçalera, al costat del nom. En tocar-lo s'obre el teclat (o la quadrícula del teremin) als dos terços de baix: sona en directe amb el so de la pista, però **no es grava res**.
+- Pots tocar sol o fer sonar el projecte amb el **play** de dalt i tocar-hi a sobre. Hi tens totes les opcions: octaves, **Acords** i el llapis per triar-los (MIDI), **Notes justes** (teremin).
+- **Tanca** (o tornar a tocar el botó de la pista) el tanca. Si mantens premut el play per gravar, el panell d'assaig es tanca i comença la gravació normal.
+
 ### Pistes MIDI (128 instruments)
 - Primer cal el **banc de sons** (una sola vegada, uns 31 MB): Gravar → botó d'ajustos → **Instruments MIDI** → *Baixa el banc*. També es pot importar un altre banc `.sf2` del mòbil. El banc és **GeneralUser GS**, de S. Christian Collins (lliure per fer-ne música).
 - **+ Pista nova → MIDI**: tria la família (pianos, guitarres, baixos, cordes, metalls…) i l'instrument. La pista és **blava**, amb la icona d'un endoll MIDI. És **polifònica**: pot fer acords.
@@ -148,6 +153,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.28** (30/10/2026) — Botó a les pistes d'instruments (sinte, MIDI, teremin) per obrir el teclat i **tocar sense gravar**, amb el play o sense, amb totes les opcions (acords, octaves, notes justes).
 - **2.27** (30/10/2026) — **Pistes MIDI**: banc de sons GeneralUser GS (128 instruments) amb reproductor propi, piano roll polifònic, gravar tocant amb el teclat polifònic i **acords** a les tecles (com els pads d'acords del Cubase). Pantalla «Instruments MIDI» per baixar o importar el banc.
 - **2.26** (30/10/2026) — **Desfés** a l'Estudi, al piano roll, al drumpad i a la pantalla del teremin (fins a 60 passos).
 - **2.25** (30/10/2026) — **Teremin**: nou tipus de pista amb 6 sons. Es toca en directe sobre una quadrícula (de costat el to, continu; amunt i avall el volum; opció «Notes justes»). Es desa el gest i no el so, així es pot canviar de so després de gravar. Pantalla del teremin per veure el gest, escoltar-lo i canviar-ne el so.

@@ -76,6 +76,7 @@ public class ProjecteActivity extends Activity {
     private Gest.Gravacio gestGravat;      // teremin
     private SinteViu sinteViu;
     private MidiViu midiViu;                // pista MIDI (polifònic)
+    private boolean assaig = false;         // el teclat obert per tocar sense gravar
     private View panellTeclat;
     private TextView textTeclat;
     // desfer
@@ -535,6 +536,19 @@ public class ProjecteActivity extends Activity {
         dalt.addView(Ui.imatge(this, Ui.iconaPista(t), color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         dalt.addView(Ui.espai(this, 6));
         dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 13, Ui.TEXT)), Ui.pes(1));
+        if (t.esInstrument()) {
+            // obre el teclat (o la quadrícula del teremin) per tocar i assajar, sense gravar
+            FrameLayout toca = new FrameLayout(this);
+            toca.setClickable(true);
+            toca.setContentDescription("Toca l'instrument (sense gravar)");
+            toca.setBackground(Ui.tocable(Ui.alfa(color, 40), Ui.dp(this, 8)));
+            toca.addView(Ui.imatge(this, t.esTeremin() ? Icona.TEREMIN : Icona.SINTE, color, 15),
+                    new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
+            toca.setOnClickListener(v -> obreAssaig(t));
+            LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 24));
+            lt.leftMargin = Ui.dp(this, 4);
+            dalt.addView(toca, lt);
+        }
         c.addView(dalt);
 
         LinearLayout baix = Ui.fila(this);
@@ -1641,6 +1655,7 @@ public class ProjecteActivity extends Activity {
 
     private void comencaGravacio(Projecte.Pista pista, boolean veu) {
         if (gravant || motor == null) return;
+        tancaAssaig();
         atura();
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
         long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
@@ -1861,6 +1876,7 @@ public class ProjecteActivity extends Activity {
      */
     private void comencaGravacioSinte(Projecte.Pista t) {
         if (gravant || motor == null) return;
+        tancaAssaig();
         atura();
         boolean ter = t.esTeremin();
         Melodia base = ter ? null : soDeLaPista(t);
@@ -1915,6 +1931,70 @@ public class ProjecteActivity extends Activity {
         Ui.canviaIcona(botoPlay, Icona.STOP, Ui.ACCENT, 18);
         pistes.removeCallbacks(segueix);
         pistes.postOnAnimation(segueix);
+    }
+
+    // ---------- Assajar (tocar sense gravar) ----------
+
+    /** En assaig, un botó per tancar el panell (gravant, s'atura amb el quadrat de dalt). */
+    private void afegeixTanca(LinearLayout barra) {
+        if (!assaig) return;
+        barra.addView(Ui.espai(this, 8));
+        LinearLayout tanca = Ui.pastilla(this, 0, "Tanca", Ui.SUPERFICIE2, Ui.TEXT);
+        tanca.setMinimumHeight(Ui.dp(this, 36));
+        tanca.setOnClickListener(v -> tancaAssaig());
+        barra.addView(tanca, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+    }
+
+    /**
+     * Obre el teclat (o la quadrícula del teremin) d'una pista per tocar-la sense gravar: sona en directe, amb el
+     * so de la pista. Es pot fer sonar el projecte amb el play mentre tant. Tornar a tocar el botó el tanca.
+     */
+    private void obreAssaig(Projecte.Pista t) {
+        if (gravant) return;
+        boolean jaEra = assaig && pistaSinte == t;
+        tancaAssaig();
+        if (jaEra) return;
+        boolean ter = t.esTeremin();
+        Melodia base = ter ? null : soDeLaPista(t);
+        if (!ter && base.poli()) {
+            Banc b = Banc.actual();
+            if (b == null) {
+                Full.avis(this, "No hi ha banc de sons", "Per tocar les pistes MIDI cal el banc de sons: Gravar → botó d'ajustos → Instruments MIDI.",
+                        "Obre", () -> startActivity(new android.content.Intent(this, BancActivity.class)));
+                return;
+            }
+            midiViu = new MidiViu(b, base.bancMidi, base.programa, Mesclador.lineal(t.volumDb));
+            if (!midiViu.comenca()) {
+                midiViu = null;
+                Ui.avis(this, "No s'ha pogut obrir la sortida de so per a l'instrument.");
+                return;
+            }
+        } else {
+            sinteViu = new SinteViu(ter ? gestDeLaPista(t).so : base.so, Mesclador.lineal(t.volumDb));
+            if (!sinteViu.comenca()) {
+                sinteViu = null;
+                Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
+                return;
+            }
+        }
+        assaig = true;
+        pistaSinte = t;
+        if (ter) mostraTeremin(t);
+        else mostraTeclat(t, base.esGreu() ? 36 : 60);
+        textInfo.setTextColor(Ui.colorPista(t));
+        textInfo.setText("Assaig: toca «" + t.nomVisible() + "» (no es grava res)");
+    }
+
+    /** Tanca el teclat d'assaig (si n'hi ha) i atura el so en directe. */
+    private void tancaAssaig() {
+        if (!assaig) return;
+        assaig = false;
+        if (sinteViu != null) sinteViu.atura();
+        sinteViu = null;
+        if (midiViu != null) midiViu.atura();
+        midiViu = null;
+        amagaTeclat();
+        pistaSinte = null;
     }
 
     /** Els acords de cada tecla (es recorden). */
@@ -2090,11 +2170,12 @@ public class ProjecteActivity extends Activity {
             edita.setOnClickListener(v -> editaAcords(teclat));
             barra.addView(edita);
         }
-        textTeclat = Ui.text(this, "Toca el teclat · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
+        textTeclat = Ui.text(this, assaig ? "Assaig: no es grava res" : "Toca el teclat · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
         textTeclat.setGravity(Gravity.END);
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 12);
         barra.addView(Ui.unaLinia(textTeclat), lt);
+        afegeixTanca(barra);
         panell.addView(barra);
 
         teclat.setPadding(0, 0, 0, 0);
@@ -2102,17 +2183,18 @@ public class ProjecteActivity extends Activity {
             teclat.posaOientPoli(new TeclatView.OientPoli() {
                 @Override
                 public void encen(int nota, long nanos) {
-                    if (!gravantSinte || midiViu == null) return;
+                    if (!(gravantSinte || assaig) || midiViu == null) return;
                     midiViu.encen(nota, MidiSo.velocitat(2));
-                    notesGravades.encen(nota, 2, msDeNano(nanos));
+                    if (gravantSinte) notesGravades.encen(nota, 2, msDeNano(nanos));
                     textTeclat.setTextColor(Ui.MIDI);
                     textTeclat.setText(Melodia.nomNota(nota));
                 }
 
                 @Override
                 public void apaga(int nota, long nanos) {
-                    if (!gravantSinte || midiViu == null) return;
+                    if (!(gravantSinte || assaig) || midiViu == null) return;
                     midiViu.apaga(nota);
+                    if (!gravantSinte) return;
                     notesGravades.apaga(nota, msDeNano(nanos));
                     textTeclat.setTextColor(Ui.APAGAT);
                     textTeclat.setText(notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
@@ -2120,9 +2202,14 @@ public class ProjecteActivity extends Activity {
             });
         }
         teclat.posaOient((nota, lligada, nanos) -> {
-            if (!gravantSinte || sinteViu == null) return;
+            if (!(gravantSinte || assaig) || sinteViu == null) return;
             if (nota >= 0) sinteViu.nota(nota, lligada);
             else sinteViu.deixa();
+            if (!gravantSinte) {
+                textTeclat.setTextColor(nota >= 0 ? Ui.SINTE : Ui.APAGAT);
+                textTeclat.setText(nota >= 0 ? Melodia.nomNota(nota) : "Assaig: no es grava res");
+                return;
+            }
             notesGravades.canvi(nota, 2, msDeNano(nanos));
             textTeclat.setTextColor(nota >= 0 ? Ui.SINTE : Ui.APAGAT);
             textTeclat.setText(nota >= 0 ? Melodia.nomNota(nota) : notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
@@ -2194,27 +2281,28 @@ public class ProjecteActivity extends Activity {
         });
         pintaJustes.run();
         barra.addView(justes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
-        textTeclat = Ui.text(this, "Dreta = agut, amunt = fort · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
+        textTeclat = Ui.text(this, assaig ? "Assaig: no es grava res" : "Dreta = agut, amunt = fort · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
         textTeclat.setGravity(Gravity.END);
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 12);
         barra.addView(Ui.unaLinia(textTeclat), lt);
+        afegeixTanca(barra);
         panell.addView(barra);
 
         pad.posaOient(new TereminView.Oient() {
             @Override
             public void toca(double nota, double vol, boolean posat, long nanos) {
-                if (!gravantSinte || sinteViu == null) return;
+                if (!(gravantSinte || assaig) || sinteViu == null) return;
                 if (posat) sinteViu.engega(nota, vol);
                 else sinteViu.posa(nota, vol);
-                gestGravat.posa(msDeNano(nanos), nota, vol);
+                if (gravantSinte) gestGravat.posa(msDeNano(nanos), nota, vol);
             }
 
             @Override
             public void aixeca(long nanos) {
-                if (!gravantSinte || sinteViu == null) return;
+                if (!(gravantSinte || assaig) || sinteViu == null) return;
                 sinteViu.deixa();
-                gestGravat.aixeca(msDeNano(nanos));
+                if (gravantSinte) gestGravat.aixeca(msDeNano(nanos));
             }
         });
         LinearLayout.LayoutParams lk = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
@@ -2536,6 +2624,7 @@ public class ProjecteActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (gravant) aturaGravacio("S'ha aturat la gravació (l'app ha passat a segon pla)");
+        tancaAssaig();
         if (projecte != null) {
             atura();
             desa();
