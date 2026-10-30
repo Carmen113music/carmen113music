@@ -46,6 +46,7 @@ public class ProjecteActivity extends Activity {
     private LinearLayout botoSnap;
     private FrameLayout botoClic;
     private FrameLayout pestanyaPistes, pestanyaTaula;
+    private TextView nomTitol;
     private LinearLayout vistaPistes, filaTaula;
     private android.widget.HorizontalScrollView vistaTaula;
     private final List<FaderView> faders = new ArrayList<>();
@@ -133,6 +134,7 @@ public class ProjecteActivity extends Activity {
         enrere.setOnClickListener(v -> finish());
         dalt.addView(enrere);
         TextView nom = Ui.unaLinia(Ui.negreta(this, projecte.carpeta.getName(), 15, Ui.TEXT));
+        nomTitol = nom;
         nom.setMaxWidth(Ui.dp(this, 150));
         dalt.addView(nom);
         dalt.addView(Ui.espai(this, 12));
@@ -272,7 +274,37 @@ public class ProjecteActivity extends Activity {
         cosH.addView(contingut, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
         vistaPistes = Ui.columna(this);
         contingut.addView(vistaPistes, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        vistaTaula = new android.widget.HorizontalScrollView(this);
+        // un dit mou els faders; dos dits desplacen la taula (com al taulell)
+        vistaTaula = new android.widget.HorizontalScrollView(this) {
+            private float xDits = Float.NaN;
+
+            @Override
+            public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
+                return ev.getPointerCount() >= 2;
+            }
+
+            @Override
+            public boolean onTouchEvent(android.view.MotionEvent ev) {
+                switch (ev.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        xDits = Float.NaN;
+                        return true;
+                    case android.view.MotionEvent.ACTION_POINTER_DOWN:
+                    case android.view.MotionEvent.ACTION_POINTER_UP:
+                        xDits = Float.NaN;   // torna a agafar referència
+                        return true;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        if (ev.getPointerCount() < 2) return true;
+                        float x = (ev.getX(0) + ev.getX(1)) / 2f;
+                        if (!Float.isNaN(xDits)) scrollBy(Math.round(xDits - x), 0);
+                        xDits = x;
+                        return true;
+                    default:
+                        xDits = Float.NaN;
+                        return true;
+                }
+            }
+        };
         vistaTaula.setHorizontalScrollBarEnabled(true);
         vistaTaula.setFillViewport(true);
         filaTaula = Ui.fila(this);
@@ -371,6 +403,7 @@ public class ProjecteActivity extends Activity {
         setContentView(arrel);
         ompleCapcaleres();
         mostraTaula(Ui.prefs(this).getBoolean("estudi_taula", false));
+        ajustaBarra(getResources().getConfiguration());
         mostraTempo();
         refresca();
     }
@@ -835,6 +868,9 @@ public class ProjecteActivity extends Activity {
             refresca();
         }
         Ui.prefs(this).edit().putBoolean("estudi_taula", taula).apply();
+        // la taula es pot girar (en vertical els faders són més llargs); el taulell, sempre horitzontal
+        setRequestedOrientation(taula ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
     /** Vúmetres de la taula: es refresquen a cada fotograma mentre es veu. */
@@ -867,54 +903,40 @@ public class ProjecteActivity extends Activity {
             ompleTaula();
         });
         mes.addView(b);
-        filaTaula.addView(mes, new LinearLayout.LayoutParams(Ui.dp(this, 76), LinearLayout.LayoutParams.MATCH_PARENT));
+        filaTaula.addView(mes, new LinearLayout.LayoutParams(Ui.dp(this, 64), LinearLayout.LayoutParams.MATCH_PARENT));
     }
 
-    /** Una tira de canal: número i nom, pic, fader gros amb vúmetre, dB, M, S i gravar. */
+    /**
+     * Una tira de canal: a dalt, número i nom (una línia); al mig, el fader gros amb el vúmetre i,
+     * al costat, una columna fina amb M, S i gravar; a baix, el dB del fader i el pic.
+     */
     private View canal(int i) {
         Projecte.Pista t = projecte.pistes.get(i);
         int color = t.veu ? Ui.VEU : Ui.GUITARRA;
         LinearLayout c = Ui.columna(this);
-        c.setGravity(Gravity.CENTER_HORIZONTAL);
-        c.setPadding(Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6));
-        c.setBackground(Ui.rodo(i % 2 == 0 ? Ui.SUPERFICIE : 0xFF141418, 0));
+        c.setPadding(Ui.dp(this, 3), 0, Ui.dp(this, 3), Ui.dp(this, 4));
+        c.setBackgroundColor(i % 2 == 0 ? Ui.SUPERFICIE : 0xFF141418);
 
         View franja = new View(this);
         franja.setBackgroundColor(color);
-        c.addView(franja, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 3)));
-        TextView num = Ui.negreta(this, String.valueOf(i + 1), 15, Ui.TEXT);
-        num.setGravity(Gravity.CENTER);
-        c.addView(num, Ui.ample(this, 4));
-        TextView nom = Ui.text(this, t.nomVisible(), 11, Ui.SUAU);
-        nom.setGravity(Gravity.CENTER);
-        nom.setMaxLines(2);
-        nom.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        nom.setMinLines(2);
-        c.addView(nom, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        c.addView(franja, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
+        LinearLayout cap = Ui.fila(this);
+        cap.setPadding(Ui.dp(this, 2), Ui.dp(this, 3), Ui.dp(this, 2), 0);
+        TextView num = Ui.negreta(this, String.valueOf(i + 1), 10, Ui.SUAU);
+        cap.addView(num);
+        cap.addView(Ui.espai(this, 4));
+        cap.addView(Ui.unaLinia(Ui.text(this, t.nomVisible(), 10, Ui.TEXT)), Ui.pes(1));
+        c.addView(cap);
 
-        TextView pic = Ui.text(this, "—", 10, Ui.SUAU);
-        pic.setFontFeatureSettings("tnum");
-        pic.setGravity(Gravity.CENTER);
-        c.addView(pic, Ui.ample(this, 2));
-        textosPic.add(pic);
-
+        LinearLayout mig = Ui.fila(this);
+        mig.setGravity(Gravity.TOP);
         FaderView f = new FaderView(this, t.volumDb, color);
-        TextView db = Ui.negreta(this, Projecte.textDb(t.volumDb), 12, Ui.TEXT);
-        db.setFontFeatureSettings("tnum");
-        db.setGravity(Gravity.CENTER);
-        f.setOient((valor, acabat) -> {
-            synchronized (projecte) {
-                t.volumDb = valor;
-            }
-            db.setText(Projecte.textDb(valor));
-            if (acabat) desa();
-        });
+        mig.addView(f, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
         faders.add(f);
-        c.addView(f, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        c.addView(db);
 
-        LinearLayout botons = Ui.fila(this);
-        botons.setGravity(Gravity.CENTER);
+        // columna fina: M, S i gravar
+        LinearLayout col = Ui.columna(this);
+        col.setPadding(0, Ui.dp(this, 10), 0, 0);
         TextView m = botoMS("M", t.mut, Ui.ACCENT);
         TextView so = botoMS("S", t.solo, Ui.GUITARRA);
         m.setOnClickListener(v -> {
@@ -931,18 +953,16 @@ public class ProjecteActivity extends Activity {
             pintaMS(so, t.solo, Ui.GUITARRA);
             desa();
         });
-        botons.addView(m);
-        botons.addView(Ui.espai(this, 4));
-        botons.addView(so);
-        c.addView(botons, Ui.ample(this, 6));
+        col.addView(m);
+        col.addView(Ui.espai(this, 6));
+        col.addView(so);
+        col.addView(Ui.espai(this, 6));
         FrameLayout rec = new FrameLayout(this);
         rec.setClickable(true);
         rec.setContentDescription("Pista on es grava");
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
-        LinearLayout.LayoutParams lr = new LinearLayout.LayoutParams(Ui.dp(this, 60), Ui.dp(this, 24));
-        lr.topMargin = Ui.dp(this, 4);
-        c.addView(rec, lr);
+        col.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
             synchronized (projecte) {
@@ -951,11 +971,46 @@ public class ProjecteActivity extends Activity {
             desa();
             filaTaula.post(this::ompleTaula);
         });
+        mig.addView(col, new LinearLayout.LayoutParams(Ui.dp(this, 28), LinearLayout.LayoutParams.WRAP_CONTENT));
+        c.addView(mig, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 76), LinearLayout.LayoutParams.MATCH_PARENT);
+        // a baix: dB del fader i pic
+        LinearLayout peu = Ui.fila(this);
+        peu.setGravity(Gravity.CENTER);
+        TextView db = Ui.negreta(this, Projecte.textDb(t.volumDb), 11, Ui.TEXT);
+        db.setFontFeatureSettings("tnum");
+        TextView pic = Ui.text(this, "—", 10, Ui.SUAU);
+        pic.setFontFeatureSettings("tnum");
+        peu.addView(db);
+        peu.addView(Ui.espai(this, 6));
+        peu.addView(pic);
+        textosPic.add(pic);
+        c.addView(peu);
+        f.setOient((valor, acabat) -> {
+            synchronized (projecte) {
+                t.volumDb = valor;
+            }
+            db.setText(Projecte.textDb(valor));
+            if (acabat) desa();
+        });
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 96), LinearLayout.LayoutParams.MATCH_PARENT);
         lp.rightMargin = 1;
         c.setLayoutParams(lp);
         return c;
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration nova) {
+        super.onConfigurationChanged(nova);
+        ajustaBarra(nova);
+    }
+
+    /** En vertical la barra de dalt no hi cap sencera: s'amaguen el nom del projecte i la posició. */
+    private void ajustaBarra(android.content.res.Configuration conf) {
+        boolean vertical = conf.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT;
+        if (nomTitol != null) nomTitol.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        if (textPosicio != null) textPosicio.setVisibility(vertical ? View.GONE : View.VISIBLE);
     }
 
     // ---------- Graella ----------

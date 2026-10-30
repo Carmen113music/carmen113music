@@ -36,12 +36,13 @@ public class FaderView extends View {
     private float y0;
     private double db0;
     private long darrerToc;
+    private boolean cedit;
 
     public FaderView(Context c, double db, int color) {
         super(c);
         this.db = db;
         this.color = color;
-        text.setTextSize(Ui.dp(c, 9));
+        text.setTextSize(Ui.dp(c, 8));
         text.setColor(Ui.APAGAT);
         text.setTextAlign(Paint.Align.RIGHT);
     }
@@ -103,18 +104,18 @@ public class FaderView extends View {
     protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
         float dalt = dp(12), baix = h - dp(12);
-        float xMig = w * 0.58f;
+        float xMig = w * 0.48f;
 
         // marques de l'escala
         ple.setColor(Ui.LINIA_FORTA);
         for (double m : MARQUES) {
             float y = yDe(posicio(m), dalt, baix);
-            c.drawRect(xMig - dp(12), y - 0.5f, xMig + dp(12), y + 0.5f, ple);
-            c.drawText(m > 0 ? "+" + (int) m : String.valueOf((int) m), xMig - dp(16), y + dp(3), text);
+            c.drawRect(xMig - dp(10), y - 0.5f, xMig + dp(10), y + 0.5f, ple);
+            c.drawText(m > 0 ? "+" + (int) m : String.valueOf((int) m), xMig - dp(14), y + dp(3), text);
         }
 
-        // vúmetre (a l'esquerra del fader)
-        float xm = dp(6), am = dp(6);
+        // vúmetre (a la dreta del fader)
+        float am = dp(6), xm = w - am - dp(3);
         r.set(xm, dalt, xm + am, baix);
         ple.setColor(Ui.SUPERFICIE2);
         c.drawRoundRect(r, dp(2), dp(2), ple);
@@ -149,11 +150,11 @@ public class FaderView extends View {
         c.drawRoundRect(r, dp(2.5f), dp(2.5f), ple);
 
         // capçal del fader
-        r.set(xMig - dp(16), yf - dp(11), xMig + dp(16), yf + dp(11));
+        r.set(xMig - dp(13), yf - dp(10), xMig + dp(13), yf + dp(10));
         ple.setColor(0xFF3A3A43);
         c.drawRoundRect(r, dp(4), dp(4), ple);
         ple.setColor(Ui.TEXT);
-        c.drawRect(xMig - dp(12), yf - dp(1), xMig + dp(12), yf + dp(1), ple);
+        c.drawRect(xMig - dp(10), yf - dp(1), xMig + dp(10), yf + dp(1), ple);
     }
 
     // ---------- Tocs ----------
@@ -164,11 +165,12 @@ public class FaderView extends View {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 getParent().requestDisallowInterceptTouchEvent(true);
+                cedit = false;
                 y0 = e.getY();
                 db0 = db;
                 return true;
             case MotionEvent.ACTION_MOVE: {
-                if (alt <= 0) return true;
+                if (alt <= 0 || cedit) return true;
                 double pos = posicio(db0) - (e.getY() - y0) / alt;
                 double nou = dbDe(pos);
                 if (Math.abs(nou) < 0.5) nou = 0;   // s'enganxa a 0 dB
@@ -180,6 +182,10 @@ public class FaderView extends View {
                 return true;
             }
             case MotionEvent.ACTION_UP: {
+                if (cedit) {
+                    cedit = false;
+                    return true;
+                }
                 long ara = System.currentTimeMillis();
                 boolean quiet = Math.abs(e.getY() - y0) < dp(6);
                 if (quiet && ara - darrerToc < 320) {
@@ -192,7 +198,18 @@ public class FaderView extends View {
                 if (oient != null) oient.canvi(db, true);
                 return true;
             }
+            case MotionEvent.ACTION_POINTER_DOWN:
+                // un segon dit: és per desplaçar la taula, no per moure el fader. Torna on era i cedeix el gest.
+                if (db != db0) {
+                    db = db0;
+                    invalidate();
+                    if (oient != null) oient.canvi(db, false);
+                }
+                cedit = true;
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
             case MotionEvent.ACTION_CANCEL:
+                cedit = false;
                 if (oient != null) oient.canvi(db, true);
                 return true;
             default:

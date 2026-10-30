@@ -65,6 +65,10 @@ public class PistesView extends View {
 
     // dos dits: separació horitzontal i vertical (zoom en cada direcció)
     private float focusX, focusY, ampleDits, altDits;
+    // el zoom no comença fins que els dits s'obren o es tanquen prou; i només un sentit per gest
+    private float ampleInici, altInici;
+    private int zoomActiu;
+    private final int[] lloc = new int[2];   // 0 = encara cap, 1 = horitzontal (temps), 2 = vertical (alçada)
 
     // estat de l'arrossegament
     private int mode = CAP;
@@ -524,9 +528,14 @@ public class PistesView extends View {
         mode = DOS_DITS;
         getParent().requestDisallowInterceptTouchEvent(true);
         focusX = (e.getX(0) + e.getX(1)) / 2f;
-        focusY = (e.getY(0) + e.getY(1)) / 2f;
+        getLocationOnScreen(lloc);
+        // en coordenades de pantalla: la vista es mou quan es desplaça i no ha d'afectar el càlcul
+        focusY = (e.getY(0) + e.getY(1)) / 2f + lloc[1];
         ampleDits = Math.abs(e.getX(0) - e.getX(1));
         altDits = Math.abs(e.getY(0) - e.getY(1));
+        ampleInici = ampleDits;
+        altInici = altDits;
+        zoomActiu = 0;
         invalidate();
     }
 
@@ -536,14 +545,28 @@ public class PistesView extends View {
      */
     private void mouDosDits(MotionEvent e) {
         float fx = (e.getX(0) + e.getX(1)) / 2f;
-        float fy = (e.getY(0) + e.getY(1)) / 2f;
+        float fy = (e.getY(0) + e.getY(1)) / 2f;            // dins la vista (per al zoom vertical)
+        getLocationOnScreen(lloc);
+        float fyPantalla = fy + lloc[1];                     // a la pantalla (per al desplaçament)
         float aw = Math.abs(e.getX(0) - e.getX(1));
         float ah = Math.abs(e.getY(0) - e.getY(1));
-        // zoom horitzontal: només si els dits estan prou separats de costat
-        if (ampleDits > dp(40) && aw > dp(40)) vista.zoom(aw / ampleDits, fx);
-        // zoom vertical: només si els dits estan prou separats de dalt a baix
-        int dy = Math.round(fy - focusY);
-        if (altDits > dp(40) && ah > dp(40)) {
+        int dy = Math.round(fyPantalla - focusY);
+        // Abans de fer zoom, els dits s'han d'obrir o tancar clarament (si no, només es desplaça):
+        // així el desplaçament no tremola. El primer sentit que passa el llindar és el de tot el gest.
+        float llindar = dp(36);
+        if (zoomActiu == 0) {
+            float canviH = Math.abs(aw - ampleInici), canviV = Math.abs(ah - altInici);
+            if (canviH > llindar && canviH >= canviV && aw > dp(40)) zoomActiu = 1;
+            else if (canviV > llindar && canviV > canviH && ah > dp(40)) zoomActiu = 2;
+            if (zoomActiu != 0) {
+                // comença des d'aquí, sense salt
+                ampleDits = aw;
+                altDits = ah;
+            }
+        }
+        if (zoomActiu == 1 && ampleDits > dp(30) && aw > dp(30)) {
+            vista.zoom(aw / ampleDits, fx);
+        } else if (zoomActiu == 2 && altDits > dp(30) && ah > dp(30)) {
             int abans = altPista;
             setAltPista(Math.round(altPista * (ah / altDits)));
             if (altPista != abans) {
@@ -558,7 +581,7 @@ public class PistesView extends View {
         vista.limita();
         if (dy != 0 && oient != null) oient.desplacaVertical(-dy);
         focusX = fx;
-        focusY = fy;
+        focusY = fyPantalla;
         ampleDits = aw;
         altDits = ah;
         vista.avisa();
