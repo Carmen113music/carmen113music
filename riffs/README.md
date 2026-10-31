@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.32.2:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Pròximes fases: editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.33:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Pròximes fases: passar les notes i acords detectats a l'Estudi, notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -39,6 +39,16 @@ El primer cop l'app demana permís de micròfon.
 - **Tempo** (icona de metrònom): posa o canvia el BPM i el compàs d'una gravació (també amb Tap mentre l'escoltes). Sobre l'ona apareixen les línies dels temps i, més marcades, les dels compassos.
 - **Primer temps** (bandera): toca'l i arrossega la bandera vermella per l'ona fins al primer temps; el capçal s'hi posa perquè ho puguis escoltar. Torna a tocar «Fet» per acabar. «Treu» l'esborra.
 - **Mou**, **Comparteix** (WAV per WhatsApp, correu, Drive…) i **esborrar**.
+
+### Notes, acords i tonalitat (2.33)
+- A la fitxa d'una gravació, toca **Analitza notes, acords i tonalitat** (sota els botons del tempo). L'app escolta la gravació (uns segons; es veu el percentatge) i ho calcula tot al mòbil, sense internet.
+- Sota l'ona surt una **franja** alineada amb l'ona: amb **Acords**, un bloc per acord amb el nom (C, Am, G7, Em7…); amb **Notes**, la melodia com un petit piano roll amb el nom de les notes (La3, Do4…; el Do central és el Do3, com al piano roll). El que sona ara es ressalta. Tocar la franja o arrossegar-hi el dit salta a aquell punt, com l'ona.
+- **Notes / Acords**: l'interruptor de la dreta. Per defecte, les gravacions de **veu** mostren les notes i les de **guitarra**, els acords. L'app recorda el que hagis triat per a cada gravació.
+- **Tonalitat** a l'esquerra (p. ex. «La menor (Am)»). Si no és clara, també diu la segona opció («· o Do major»): passa sovint entre una tonalitat i la seva relativa.
+- Si la gravació té **tempo** (BPM i primer temps), els canvis d'acord s'enganxen als temps.
+- Per tornar-la a analitzar (per exemple, després de posar-hi el tempo): tres punts → **Torna a analitzar**. Amb el teclat obert (escrivint la lletra) la fila de la tonalitat s'amaga i la franja es queda.
+- Què detecta: acords majors, menors, de setena (7) i menors de setena (m7). Les notes funcionen amb **una sola nota alhora** (veu, riff, solo); amb acords, la fila de notes no té sentit. Gravacions de 10 minuts com a màxim.
+- Es desa al costat de la gravació (fitxer `.analisi`) i es mou o s'esborra amb ella.
 
 ### Estudi (multipista)
 - La pestanya **Estudi** llista els projectes: cada carpeta amb gravacions (o amb un projecte desat, encara que només tingui sintes o bateria). **Projecte nou** (a dalt a la dreta, 2.32.2) demana el nom, crea la carpeta a la Biblioteca i l'obre buit, per començar amb «+ Pista nova». També s'obre des de la Biblioteca (tres punts d'una carpeta → **Obre a l'Estudi**).
@@ -177,6 +187,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.33** (31/10/2026) — **Notes, acords i tonalitat** de les gravacions: botó «Analitza» a la fitxa, franja sota l'ona amb els acords o les notes (interruptor Notes / Acords; la veu comença amb notes i la guitarra amb acords), tonalitat (amb la segona opció si no és clara), canvis d'acord enganxats als temps si hi ha tempo. Tot es calcula al mòbil.
 - **2.32.2** (31/10/2026) — **Editor de so des del panell del teclat** de l'Estudi (assajant i gravant), amb «Escolta» per sentir els botons mentre es mouen. **Projecte nou** a la pestanya Estudi; la llista mostra també els projectes sense gravacions.
 - **2.32.1** (31/10/2026) — **Editors** (piano roll, drumpad i teremin): els botons de dalt ja no queden fora de la pantalla (si no hi caben, la tira es desplaça amb el dit) i fora el botó de compassos. **Piano roll**: rectangle per triar unes quantes notes i moure-les juntes. **Pads d'acords**: botons ▲ ▼ de posició (inversions) a l'editor d'acords.
 - **2.32** (31/10/2026) — **Editor de so** del sinte i del Poli (interruptor Notes / So al piano roll): 37 botons rodons en 13 seccions, el bucle sona en directe i els canvis se senten a l'instant, so anterior i següent, Restaura, **Desa el so** («Els meus sons»). Els menús que pugen des de baix ja no queden tallats per sota (en horitzontal no es podia triar l'última opció).

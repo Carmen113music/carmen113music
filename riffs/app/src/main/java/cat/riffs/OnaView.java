@@ -108,6 +108,18 @@ public class OnaView extends View {
         return editaMarca;
     }
 
+    /** On comença l'ona dibuixada (px), per alinear-hi altres vistes. */
+    public float iniciX() {
+        return (getWidth() - ampleUtil()) / 2f;
+    }
+
+    /** Amplada de l'ona dibuixada (px). */
+    public float ampleUtil() {
+        float pas = ampleBarra + separacio;
+        int caben = Math.max(1, (int) ((getWidth() + separacio) / pas));
+        return caben * pas - separacio;
+    }
+
     /** Mode directe: buida l'ona. */
     public void comencaDirecte() {
         modeDirecte = true;

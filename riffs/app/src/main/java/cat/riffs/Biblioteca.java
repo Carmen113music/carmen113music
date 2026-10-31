@@ -186,6 +186,8 @@ public final class Biblioteca {
             throw new IOException("S'ha mogut el so, però no la fitxa.");
         }
         if (onaVella.exists() && !onaVella.renameTo(Ona.fitxerDe(nou))) onaVella.delete();
+        File anVella = Analisi.fitxerDe(wav);
+        if (anVella.exists() && !anVella.renameTo(Analisi.fitxerDe(nou))) anVella.delete();
         return nou;
     }
 
@@ -195,6 +197,8 @@ public final class Biblioteca {
         boolean ok = wav.delete();
         if (fx.exists()) fx.delete();
         if (ona.exists()) ona.delete();
+        File an = Analisi.fitxerDe(wav);
+        if (an.exists()) an.delete();
         return ok;
     }
 

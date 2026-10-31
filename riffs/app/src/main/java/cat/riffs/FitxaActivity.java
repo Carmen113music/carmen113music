@@ -48,6 +48,15 @@ public class FitxaActivity extends Activity {
     private boolean pendent = false;        // hi ha canvis per desar
     private boolean lletraApuntada = false; // ja s'ha apuntat a l'historial en aquesta visita
 
+    // Anàlisi: notes, acords i tonalitat (2.33)
+    private AnalisiView vistaAnalisi;
+    private LinearLayout zonaAnalisi;
+    private Analisi.Resultat analisi;
+    private boolean analitzant = false;
+    private int percentAnalisi = 0;
+    private volatile boolean tancant = false;
+    private boolean teclatObert = false;
+
     private final Runnable desa = this::desaAra;
 
     private final Runnable tic = new Runnable() {
@@ -55,7 +64,7 @@ public class FitxaActivity extends Activity {
         public void run() {
             if (mp != null && preparat) {
                 int pos = mp.getCurrentPosition();
-                ona.setProgres(pos / (float) Math.max(1, mp.getDuration()));
+                posaProgres(pos / (float) Math.max(1, mp.getDuration()));
                 tempsAra.setText(Biblioteca.durada(pos));
             }
             if (mp != null && mp.isPlaying()) h.postDelayed(this, 50);
@@ -78,9 +87,18 @@ public class FitxaActivity extends Activity {
         g = Ui.biblioteca(this).gravacio(wav);
         construeix();
         preparaSo();
+        File wavAra = g.wav;
         new Thread(() -> {
-            float[] pics = Ona.pics(g.wav);
-            runOnUiThread(() -> ona.setPics(pics));
+            float[] pics = Ona.pics(wavAra);
+            Analisi.Resultat an = Analisi.llegeix(wavAra);
+            runOnUiThread(() -> {
+                if (tancant) return;
+                ona.setPics(pics);
+                if (an != null && !analitzant) {
+                    analisi = an;
+                    mostraAnalisi();
+                }
+            });
         }).start();
     }
 
@@ -106,16 +124,26 @@ public class FitxaActivity extends Activity {
         rep.setPadding(Ui.dp(this, 20), Ui.dp(this, 4), Ui.dp(this, 20), Ui.dp(this, 14));
         ona = new OnaView(this);
         ona.setBarres(Ui.dp(this, 3), Ui.dp(this, 2));
-        ona.setOientSalt((f, acabat) -> {
+        OnaView.OientSalt salt = (f, acabat) -> {
             if (mp == null || !preparat) return;
             int pos = Math.round(f * mp.getDuration());
             tempsAra.setText(Biblioteca.durada(pos));
+            posaProgres(f);
             if (acabat) {
                 mp.seekTo(pos);
                 saltat = true;
             }
-        });
+        };
+        ona.setOientSalt(salt);
         rep.addView(ona, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 88)));
+
+        // Franja de l'anàlisi (notes o acords), alineada amb l'ona
+        vistaAnalisi = new AnalisiView(this, ona);
+        vistaAnalisi.setOientSalt(salt);
+        vistaAnalisi.setVisibility(View.GONE);
+        LinearLayout.LayoutParams lpAn = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 48));
+        lpAn.topMargin = Ui.dp(this, 6);
+        rep.addView(vistaAnalisi, lpAn);
 
         LinearLayout temps = Ui.fila(this);
         tempsAra = Ui.text(this, "0:00", 13, Ui.TEXT);
@@ -160,6 +188,11 @@ public class FitxaActivity extends Activity {
         ritme.addView(Ui.espai(this, 8));
         ritme.addView(xipTreu);
         rep.addView(ritme, Ui.ample(this, 12));
+
+        // Analitza / tonalitat i Notes·Acords
+        zonaAnalisi = Ui.fila(this);
+        zonaAnalisi.setGravity(Gravity.CENTER_VERTICAL);
+        rep.addView(zonaAnalisi, Ui.ample(this, 10));
         arrel.addView(rep);
         arrel.addView(Ui.separador(this));
 
@@ -236,12 +269,25 @@ public class FitxaActivity extends Activity {
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(arrel);
 
+        // Amb el teclat obert, la fila de la tonalitat s'amaga (queda més lloc per a la lletra)
+        arrel.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            android.graphics.Rect vis = new android.graphics.Rect();
+            arrel.getWindowVisibleDisplayFrame(vis);
+            int total = arrel.getRootView().getHeight();
+            boolean obert = total - vis.bottom > Ui.dp(this, 150);
+            if (obert != teclatObert) {
+                teclatObert = obert;
+                zonaAnalisi.setVisibility(obert && analisi != null ? View.GONE : View.VISIBLE);
+            }
+        });
+
         omplint = true;
         campTitol.setText(g.fitxa.titol);
         campLletra.setText(g.fitxa.lletra);
         campNotes.setText(g.fitxa.notes);
         omplint = false;
         mostraInfo();
+        mostraAnalisi();
 
         TextWatcher vigila = new TextWatcher() {
             @Override
@@ -384,6 +430,7 @@ public class FitxaActivity extends Activity {
         i.setImageDrawable(new Icona(Ui.iconaMode(g.fitxa), Ui.SOBRE_COLOR, Ui.dp(this, 18)));
         textMode.setText(g.fitxa.esVeu() ? "Veu" : "Guitarra");
         ona.setColors(color, Ui.LINIA_FORTA);
+        if (vistaAnalisi != null) vistaAnalisi.setColor(color);
         info.setText(Biblioteca.data(g.fitxa.data) + "  ·  " + Ui.nomCarpeta(this, g.wav.getParentFile()));
         tempsTotal.setText(Biblioteca.durada(g.fitxa.duradaMs));
         mostraRitme();
@@ -409,6 +456,7 @@ public class FitxaActivity extends Activity {
                 })),
                 new Full.Accio(Icona.MOURE, "Mou", false, this::mou),
                 new Full.Accio(Icona.COMPARTIR, "Comparteix", false, () -> Accions.comparteix(this, g.wav)),
+                new Full.Accio(Icona.NOTA, analisi != null ? "Torna a analitzar" : "Analitza notes i acords", false, this::analitza),
                 new Full.Accio(Icona.PAPERERA, "Esborra", true, this::esborra)));
     }
 
@@ -435,6 +483,113 @@ public class FitxaActivity extends Activity {
         });
     }
 
+    // ---------- Anàlisi: notes, acords i tonalitat ----------
+
+    private void posaProgres(float f) {
+        ona.setProgres(f);
+        if (vistaAnalisi != null) vistaAnalisi.setProgres(f);
+    }
+
+    /** Omple la fila de sota: el botó «Analitza», el progrés, o la tonalitat amb Notes / Acords. */
+    private void mostraAnalisi() {
+        if (zonaAnalisi == null) return;
+        zonaAnalisi.removeAllViews();
+        if (analitzant) {
+            vistaAnalisi.setVisibility(View.GONE);
+            TextView t = Ui.negreta(this, "Analitzant notes i acords… " + percentAnalisi + " %", 14, Ui.SUAU);
+            t.setGravity(Gravity.CENTER);
+            t.setMinHeight(Ui.dp(this, 40));
+            zonaAnalisi.addView(t, Ui.pes(1));
+            return;
+        }
+        if (analisi == null) {
+            vistaAnalisi.setVisibility(View.GONE);
+            LinearLayout b = Ui.pastilla(this, Icona.NOTA, "Analitza notes, acords i tonalitat", Ui.SUPERFICIE, Ui.TEXT);
+            b.setOnClickListener(v -> analitza());
+            zonaAnalisi.addView(b, Ui.pes(1));
+            return;
+        }
+        vistaAnalisi.setVisibility(View.VISIBLE);
+        vistaAnalisi.setColor(Ui.colorMode(g.fitxa));
+        vistaAnalisi.posa(analisi, analisi.duradaMs > 0 ? analisi.duradaMs : durada());
+        vistaAnalisi.setAcords(analisi.vistaAcords);
+
+        LinearLayout col = Ui.columna(this);
+        col.addView(Ui.text(this, "Tonalitat", 11, Ui.SUAU));
+        String to = analisi.textTo() + (analisi.dubtosa() ? "  ·  o " + analisi.nomTo2() : "");
+        col.addView(Ui.cartell(Ui.negreta(this, to, 15, Ui.TEXT)));
+        zonaAnalisi.addView(col, Ui.pes(1));
+        zonaAnalisi.addView(Ui.espai(this, 8));
+        LinearLayout seg = Ui.segmentat(this, new String[]{"Notes", "Acords"}, analisi.vistaAcords ? 1 : 0,
+                Ui.colorMode(g.fitxa), idx -> {
+                    analisi.vistaAcords = idx == 1;
+                    vistaAnalisi.setAcords(analisi.vistaAcords);
+                    desaAnalisi();
+                });
+        zonaAnalisi.addView(seg, new LinearLayout.LayoutParams(Ui.dp(this, 156), LinearLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void analitza() {
+        if (analitzant || g == null) return;
+        if (g.fitxa.duradaMs > 10 * 60 * 1000L) {
+            Ui.avis(this, "Massa llarga per analitzar (màxim 10 minuts)");
+            return;
+        }
+        analitzant = true;
+        percentAnalisi = 0;
+        mostraAnalisi();
+        File wav = g.wav;
+        boolean veu = g.fitxa.esVeu();
+        double bpm = g.fitxa.bpm;
+        long primer = g.fitxa.primerTempsMs;
+        String titol = g.fitxa.titol;
+        new Thread(() -> {
+            Analisi.Resultat r = null;
+            String error = null;
+            try {
+                Wav.Info info = Wav.llegeixInfo(wav);
+                short[] m = info == null ? null : Wav.llegeixMostres(wav);
+                if (m == null) error = "No s'ha pogut llegir la gravació";
+                else r = Analisi.analitza(m, info.mostreig > 0 ? info.mostreig : Sinte.MOSTREIG, veu, bpm, primer, f -> {
+                    int p = (int) Math.round(f * 100);
+                    if (p != percentAnalisi) runOnUiThread(() -> {
+                        percentAnalisi = p;
+                        if (analitzant && !tancant) mostraAnalisi();
+                    });
+                    return !tancant;
+                });
+                if (r != null) Analisi.desa(wav, r);
+            } catch (IOException e) {
+                // l'anàlisi es mostra igualment, encara que no s'hagi pogut desar
+            } catch (OutOfMemoryError e) {
+                r = null;
+                error = "No hi ha prou memòria per analitzar-la";
+            }
+            Analisi.Resultat fet = r;
+            String err = error;
+            runOnUiThread(() -> {
+                if (tancant) return;
+                analitzant = false;
+                if (fet != null) {
+                    analisi = fet;
+                    Ui.historial(this, "Analitzada «" + titol + "»: " + fet.nomTo() + ", "
+                            + fet.acords.size() + " acords, " + fet.notes.size() + " notes");
+                } else if (err != null) {
+                    Ui.avis(this, err);
+                }
+                mostraAnalisi();
+            });
+        }).start();
+    }
+
+    private void desaAnalisi() {
+        if (analisi == null || g == null) return;
+        try {
+            Analisi.desa(g.wav, analisi);
+        } catch (IOException ignored) {
+        }
+    }
+
     // ---------- So ----------
 
     private void preparaSo() {
@@ -444,14 +599,14 @@ public class FitxaActivity extends Activity {
             mp.setOnCompletionListener(m -> {
                 if (bucle) return;
                 Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 28);
-                ona.setProgres(1f);
+                posaProgres(1f);
                 tempsAra.setText(Biblioteca.durada(m.getDuration()));
             });
             mp.prepare();
             mp.setLooping(bucle);
             preparat = true;
             if (textTempo != null) mostraRitme();
-            ona.setProgres(0);
+            posaProgres(0);
             tempsTotal.setText(Biblioteca.durada(mp.getDuration()));
             // si la fitxa no tenia la durada (gravació recuperada), l'apunta
             if (g.fitxa.duradaMs <= 0 && mp.getDuration() > 0) {
@@ -492,7 +647,7 @@ public class FitxaActivity extends Activity {
         Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 28);
         h.removeCallbacks(tic);
         int pos = mp.getCurrentPosition();
-        ona.setProgres(pos / (float) Math.max(1, mp.getDuration()));
+        posaProgres(pos / (float) Math.max(1, mp.getDuration()));
         tempsAra.setText(Biblioteca.durada(pos));
     }
 
@@ -501,7 +656,7 @@ public class FitxaActivity extends Activity {
         int pos = Math.max(0, Math.min(mp.getDuration(), mp.getCurrentPosition() + ms));
         mp.seekTo(pos);
         saltat = true;
-        ona.setProgres(pos / (float) Math.max(1, mp.getDuration()));
+        posaProgres(pos / (float) Math.max(1, mp.getDuration()));
         tempsAra.setText(Biblioteca.durada(pos));
     }
 
@@ -559,6 +714,7 @@ public class FitxaActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        tancant = true;
         aturaSo();
         h.removeCallbacksAndMessages(null);
     }
