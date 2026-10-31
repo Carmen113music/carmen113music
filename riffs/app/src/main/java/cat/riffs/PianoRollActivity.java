@@ -40,7 +40,7 @@ public class PianoRollActivity extends Activity {
 
     private PianoRollView roll;
     private ScrollView scroll;
-    private LinearLayout filaCompassos;
+    private TextView subtitol;
     private TextView textSo, textCompassos, textDivisio;
     private FrameLayout botoPlay;
     private FrameLayout botoDesfes;
@@ -111,7 +111,8 @@ public class PianoRollActivity extends Activity {
         presetInicial = melodia.preset;
         titol = Ui.unaLinia(Ui.negreta(this, nomInicial, 16, Ui.TEXT));
         tit.addView(titol);
-        tit.addView(Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU)));
+        subtitol = Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU));
+        tit.addView(subtitol);
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
@@ -148,16 +149,13 @@ public class PianoRollActivity extends Activity {
         dalt.addView(botoPlay);
         arrel.addView(dalt);
 
-        // pestanyes dels compassos i ajuda
+        // ajuda (2.31.2: sense pestanyes de compàs; el compàs que es veu surt al subtítol de dalt)
         LinearLayout segona = Ui.fila(this);
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
-        filaCompassos = Ui.fila(this);
-        segona.addView(filaCompassos);
         TextView ajuda = Ui.text(this, "Toca per posar una nota i toca-la per treure-la · arrossega-la per moure-la · "
                 + "arrossega la punta dreta per allargar-la · dos dits: obre'ls per fer zoom (de costat, el temps; amunt i avall, les files) i arrossega per moure't", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);
-        la.leftMargin = Ui.dp(this, 12);
         segona.addView(ajuda, la);
         arrel.addView(segona);
 
@@ -192,7 +190,7 @@ public class PianoRollActivity extends Activity {
 
             @Override
             public void compas(int c) {
-                filaCompassos.post(() -> actualitzaCapcalera());
+                subtitol.post(() -> actualitzaCapcalera());
             }
 
             @Override
@@ -236,12 +234,8 @@ public class PianoRollActivity extends Activity {
         if (titol != null) titol.setText(Ui.nomAmbSo(nomInicial, presetInicial, melodia.preset));
         textCompassos.setText(melodia.compassos == 1 ? "1 compàs" : melodia.compassos + " compassos");
         textDivisio.setText(melodia.divisio() + "/temps");
-        filaCompassos.removeAllViews();
-        if (melodia.compassos > 1) {
-            String[] ops = new String[melodia.compassos];
-            for (int i = 0; i < ops.length; i++) ops[i] = melodia.compassos > 4 ? Integer.toString(i + 1) : "Compàs " + (i + 1);
-            filaCompassos.addView(Ui.segmentat(this, ops, roll.compasVisible(), color(), i -> roll.posaCompas(i)));
-        }
+        subtitol.setText(Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas)
+                + (melodia.compassos > 1 ? " · compàs " + (roll.compasVisible() + 1) + " de " + melodia.compassos : ""));
         roll.invalidate();
     }
 

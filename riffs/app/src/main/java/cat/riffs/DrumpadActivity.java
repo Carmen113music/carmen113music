@@ -50,7 +50,7 @@ public class DrumpadActivity extends Activity {
     private boolean canviat = false;
 
     private GraellaView graella;
-    private LinearLayout filaCompassos;
+    private TextView subtitol;
     private TextView textKit, textCompassos, textDivisio;
     private final android.media.AudioTimestamp marca = new android.media.AudioTimestamp();
     private FrameLayout botoPlay;
@@ -119,7 +119,8 @@ public class DrumpadActivity extends Activity {
         LinearLayout tit = Ui.columna(this);
         String nom = in.getStringExtra(EXTRA_NOM);
         tit.addView(Ui.unaLinia(Ui.negreta(this, nom == null ? "Bateria" : nom, 16, Ui.TEXT)));
-        tit.addView(Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU)));
+        subtitol = Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU));
+        tit.addView(subtitol);
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
@@ -157,15 +158,12 @@ public class DrumpadActivity extends Activity {
         dalt.addView(botoPlay);
         arrel.addView(dalt);
 
-        // pestanyes dels compassos i ajuda
+        // ajuda (2.31.2: sense pestanyes de compàs; el compàs que es veu surt al subtítol de dalt)
         LinearLayout segona = Ui.fila(this);
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
-        filaCompassos = Ui.fila(this);
-        segona.addView(filaCompassos);
         TextView ajuda = Ui.text(this, "Toca per posar o treure un cop · mantén premut i arrossega amunt o avall per la força · toca el nom per triar el so · dos dits: desplaçar i zoom", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);
-        la.leftMargin = Ui.dp(this, 12);
         segona.addView(ajuda, la);
         arrel.addView(segona);
 
@@ -234,12 +232,8 @@ public class DrumpadActivity extends Activity {
         textKit.setText(nk);
         textCompassos.setText(patro.compassos == 1 ? "1 compàs" : patro.compassos + " compassos");
         textDivisio.setText(patro.divisio() + "/temps");
-        filaCompassos.removeAllViews();
-        if (patro.compassos > 1) {
-            String[] ops = new String[patro.compassos];
-            for (int i = 0; i < ops.length; i++) ops[i] = "Compàs " + (i + 1);
-            filaCompassos.addView(Ui.segmentat(this, ops, graella.compasVisible(), Ui.BATERIA, i -> graella.posaCompas(i)));
-        }
+        subtitol.setText(Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas)
+                + (patro.compassos > 1 ? " · compàs " + (graella.compasVisible() + 1) + " de " + patro.compassos : ""));
         graella.limita();
         graella.requestLayout();
         graella.invalidate();

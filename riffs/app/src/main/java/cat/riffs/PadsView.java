@@ -32,6 +32,8 @@ public class PadsView extends View {
     private Oient oient;
     private boolean edita = false;
     private int color = Ui.MIDI;
+    /** El pad que s'està editant (es marca), o -1. */
+    private int triat = -1;
 
     private final SparseIntArray padDeDit = new SparseIntArray();
     private final java.util.Set<Integer> premuts = new java.util.HashSet<>();
@@ -85,6 +87,11 @@ public class PadsView extends View {
 
     public boolean edita() {
         return edita;
+    }
+
+    public void posaTriat(int pad) {
+        triat = pad;
+        invalidate();
     }
 
     public void posaColor(int c) {
@@ -167,12 +174,13 @@ public class PadsView extends View {
             rect(pad, r);
             Acords.Acord a = acords.pads[pad];
             boolean premut = premuts.contains(pad);
-            p.setColor(premut ? color : a.buit() ? Ui.SUPERFICIE : Ui.SUPERFICIE2);
+            boolean es = pad == triat;
+            p.setColor(premut ? color : es ? Ui.alfa(color, 70) : a.buit() ? Ui.SUPERFICIE : Ui.SUPERFICIE2);
             c.drawRoundRect(r, 10 * d, 10 * d, p);
-            // vora (més marcada en mode edita)
+            // vora (més marcada en mode edita, i encara més al pad triat)
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth((edita ? 1.6f : 1f) * d);
-            p.setColor(edita ? Ui.alfa(color, 200) : Ui.LINIA_FORTA);
+            p.setStrokeWidth((es ? 2.4f : edita ? 1.2f : 1f) * d);
+            p.setColor(es ? color : edita ? Ui.alfa(color, 120) : Ui.LINIA_FORTA);
             c.drawRoundRect(r, 10 * d, 10 * d, p);
             p.setStyle(Paint.Style.FILL);
             // número del pad, petit, a dalt a l'esquerra
@@ -201,11 +209,11 @@ public class PadsView extends View {
         if (edita) {
             if (acc == MotionEvent.ACTION_DOWN) {
                 getParent().requestDisallowInterceptTouchEvent(true);
-                return true;
-            }
-            if (acc == MotionEvent.ACTION_UP) {
                 int pad = padA(ev.getX(), ev.getY());
-                if (pad >= 0 && oient != null) oient.edita(pad);
+                if (pad >= 0 && oient != null) {
+                    performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                    oient.edita(pad);
+                }
             }
             return true;
         }

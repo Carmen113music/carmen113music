@@ -2474,52 +2474,135 @@ public class ProjecteActivity extends Activity {
             }
             posaRang.run();
         });
-        barra.addView(menys);
-        barra.addView(Ui.espai(this, 6));
-        barra.addView(rang);
-        barra.addView(Ui.espai(this, 6));
-        barra.addView(mes);
+        // −/+ de l'octava: van després dels botons dels acords (2.31.2), perquè el llapis no quedi mai tallat
+        LinearLayout octava = Ui.fila(this);
+        octava.setGravity(Gravity.CENTER_VERTICAL);
+        octava.addView(menys);
+        octava.addView(Ui.espai(this, 6));
+        octava.addView(rang);
+        octava.addView(Ui.espai(this, 6));
+        octava.addView(mes);
+        boolean[] editant = {false};
 
         textTeclat = Ui.cartell(Ui.text(this, assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa", 12, Ui.APAGAT));
         textTeclat.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         Runnable textBase = () -> {
             if (textTeclat == null) return;
             textTeclat.setTextColor(Ui.APAGAT);
-            if (pads != null && modeAcords[0] && pads.edita()) {
+            if (pads != null && modeAcords[0] && editant[0]) {
                 textTeclat.setTextColor(color);
-                textTeclat.setText("Toca un pad per canviar-ne l'acord · torna a tocar el llapis per acabar");
+                textTeclat.setText("Toca un pad petit i tria'n l'acord · torna a tocar el llapis per acabar");
             } else {
                 textTeclat.setText(assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa");
             }
         };
 
         FrameLayout zona = new FrameLayout(this);
+        LinearLayout editor = null;
         if (poli) {
-            // interruptor Notes / Acords, preset i llapis (aquests dos, només amb els acords)
-            barra.addView(Ui.espai(this, 12));
+            // interruptor Notes / Acords, llapis i preset (aquests dos, només amb els acords)
             LinearLayout preset = Ui.pastilla(this, Ui.iconaPista(t), "", Ui.SUPERFICIE2, Ui.TEXT);
             preset.setMinimumHeight(Ui.dp(this, 36));
             TextView tp = (TextView) preset.getChildAt(preset.getChildCount() - 1);
             tp.setMaxWidth(Ui.dp(this, 120));
             Ui.unaLinia(tp);
+            FrameLayout llapis = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Edita els acords dels pads");
+
+            // editor (2.31.2): pads petits a l'esquerra i les quatre columnes a la dreta
+            editor = Ui.fila(this);
+            editor.setGravity(Gravity.TOP);
+            LinearLayout esq = Ui.columna(this);
+            PadsView mini = new PadsView(this);
+            mini.posaColor(color);
+            mini.posaEdita(true);
+            mini.posaAcords(pads.acords());
+            esq.addView(mini, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 110)));
+            TextView nomPad = Ui.unaLinia(Ui.negreta(this, "", 16, Ui.TEXT));
+            esq.addView(nomPad, Ui.ample(this, 8));
+            LinearLayout botonsPad = Ui.fila(this);
+            LinearLayout escolta = Ui.pastilla(this, Icona.PLAY, "Escolta", Ui.SUPERFICIE2, Ui.TEXT);
+            LinearLayout buida = Ui.pastilla(this, Icona.PAPERERA, "Buida", Ui.SUPERFICIE2, Ui.TEXT);
+            botonsPad.addView(escolta, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            botonsPad.addView(Ui.espai(this, 8));
+            botonsPad.addView(buida, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            esq.addView(botonsPad, Ui.ample(this, 8));
+            int ampleEsq = Math.min(Ui.dp(this, 250), getResources().getDisplayMetrics().widthPixels * 36 / 100);
+            editor.addView(esq, new LinearLayout.LayoutParams(ampleEsq, LinearLayout.LayoutParams.MATCH_PARENT));
+            editor.addView(Ui.espai(this, 14));
+            int[] triat = {0};
             Runnable posaPreset = () -> {
                 String pr = pads.acords().preset;
                 tp.setText(pr == null || pr.isEmpty() ? "Presets" : pr);
             };
-            FrameLayout llapis = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Canvia l'acord d'un pad");
+            Runnable posaNomPad = () -> {
+                Acords.Acord ac = pads.acords().pads[triat[0]];
+                nomPad.setText("Pad " + (triat[0] + 1) + " · " + (ac.buit() ? "buit" : ac.nom()));
+            };
+            Full.EditorAcord ed = Full.editorAcord(this, color, ac -> {
+                Acords a = pads.acords();
+                a.pads[triat[0]] = ac;
+                if (a.preset != null && !a.preset.isEmpty() && !a.preset.endsWith(" (modificat)")) {
+                    a.preset = a.preset + " (modificat)";
+                }
+                desaAcords(a);
+                pads.invalidate();
+                mini.invalidate();
+                posaPreset.run();
+                posaNomPad.run();
+                provaAcord(ac.notes(pads.base()), mini);
+            });
+            editor.addView(ed.vista, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            Runnable triaPad = () -> {
+                mini.posaTriat(triat[0]);
+                ed.posa(pads.acords().pads[triat[0]]);
+                posaNomPad.run();
+            };
+            mini.posaOient(pad -> {
+                triat[0] = pad;
+                triaPad.run();
+                Acords.Acord ac = pads.acords().pads[pad];
+                if (!ac.buit()) provaAcord(ac.notes(pads.base()), mini);
+            });
+            escolta.setOnClickListener(v -> {
+                Acords.Acord ac = pads.acords().pads[triat[0]];
+                if (!ac.buit()) provaAcord(ac.notes(pads.base()), mini);
+            });
+            buida.setOnClickListener(v -> {
+                Acords a = pads.acords();
+                a.pads[triat[0]] = new Acords.Acord();
+                if (a.preset != null && !a.preset.isEmpty() && !a.preset.endsWith(" (modificat)")) {
+                    a.preset = a.preset + " (modificat)";
+                }
+                desaAcords(a);
+                pads.invalidate();
+                posaPreset.run();
+                triaPad.run();
+            });
+            Runnable trasPreset = () -> {   // s'han posat els acords d'un preset
+                mini.posaAcords(pads.acords());
+                posaPreset.run();
+                triaPad.run();
+            };
+
+            LinearLayout editorF = editor;
             Runnable pintaLlapis = () -> {
-                boolean on = pads.edita();
+                boolean on = editant[0];
                 llapis.setBackground(Ui.tocable(on ? color : Ui.SUPERFICIE2, Ui.dp(this, 18)));
                 Ui.colorIcona(llapis, on ? Ui.SOBRE_COLOR : Ui.TEXT);
             };
             Runnable aplicaMode = () -> {
                 teclat.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
                 pads.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
-                if (!modeAcords[0] && pads.edita()) pads.posaEdita(false);
+                if (!modeAcords[0]) editant[0] = false;
                 teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
-                pads.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+                pads.setVisibility(modeAcords[0] && !editant[0] ? View.VISIBLE : View.GONE);
+                editorF.setVisibility(modeAcords[0] && editant[0] ? View.VISIBLE : View.GONE);
                 preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
                 llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+                if (editant[0]) {
+                    mini.posaBase(pads.base());
+                    triaPad.run();
+                }
                 posaRang.run();
                 pintaLlapis.run();
                 textBase.run();
@@ -2529,41 +2612,32 @@ public class ProjecteActivity extends Activity {
                 Ui.prefs(this).edit().putBoolean("acords_encesos", modeAcords[0]).apply();
                 aplicaMode.run();
             });
-            barra.addView(interruptor, new LinearLayout.LayoutParams(Ui.dp(this, 150), Ui.dp(this, 40)));
-            barra.addView(Ui.espai(this, 8));
-            preset.setOnClickListener(v -> triaPresetAcords(pads, posaPreset));
-            barra.addView(preset, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(interruptor, new LinearLayout.LayoutParams(Ui.dp(this, 140), Ui.dp(this, 40)));
             barra.addView(Ui.espai(this, 8));
             llapis.setOnClickListener(v -> {
-                pads.posaEdita(!pads.edita());
-                pintaLlapis.run();
-                textBase.run();
+                editant[0] = !editant[0];
+                aplicaMode.run();
             });
             barra.addView(llapis);
+            barra.addView(Ui.espai(this, 8));
+            preset.setOnClickListener(v -> triaPresetAcords(pads, trasPreset));
+            barra.addView(preset, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
             pads.posaColor(color);
-            pads.posaOient(pad -> {
-                Acords a = pads.acords();
-                Full.editaAcord(this, "Pad " + (pad + 1), a.pads[pad], color,
-                        ac -> provaAcord(ac.notes(pads.base()), pads),
-                        ac -> {
-                            a.pads[pad] = ac;
-                            if (a.preset != null && !a.preset.isEmpty() && !a.preset.endsWith(" (modificat)")) {
-                                a.preset = a.preset + " (modificat)";
-                            }
-                            desaAcords(a);
-                            pads.invalidate();
-                            posaPreset.run();
-                        });
-            });
             posaPreset.run();
             zona.addView(pads, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            FrameLayout.LayoutParams le = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+            le.setMargins(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), 0);
+            zona.addView(editor, le);
             // l'interruptor ja s'ha creat: posem cada cosa al seu lloc
             barra.post(aplicaMode);
             teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
             pads.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+            editor.setVisibility(View.GONE);
             preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
             llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+            barra.addView(Ui.espai(this, 12));
         }
+        barra.addView(octava);
         posaRang.run();
         // el text d'informació només ocupa el lloc que sobra (i corre si no hi cap); «Tanca» no es mou mai
         LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);

@@ -344,28 +344,45 @@ public final class Full {
     // ---------- Editor d'acords (com el del Cubase) ----------
 
     /**
-     * Editor de l'acord d'un pad: quatre columnes (Fonamental, Tipus, Tensions, Nota greu). Cada toc canvia l'acord,
-     * el fa sonar ({@code prova}) i el desa ({@code canvi}). «Fet» (o tocar fora) tanca.
+     * L'editor d'acords (com el del Cubase), per posar al costat dels pads petits (2.31.2): quatre columnes
+     * (Fonamental, Tipus, Tensions, Nota greu). {@link EditorAcord#posa} hi carrega l'acord d'un pad; cada toc
+     * el canvia i avisa {@code canvi} (que el desa i el fa sonar).
      */
-    public static void editaAcord(Activity a, String titol, Acords.Acord inicial, int color,
-                                  java.util.function.Consumer<Acords.Acord> prova,
-                                  java.util.function.Consumer<Acords.Acord> canvi) {
-        Acords.Acord ac = inicial.buit() ? new Acords.Acord() : inicial.copia();
-        if (ac.buit()) ac.arrel = 0;
-        LinearLayout cos = Ui.columna(a);
-        cos.setPadding(Ui.dp(a, 16), Ui.dp(a, 2), Ui.dp(a, 16), 0);
-        LinearLayout cap = Ui.fila(a);
-        cap.addView(Ui.negreta(a, titol, 16, Ui.SUAU));
-        cap.addView(Ui.espai(a, 14));
-        TextView nom = Ui.unaLinia(Ui.negreta(a, "", 22, Ui.TEXT));
-        cap.addView(nom, Ui.pes(1));
-        LinearLayout buida = Ui.pastilla(a, Icona.PAPERERA, "Buida el pad", Ui.SUPERFICIE2, Ui.TEXT);
-        cap.addView(buida, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(a, 38)));
-        cap.addView(Ui.espai(a, 8));
-        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
-        cap.addView(fet, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(a, 38)));
-        cos.addView(cap);
+    public static final class EditorAcord {
+        public final View vista;
+        private final Acords.Acord ac = new Acords.Acord();
+        private final Runnable pinta;
+        private final java.util.function.Consumer<Acords.Acord> canvi;
 
+        private EditorAcord(View vista, Runnable[] pinta, java.util.function.Consumer<Acords.Acord> canvi, Acords.Acord[] ref) {
+            this.vista = vista;
+            this.pinta = pinta[0];
+            this.canvi = canvi;
+            ref[0] = ac;
+        }
+
+        /** Mostra l'acord d'un pad (buit: no hi ha res marcat fins que en toquis una casella). */
+        public void posa(Acords.Acord a) {
+            Acords.Acord b = a == null ? new Acords.Acord() : a;
+            ac.arrel = b.arrel;
+            ac.grafia = b.grafia;
+            ac.tipus = b.tipus;
+            ac.tensions = b.tensions;
+            ac.baix = b.baix;
+            pinta.run();
+        }
+
+        public Acords.Acord acord() {
+            return ac.copia();
+        }
+
+        void avisa() {
+            pinta.run();
+            canvi.accept(ac.copia());
+        }
+    }
+
+    public static EditorAcord editorAcord(Activity a, int color, java.util.function.Consumer<Acords.Acord> canvi) {
         String[] baixos = new String[13];
         baixos[0] = "—";
         for (int i = 0; i < 12; i++) baixos[i + 1] = Acords.NOTES[i];
@@ -374,68 +391,71 @@ public final class Full {
         LinearLayout cols = Ui.fila(a);
         cols.setGravity(Gravity.TOP);
         cols.addView(columnaAcord(a, "Fonamental", Acords.NOTES, 3, bArrel), Ui.pes(3));
-        cols.addView(Ui.espai(a, 12));
+        cols.addView(Ui.espai(a, 10));
         cols.addView(columnaAcord(a, "Tipus", Acords.TIPUS, 2, bTipus), Ui.pes(2));
-        cols.addView(Ui.espai(a, 12));
+        cols.addView(Ui.espai(a, 10));
         cols.addView(columnaAcord(a, "Tensions", Acords.TENSIONS, 3, bTens), Ui.pes(3));
-        cols.addView(Ui.espai(a, 12));
+        cols.addView(Ui.espai(a, 10));
         cols.addView(columnaAcord(a, "Nota greu", baixos, 3, bBaix), Ui.pes(3));
         ScrollView sc = new ScrollView(a);
         sc.addView(cols);
-        cos.addView(sc, Ui.ample(a, 8));
 
+        Acords.Acord[] ref = new Acords.Acord[1];
         Runnable[] pinta = new Runnable[1];
         pinta[0] = () -> {
-            nom.setText(ac.nom());
+            Acords.Acord ac = ref[0];
+            if (ac == null) return;
+            boolean buit = ac.buit();
             for (int i = 0; i < bArrel.size(); i++) marcaBoto(a, bArrel.get(i), i == ac.arrel, color);
-            for (int i = 0; i < bTipus.size(); i++) marcaBoto(a, bTipus.get(i), i == ac.tipus, color);
-            for (int i = 0; i < bTens.size(); i++) marcaBoto(a, bTens.get(i), ac.te(i), color);
-            for (int i = 0; i < bBaix.size(); i++) marcaBoto(a, bBaix.get(i), i == ac.baix + 1, color);
+            for (int i = 0; i < bTipus.size(); i++) marcaBoto(a, bTipus.get(i), !buit && i == ac.tipus, color);
+            for (int i = 0; i < bTens.size(); i++) marcaBoto(a, bTens.get(i), !buit && ac.te(i), color);
+            for (int i = 0; i < bBaix.size(); i++) marcaBoto(a, bBaix.get(i), !buit && i == ac.baix + 1, color);
         };
-        Runnable canviat = () -> {
-            pinta[0].run();
-            canvi.accept(ac.copia());
-            prova.accept(ac.copia());
+        EditorAcord ed = new EditorAcord(sc, pinta, canvi, ref);
+        Acords.Acord ac = ref[0];
+        Runnable siBuit = () -> {
+            if (ac.buit()) {   // un pad buit comença sent un acord de C major
+                ac.arrel = 0;
+                ac.tipus = Acords.MAJ;
+                ac.tensions = 0;
+                ac.baix = -1;
+            }
         };
         for (int i = 0; i < bArrel.size(); i++) {
             int k = i;
             bArrel.get(i).setOnClickListener(v -> {
+                siBuit.run();
                 ac.arrel = k;
                 ac.grafia = 0;
-                canviat.run();
+                ed.avisa();
             });
         }
         for (int i = 0; i < bTipus.size(); i++) {
             int k = i;
             bTipus.get(i).setOnClickListener(v -> {
+                siBuit.run();
                 ac.tipus = k;
-                canviat.run();
+                ed.avisa();
             });
         }
         for (int i = 0; i < bTens.size(); i++) {
             int k = i;
             bTens.get(i).setOnClickListener(v -> {
+                siBuit.run();
                 ac.commuta(k);
-                canviat.run();
+                ed.avisa();
             });
         }
         for (int i = 0; i < bBaix.size(); i++) {
             int k = i;
             bBaix.get(i).setOnClickListener(v -> {
+                siBuit.run();
                 ac.baix = k - 1;
-                canviat.run();
+                ed.avisa();
             });
         }
         pinta[0].run();
-        if (inicial.buit()) canvi.accept(ac.copia());   // el pad buit passa a tenir l'acord que es veu (C)
-        nom.setOnClickListener(v -> prova.accept(ac.copia()));
-        Dialog d = panellBaix(a, cos);
-        fet.setOnClickListener(v -> d.dismiss());
-        buida.setOnClickListener(v -> {
-            canvi.accept(new Acords.Acord());
-            d.dismiss();
-        });
-        d.show();
+        return ed;
     }
 
     private static LinearLayout columnaAcord(Activity a, String titol, String[] noms, int cols, List<TextView> botons) {
