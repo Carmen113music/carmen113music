@@ -15,7 +15,8 @@ final class SinteViu {
     private static final int TROS = 128;
 
     private final Sinte.So so;
-    private final float guany;
+    private final float guany;          // el fader de la pista (el volum del so es llegeix a cada tros: l'editor el pot moure)
+    private volatile boolean refresca;
     private final double bpm;
     /** Sinte polifònic (2.31): diverses notes alhora ({@link #encen} / {@link #apaga}). */
     private final boolean poli;
@@ -37,7 +38,7 @@ final class SinteViu {
         this.so = so;
         this.bpm = bpm;
         this.poli = poli;
-        this.guany = (float) (0.7 * Math.pow(10, so.volumDb / 20) * (guanyPista > 0 ? guanyPista : 1));
+        this.guany = (float) (guanyPista > 0 ? guanyPista : 1);
     }
 
     boolean comenca() {
@@ -87,6 +88,20 @@ final class SinteViu {
         return poli;
     }
 
+    /** El so que fa sonar (l'editor de so del panell el modifica directament). */
+    Sinte.So so() {
+        return so;
+    }
+
+    /** S'han mogut botons del so: es tornen a llegir al tros següent. */
+    void canviat() {
+        refresca = true;
+    }
+
+    private float guanyAra() {
+        return (float) (0.7 * Math.pow(10, so.volumDb / 20)) * guany;
+    }
+
     /** Polifònic: comença una nota. */
     void encen(int nota) {
         cua.add(new int[]{nota, 3});
@@ -122,7 +137,7 @@ final class SinteViu {
             return;
         }
         Sinte.Veu veu = new Sinte.Veu(so);
-        Efectes fx = so.ambEfectes() ? new Efectes(so, bpm) : null;
+        Efectes fx = new Efectes(so, bpm, true);   // sempre a punt (2.32.2): l'editor pot encendre els efectes
         short[] tros = new short[TROS];
         double cG = 1 - Math.exp(-1.0 / (0.008 * Sinte.MOSTREIG));
         double g = 1;
@@ -139,6 +154,12 @@ final class SinteViu {
                     veu.toca(e[0], 2, e[1] == 1);
                 }
             }
+            if (refresca) {
+                refresca = false;
+                veu.refresca();
+                fx.refresca();
+            }
+            float guany = guanyAra();
             if (teremin) veu.posaNota(notaCont);
             double objectiu = teremin ? Gest.guanyDeVolum(volCont) : 1;
             if (veu.callada() && fx == null) {
@@ -165,7 +186,7 @@ final class SinteViu {
     }
 
     private void buclePoli() {
-        Poli.Motor m = new Poli.Motor(so, bpm);
+        Poli.Motor m = new Poli.Motor(so, bpm, true);
         short[] tros = new short[TROS];
         while (viu) {
             int[] e;
@@ -174,6 +195,11 @@ final class SinteViu {
                 else if (e[1] == 4) m.apaga(e[0]);
                 else if (e[1] == 5) m.apagaTot();
             }
+            if (refresca) {
+                refresca = false;
+                m.refresca();
+            }
+            float guany = guanyAra();
             if (m.callat() && !m.ambEfectes()) {
                 java.util.Arrays.fill(tros, (short) 0);
             } else {

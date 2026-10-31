@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.32.1:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.32.2:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Pròximes fases: editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -41,7 +41,7 @@ El primer cop l'app demana permís de micròfon.
 - **Mou**, **Comparteix** (WAV per WhatsApp, correu, Drive…) i **esborrar**.
 
 ### Estudi (multipista)
-- La pestanya **Estudi** llista els projectes: cada carpeta amb gravacions. També s'obre des de la Biblioteca (tres punts d'una carpeta → **Obre a l'Estudi**).
+- La pestanya **Estudi** llista els projectes: cada carpeta amb gravacions (o amb un projecte desat, encara que només tingui sintes o bateria). **Projecte nou** (a dalt a la dreta, 2.32.2) demana el nom, crea la carpeta a la Biblioteca i l'obre buit, per començar amb «+ Pista nova». També s'obre des de la Biblioteca (tres punts d'una carpeta → **Obre a l'Estudi**).
 - L'Estudi sempre es veu **en horitzontal**; la resta de l'app, en vertical.
 - **Cada gravació és una pista.** Les que tenen la bandera del primer temps s'encaixen soles a l'inici d'un compàs (a partir del 2, perquè hi càpiguen les anacrusis). El tempo del projecte surt del primer take amb tempo; es canvia amb el botó de tempo de dalt. Cada pista pot tenir **diversos clips** del mateix fitxer (per exemple, per fer un loop): cada clip té la seva posició, retall, fades i volum, independents dels altres. La bandera és de la gravació i es veu a tots els seus clips.
 - **Regla** de compassos i temps: tocar-la o arrossegar-hi el dit mou el capçal. **Posició** a dalt a la dreta en format compàs.temps.semicorxera.
@@ -95,6 +95,7 @@ El primer cop l'app demana permís de micròfon.
 ### Tocar sense gravar (assajar)
 - Les pistes de **sinte**, **MIDI** i **teremin** tenen un **botó petit amb l'instrument** a la capçalera, al costat del nom. En tocar-lo s'obre el teclat (o la quadrícula del teremin) als dos terços de baix: sona en directe amb el so de la pista, però **no es grava res**.
 - Pots tocar sol o fer sonar el projecte amb el **play** de dalt i tocar-hi a sobre. Hi tens totes les opcions: octaves, **Acords** i el llapis per triar-los (MIDI), **Notes justes** (teremin).
+- **So** (2.32.2, sinte i Poli; també gravant): el botó **So** de la barra del panell obre l'**editor de so** (els mateixos botons que al piano roll) i el panell creix fins a dalt. **Escolta** deixa sonant un acord (o una nota) mentre gires els botons, i se sent a l'instant; sense Escolta, en deixar anar un botó sona un acord curt. **Restaura** torna al so de fàbrica i **Desa el so** el guarda a «Els meus sons». En tornar a tocar **So** (o en tancar el panell o aturar la gravació), el so nou s'aplica a **totes les finestres de la pista**. El que sona amb Escolta no es grava.
 - **Tanca** (sempre fixat a la dreta), la **fletxa «<»** de dalt, el **botó enrere** del mòbil o tornar a tocar el botó de la pista el tanquen (sense sortir del projecte). Gravant, la fletxa i el botó enrere aturen i desen la gravació i tanquen el panell.
 - **Panells de triar** (2.30): tots tenen el mateix aspecte. «Fet» es queda amb el so triat; la **fletxa «<»** de dalt torna enrere sense canviar res.
 - **Canviar el so des del panell** (2.29): toca la **icona i el nom de la pista** a la barra del panell (assajant o gravant). Surt la llista de sons (al MIDI, família i instrument): cada un que toques **sona** i queda triat per a **tota la pista**, també el que ja has gravat. Si la pista es deia com el so d'abans, pren el nom del nou. Si mantens premut el play per gravar, el panell d'assaig es tanca i comença la gravació normal.
@@ -176,6 +177,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.32.2** (31/10/2026) — **Editor de so des del panell del teclat** de l'Estudi (assajant i gravant), amb «Escolta» per sentir els botons mentre es mouen. **Projecte nou** a la pestanya Estudi; la llista mostra també els projectes sense gravacions.
 - **2.32.1** (31/10/2026) — **Editors** (piano roll, drumpad i teremin): els botons de dalt ja no queden fora de la pantalla (si no hi caben, la tira es desplaça amb el dit) i fora el botó de compassos. **Piano roll**: rectangle per triar unes quantes notes i moure-les juntes. **Pads d'acords**: botons ▲ ▼ de posició (inversions) a l'editor d'acords.
 - **2.32** (31/10/2026) — **Editor de so** del sinte i del Poli (interruptor Notes / So al piano roll): 37 botons rodons en 13 seccions, el bucle sona en directe i els canvis se senten a l'instant, so anterior i següent, Restaura, **Desa el so** («Els meus sons»). Els menús que pugen des de baix ja no queden tallats per sota (en horitzontal no es podia triar l'última opció).
 - **2.31.2** (31/10/2026) — **Editor dels pads d'acords al mateix panell**: el llapis va al costat de l'interruptor Notes / Acords (ja no queda tallat) i, encès, mostra els pads en petit a l'esquerra i les quatre columnes (fonamental, tipus, tensions, nota greu) a la dreta. **Fora les pestanyes de compàs** del piano roll i del drumpad (et mous amb dos dits); el compàs que es veu surt al subtítol de dalt.

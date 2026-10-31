@@ -27,10 +27,16 @@ public class EstudiActivity extends Activity {
 
         LinearLayout dalt = Ui.fila(this);
         dalt.setPadding(Ui.dp(this, 20), Ui.dp(this, 12), Ui.dp(this, 20), 0);
+        dalt.setGravity(Gravity.CENTER_VERTICAL);
         dalt.addView(Ui.negreta(this, "Estudi", 26, Ui.TEXT));
+        dalt.addView(Ui.mollaH(this));
+        // 2.32.2: projecte nou (una carpeta nova a la Biblioteca, que s'obre de seguida)
+        LinearLayout nou = Ui.pastilla(this, Icona.MES, "Projecte nou", Ui.ACCENT, Ui.SOBRE_COLOR);
+        nou.setOnClickListener(v -> projecteNou());
+        dalt.addView(nou, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.setMinimumHeight(Ui.dp(this, 54));
         arrel.addView(dalt);
-        TextView sub = Ui.text(this, "Obre una carpeta com a projecte multipista", 13, Ui.SUAU);
+        TextView sub = Ui.text(this, "Obre una carpeta com a projecte multipista, o crea'n un de nou", 13, Ui.SUAU);
         sub.setPadding(Ui.dp(this, 20), Ui.dp(this, 2), Ui.dp(this, 20), 0);
         arrel.addView(sub);
 
@@ -57,7 +63,8 @@ public class EstudiActivity extends Activity {
         for (Biblioteca.Carpeta c : b.arbre()) {
             if (c.nivell == 0) continue;
             int grav = b.gravacions(c.dir).size();
-            if (grav < 1) continue;
+            // també els projectes fets només amb sintes o bateria (sense gravacions)
+            if (grav < 1 && !new File(c.dir, Projecte.FITXER).exists()) continue;
             n++;
             llista.addView(filaProjecte(c, grav), Ui.ample(this, 8));
         }
@@ -92,13 +99,15 @@ public class EstudiActivity extends Activity {
         r.addView(Ui.rajola(this, Icona.ESTUDI, Ui.ACCENT, Ui.alfa(Ui.ACCENT, 36), 44));
         LinearLayout tx = Ui.columna(this);
         tx.addView(Ui.unaLinia(Ui.negreta(this, c.ruta, 16, Ui.TEXT)));
-        String info = grav == 1 ? "1 pista" : grav + " pistes";
+        String info;
         File fp = new File(c.dir, Projecte.FITXER);
         if (fp.exists()) {
             Projecte p = Projecte.obre(c.dir);
-            info += "  ·  " + Math.round(p.bpm) + " BPM · " + Ritme.nomCompas(p.compas);
+            int n = Math.max(grav, p.pistes.size());
+            info = (n == 0 ? "Buit" : n == 1 ? "1 pista" : n + " pistes")
+                    + "  ·  " + Math.round(p.bpm) + " BPM · " + Ritme.nomCompas(p.compas);
         } else {
-            info += "  ·  sense obrir";
+            info = (grav == 1 ? "1 pista" : grav + " pistes") + "  ·  sense obrir";
         }
         tx.addView(Ui.text(this, info, 13, Ui.SUAU), Ui.ample(this, 4));
         LinearLayout.LayoutParams lp = Ui.pes(1);
@@ -108,6 +117,29 @@ public class EstudiActivity extends Activity {
         File dir = c.dir;
         r.setOnClickListener(v -> obre(this, dir));
         return r;
+    }
+
+    /** Demana el nom, crea la carpeta (a dalt de tot de la Biblioteca) amb un projecte buit i l'obre. */
+    private void projecteNou() {
+        Ui.demanaText(this, "Projecte nou", "", "Crea", nom -> {
+            if (nom == null || nom.trim().isEmpty()) return;
+            Biblioteca b = Ui.biblioteca(this);
+            File dir;
+            try {
+                dir = b.creaCarpeta(b.arrel, nom);
+            } catch (IllegalArgumentException e) {
+                Ui.avis(this, e.getMessage());
+                return;
+            }
+            try {
+                new Projecte(dir).desa();   // que surti a la llista encara que no s'hi posi res
+            } catch (java.io.IOException e) {
+                Ui.avis(this, "No s'ha pogut crear el projecte");
+                return;
+            }
+            Ui.historial(this, "Projecte nou: «" + dir.getName() + "»");
+            obre(this, dir);
+        });
     }
 
     public static void obre(Activity a, File dir) {

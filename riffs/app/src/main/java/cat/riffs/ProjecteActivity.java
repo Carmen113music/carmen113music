@@ -2068,6 +2068,8 @@ public class ProjecteActivity extends Activity {
     /** Tanca el teclat d'assaig (si n'hi ha) i atura el so en directe. */
     private void tancaAssaig() {
         if (!assaig) return;
+        paraEscolta();
+        aplicaSoPanell(pistaSinte);
         assaig = false;
         if (sinteViu != null) sinteViu.atura();
         sinteViu = null;
@@ -2257,6 +2259,11 @@ public class ProjecteActivity extends Activity {
      * del nou.
      */
     private void canviaSoPista(Projecte.Pista t, Sinte.Preset preset, int programa, TextView nom) {
+        canviaSoPista(t, preset, programa, nom, false);
+    }
+
+    /** {@code forca}: s'aplica encara que el so es digui igual (l'editor de so l'ha modificat). */
+    private void canviaSoPista(Projecte.Pista t, Sinte.Preset preset, int programa, TextView nom, boolean forca) {
         boolean ter = t.esTeremin();
         java.util.Set<String> wavs = new java.util.LinkedHashSet<>();
         wavs.add(t.wav);
@@ -2270,7 +2277,7 @@ public class ProjecteActivity extends Activity {
                     File f = Gest.fitxerDe(projecte.carpeta, w);
                     Gest g = Gest.llegeix(f);
                     if (g == null) continue;
-                    if (preset.nom.equals(g.preset)) continue;
+                    if (!forca && preset.nom.equals(g.preset)) continue;
                     if (vell == null) vell = g.preset;
                     g.posaPreset(preset);
                     nou = g.preset;
@@ -2280,7 +2287,7 @@ public class ProjecteActivity extends Activity {
                     File f = Melodia.fitxerDe(projecte.carpeta, w);
                     Melodia m = Melodia.llegeix(f);
                     if (m == null) continue;
-                    if (programa >= 0 ? m.programa == programa : preset.nom.equals(m.preset)) continue;
+                    if (!forca && (programa >= 0 ? m.programa == programa : preset.nom.equals(m.preset))) continue;
                     if (vell == null) vell = m.preset;
                     if (programa >= 0) m.posaInstrument(programa);
                     else m.posaPreset(preset);
@@ -2296,6 +2303,7 @@ public class ProjecteActivity extends Activity {
         }
         if (nou == null) return;   // ja tenia aquest so
         if (t.nomPropi != null) t.nomPropi = Ui.nomAmbSo(t.nomPropi, vell, nou);
+        presetPanell = nou;
         // el so en directe
         double guany = Mesclador.lineal(t.volumDb);
         if (sinteViu != null && so != null) {
@@ -2304,6 +2312,7 @@ public class ProjecteActivity extends Activity {
                 SinteViu vellViu = sinteViu;
                 sinteViu = sv;
                 vellViu.atura();
+                if (editorPanell != null) editorPanell.refresca();
             }
         }
         if (midiViu != null && programa >= 0) {
@@ -2462,6 +2471,15 @@ public class ProjecteActivity extends Activity {
         barra.setGravity(Gravity.CENTER_VERTICAL);
         barra.addView(capcaleraSo(t));
         barra.addView(Ui.espai(this, 12));
+        // 2.32.2: editor de so també aquí (sinte i Poli; no MIDI)
+        boolean ambEditor = sinteViu != null && !t.esTeremin();
+        LinearLayout botoSoPanell = null;
+        if (ambEditor) {
+            botoSoPanell = Ui.pastilla(this, Icona.AJUSTOS, "So", Ui.SUPERFICIE2, Ui.TEXT);
+            botoSoPanell.setContentDescription("Editor de so");
+            barra.addView(botoSoPanell, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(Ui.espai(this, 12));
+        }
         FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
         TextView rang = Ui.unaLinia(Ui.negreta(this, "", 13, Ui.SUAU));
         FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
@@ -2702,6 +2720,177 @@ public class ProjecteActivity extends Activity {
         panell.addView(zona, lk);
 
         obrePanell(panell);
+        if (ambEditor) {
+            // l'editor de so tapa el teclat (i el panell creix fins gairebé dalt de tot)
+            presetPanell = soDeLaPista(t).preset;
+            soPanellCanviat = false;
+            escoltaPanell = false;
+            LinearLayout vs = creaSoPanell(t, color);
+            vs.setVisibility(View.GONE);
+            zona.addView(vs, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            LinearLayout bs = botoSoPanell;
+            bs.setOnClickListener(v -> {
+                boolean on = vs.getVisibility() != View.VISIBLE;
+                if (on) {
+                    teclat.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
+                    if (pads != null) pads.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
+                    if (editorPanell != null) editorPanell.refresca();
+                } else {
+                    paraEscolta();
+                    aplicaSoPanell(t);
+                }
+                vs.setVisibility(on ? View.VISIBLE : View.GONE);
+                bs.setBackground(Ui.tocable(on ? color : Ui.SUPERFICIE2, Ui.dp(this, 24)));
+                TextView tb = (TextView) bs.getChildAt(bs.getChildCount() - 1);
+                tb.setTextColor(on ? Ui.SOBRE_COLOR : Ui.TEXT);
+                Ui.colorIcona(bs, on ? Ui.SOBRE_COLOR : Ui.TEXT);
+                int alt = getWindow().getDecorView().getHeight();
+                if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
+                android.view.ViewGroup.LayoutParams lp = panell.getLayoutParams();
+                lp.height = on ? alt - Ui.dp(this, 56) : alt * 2 / 3;
+                panell.setLayoutParams(lp);
+            });
+        }
+    }
+
+    // ---------- Editor de so al panell del teclat (2.32.2) ----------
+
+    private EditorSo editorPanell;
+    private String presetPanell = "";
+    private boolean soPanellCanviat, escoltaPanell;
+
+    /** El so de fàbrica (o teu) d'on ve el de la pista. */
+    private Sinte.Preset origenPanell(Projecte.Pista t) {
+        String b = SonsPropis.base(presetPanell);
+        Sinte.Preset p = t.esPoli() ? Poli.preset(b) : Sinte.preset(b);
+        if (p == null) p = SonsPropis.troba(Ui.dirSons(this), t.esPoli(), b);
+        return p;
+    }
+
+    private LinearLayout creaSoPanell(Projecte.Pista t, int color) {
+        LinearLayout v = Ui.columna(this);
+        v.setBackgroundColor(Ui.FONS);
+        v.setClickable(true);   // que els tocs no passin al teclat de sota
+        LinearLayout barra = Ui.fila(this);
+        barra.setGravity(Gravity.CENTER_VERTICAL);
+        barra.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), Ui.dp(this, 4));
+        LinearLayout escolta = Ui.pastilla(this, Icona.PLAY, "Escolta", Ui.SUPERFICIE2, Ui.TEXT);
+        escolta.setContentDescription("Fa sonar un acord sostingut mentre mous els botons");
+        Runnable pintaEscolta = () -> {
+            escolta.setBackground(Ui.tocable(escoltaPanell ? color : Ui.SUPERFICIE2, Ui.dp(this, 24)));
+            ((TextView) escolta.getChildAt(escolta.getChildCount() - 1)).setTextColor(escoltaPanell ? Ui.SOBRE_COLOR : Ui.TEXT);
+            Ui.colorIcona(escolta, escoltaPanell ? Ui.SOBRE_COLOR : Ui.TEXT);
+        };
+        pintaEscoltaPanell = pintaEscolta;
+        escolta.setOnClickListener(x -> {
+            if (escoltaPanell) paraEscolta();
+            else engegaEscolta(t);
+            pintaEscolta.run();
+        });
+        barra.addView(escolta, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        barra.addView(Ui.espai(this, 10));
+        TextView ajuda = Ui.cartell(Ui.text(this, "«Escolta» deixa sonant un acord mentre gires els botons · arrossega'ls amunt o avall · "
+                + "doble toc: valor de fàbrica · en tornar al teclat, el so s'aplica a tota la pista", 11, Ui.APAGAT));
+        barra.addView(ajuda, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        barra.addView(Ui.espai(this, 8));
+        LinearLayout restaura = Ui.pastilla(this, Icona.DESFES, "Restaura", Ui.SUPERFICIE2, Ui.TEXT);
+        restaura.setOnClickListener(x -> {
+            Sinte.Preset p = origenPanell(t);
+            if (p == null || sinteViu == null) return;
+            paraEscolta();
+            soPanellCanviat = false;
+            canviaSoPista(t, p, -1, null, true);
+            Ui.avis(this, "Tornes a tenir «" + p.nom + "» tal com era");
+        });
+        barra.addView(restaura, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        barra.addView(Ui.espai(this, 8));
+        LinearLayout desa = Ui.pastilla(this, Icona.BAIXA, "Desa el so", color, Ui.SOBRE_COLOR);
+        desa.setOnClickListener(x -> desaSoPanell(t));
+        barra.addView(desa, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        v.addView(barra);
+        editorPanell = new EditorSo(this, color, () -> sinteViu != null ? sinteViu.so() : new Sinte.So(), () -> {
+            Sinte.Preset p = origenPanell(t);
+            return p == null ? null : p.so;
+        }, acabat -> {
+            if (!presetPanell.endsWith(SonsPropis.MODIFICAT)) presetPanell = SonsPropis.modificat(presetPanell);
+            soPanellCanviat = true;
+            if (sinteViu != null) sinteViu.canviat();
+            if (acabat && !escoltaPanell) notaProvaPanell();
+        });
+        v.addView(editorPanell.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        return v;
+    }
+
+    private Runnable pintaEscoltaPanell;
+
+    /** Deixa sonant un acord (Poli) o una nota (sinte) pel so en directe, per sentir els botons mentre es mouen. */
+    private void engegaEscolta(Projecte.Pista t) {
+        SinteViu sv = sinteViu;
+        if (sv == null) return;
+        escoltaPanell = true;
+        if (sv.poli()) {
+            for (int n : new int[]{48, 60, 64, 67}) sv.encen(n);
+        } else {
+            sv.nota(soDeLaPista(t).esGreu() ? 36 : 60, false);
+        }
+        if (pintaEscoltaPanell != null) pintaEscoltaPanell.run();
+    }
+
+    private void paraEscolta() {
+        if (!escoltaPanell) return;
+        escoltaPanell = false;
+        if (pintaEscoltaPanell != null) pintaEscoltaPanell.run();
+        SinteViu sv = sinteViu;
+        if (sv == null) return;
+        if (sv.poli()) sv.apagaTot();
+        else sv.deixa();
+    }
+
+    /** Una nota curta (sense «Escolta»), en deixar anar un botó. */
+    private void notaProvaPanell() {
+        SinteViu sv = sinteViu;
+        View on = panellTeclat;
+        if (sv == null || on == null) return;
+        if (sv.poli()) {
+            for (int n : new int[]{48, 60, 64, 67}) sv.encen(n);
+            on.postDelayed(sv::apagaTot, 500);
+        } else {
+            sv.nota(60, false);
+            on.postDelayed(sv::deixa, 450);
+        }
+    }
+
+    /** Passa el so editat a totes les finestres de la pista (es refan): en tornar al teclat, tancar el panell o aturar la gravació. */
+    private void aplicaSoPanell(Projecte.Pista t) {
+        if (!soPanellCanviat || sinteViu == null || t == null || !projecte.pistes.contains(t)) return;
+        soPanellCanviat = false;
+        boolean greu = soDeLaPista(t).esGreu();
+        boolean escoltava = escoltaPanell;
+        paraEscolta();
+        canviaSoPista(t, new Sinte.Preset(presetPanell, greu, sinteViu.so().copia()), -1, null, true);
+        if (escoltava) engegaEscolta(t);
+    }
+
+    private void desaSoPanell(Projecte.Pista t) {
+        if (sinteViu == null) return;
+        boolean poli = t.esPoli();
+        Full.demanaText(this, "Desa com a so teu", SonsPropis.base(presetPanell), "Desa", nom -> {
+            String n = nom == null ? "" : nom.trim();
+            if (n.isEmpty()) return;
+            boolean deFabrica = poli ? Poli.preset(n) != null : Sinte.preset(n) != null;
+            if (deFabrica) n = n + " (meu)";
+            try {
+                SonsPropis.desa(Ui.dirSons(this), n, poli, soDeLaPista(t).esGreu(), sinteViu.so());
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar el so");
+                return;
+            }
+            presetPanell = n;
+            soPanellCanviat = true;
+            aplicaSoPanell(t);
+            Ui.historial(this, "So desat: «" + n + "»");
+            Ui.avis(this, "Desat. El trobaràs a «Els meus sons»");
+        });
     }
 
     /** La quadrícula del teremin, als dos terços de baix. */
@@ -2837,6 +3026,9 @@ public class ProjecteActivity extends Activity {
     }
 
     private void amagaTeclat() {
+        editorPanell = null;
+        pintaEscoltaPanell = null;
+        escoltaPanell = false;
         if (panellTeclat != null && panellTeclat.getParent() instanceof android.view.ViewGroup) {
             ((android.view.ViewGroup) panellTeclat.getParent()).removeView(panellTeclat);
         }
@@ -2865,6 +3057,8 @@ public class ProjecteActivity extends Activity {
         gestGravat.aixeca(araMs);
         motor.posaClic(false);
         motor.atura();
+        paraEscolta();
+        aplicaSoPanell(t0);   // si s'ha tocat el so durant la gravació, la pista l'agafa abans de desar el que s'ha tocat
         if (sinteViu != null) sinteViu.atura();
         sinteViu = null;
         if (midiViu != null) midiViu.atura();
