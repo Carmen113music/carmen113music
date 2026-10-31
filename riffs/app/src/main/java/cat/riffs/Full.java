@@ -376,6 +376,7 @@ public final class Full {
             ac.tipus = b.tipus;
             ac.tensions = b.tensions;
             ac.baix = b.baix;
+            ac.inversio = b.inversio;
             pinta.run();
         }
 
@@ -404,6 +405,26 @@ public final class Full {
         cols.addView(columnaAcord(a, "Tensions", Acords.TENSIONS, 3, bTens), Ui.pes(3));
         cols.addView(Ui.espai(a, 10));
         cols.addView(columnaAcord(a, "Nota greu", baixos, 3, bBaix), Ui.pes(3));
+        // 2.32.1: inversió (a quina part de l'octava sona l'acord)
+        cols.addView(Ui.espai(a, 10));
+        LinearLayout colInv = Ui.columna(a);
+        colInv.addView(Ui.etiqueta(a, "Posició"));
+        TextView amunt = Ui.negreta(a, "▲", 13, Ui.TEXT);
+        TextView avall = Ui.negreta(a, "▼", 13, Ui.TEXT);
+        TextView textInv = Ui.text(a, "", 11, Ui.SUAU);
+        textInv.setGravity(Gravity.CENTER);
+        for (TextView b : new TextView[]{amunt, avall}) {
+            b.setGravity(Gravity.CENTER);
+            b.setMinHeight(Ui.dp(a, 34));
+            b.setClickable(true);
+            b.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(a, 10)));
+        }
+        amunt.setContentDescription("Acord una inversió amunt");
+        avall.setContentDescription("Acord una inversió avall");
+        colInv.addView(amunt, Ui.ample(a, 5));
+        colInv.addView(textInv, Ui.ample(a, 4));
+        colInv.addView(avall, Ui.ample(a, 4));
+        cols.addView(colInv, Ui.pes(1.3f));
         ScrollView sc = new ScrollView(a);
         sc.addView(cols);
 
@@ -417,6 +438,10 @@ public final class Full {
             for (int i = 0; i < bTipus.size(); i++) marcaBoto(a, bTipus.get(i), !buit && i == ac.tipus, color);
             for (int i = 0; i < bTens.size(); i++) marcaBoto(a, bTens.get(i), !buit && ac.te(i), color);
             for (int i = 0; i < bBaix.size(); i++) marcaBoto(a, bBaix.get(i), !buit && i == ac.baix + 1, color);
+            textInv.setText(buit ? "" : (ac.inversio == 0 ? "normal" : (ac.inversio > 0 ? "+" : "−") + Math.abs(ac.inversio))
+                    + "\ndes de " + Acords.NOTES[ac.primeraNota()]);
+            amunt.setAlpha(buit || ac.inversio < Acords.Acord.MAX_INVERSIO ? 1f : 0.35f);
+            avall.setAlpha(buit || ac.inversio > -Acords.Acord.MAX_INVERSIO ? 1f : 0.35f);
         };
         EditorAcord ed = new EditorAcord(sc, pinta, canvi, ref);
         Acords.Acord ac = ref[0];
@@ -426,6 +451,7 @@ public final class Full {
                 ac.tipus = Acords.MAJ;
                 ac.tensions = 0;
                 ac.baix = -1;
+                ac.inversio = 0;
             }
         };
         for (int i = 0; i < bArrel.size(); i++) {
@@ -461,6 +487,18 @@ public final class Full {
                 ed.avisa();
             });
         }
+        amunt.setOnClickListener(v -> {
+            siBuit.run();
+            if (ac.inversio >= Acords.Acord.MAX_INVERSIO) return;
+            ac.inversio++;
+            ed.avisa();
+        });
+        avall.setOnClickListener(v -> {
+            siBuit.run();
+            if (ac.inversio <= -Acords.Acord.MAX_INVERSIO) return;
+            ac.inversio--;
+            ed.avisa();
+        });
         pinta[0].run();
         return ed;
     }

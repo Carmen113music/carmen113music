@@ -33,7 +33,7 @@ public class PianoRollView extends View {
         default void alcada(float dp) {}
     }
 
-    private static final int CAP = 0, NOU = 1, MOU = 2, ALLARGA = 3, TECLAT = 4;
+    private static final int CAP = 0, NOU = 1, MOU = 2, ALLARGA = 3, TECLAT = 4, RECT = 5, GRUP = 6;
     // gest de dos dits: encara no se sap, desplaçar, zoom del temps, zoom de les files
     private static final int DD_NOSE = 0, DD_MOU = 1, DD_ZOOM_H = 2, DD_ZOOM_V = 3;
     public static final float FILA_MIN_DP = 14, FILA_MAX_DP = 56;
@@ -64,6 +64,11 @@ public class PianoRollView extends View {
     private Melodia.Nota nota;
     private int pas0, nota0, llarg0;
     private int pasNou, notaNova;
+    // selecció amb rectangle (2.32.1): arrossegar un dit sobre buit tria les notes; arrossegar-ne una les mou totes
+    private final java.util.List<Melodia.Nota> triades = new java.util.ArrayList<>();
+    private float rx1, ry1;
+    private int[] grupPas, grupNota;
+    private int grupMinPas, grupMaxFi, grupMinNota, grupMaxNota;
     private boolean dosDits = false;
     private int modeDD;
     private float sepX0, sepY0, cx0, cy0;   // separació i centre dels dits en començar (y de pantalla)
@@ -97,6 +102,7 @@ public class PianoRollView extends View {
     /** Canvia la frase (desfer) sense tocar el zoom ni on es mira. */
     public void canviaMelodia(Melodia m) {
         melodia = m;
+        triades.clear();
         nota = null;
         mode = CAP;
         limita();
@@ -185,6 +191,22 @@ public class PianoRollView extends View {
         return (int) Math.floor(pasEsq() + (x - ampleTecles) / ampleCasella());
     }
 
+    /** Les notes que toca el rectangle (de temps i d'altura). */
+    private void triaRectangle() {
+        float ax = Math.min(x0, rx1), bx = Math.max(x0, rx1), ay = Math.min(y0, ry1), by = Math.max(y0, ry1);
+        double pa = pasEsq() + (ax - ampleTecles) / ampleCasella(), pb = pasEsq() + (bx - ampleTecles) / ampleCasella();
+        int nAlta = notaDeY(ay), nBaixa = notaDeY(by);
+        triades.clear();
+        for (Melodia.Nota t : melodia.notes) {
+            if (t.fi() > pa && t.pas < pb && t.nota <= nAlta && t.nota >= nBaixa) triades.add(t);
+        }
+    }
+
+    /** Quantes notes hi ha triades. */
+    public int quantesTriades() {
+        return triades.size();
+    }
+
     private int notaDeY(float y) {
         return Melodia.NOTA_MAX - (int) Math.floor(y / altFila);
     }
@@ -243,7 +265,7 @@ public class PianoRollView extends View {
             if (xb <= x0 || xa >= xFi) continue;
             float top = (Melodia.NOTA_MAX - nt.nota) * altFila;
             r.set(xa + 1.5f * d, top + 2 * d, xb - 1.5f * d, top + altFila - 2 * d);
-            boolean triada = nt == nota && mode != CAP;
+            boolean triada = nt == nota && mode != CAP || triades.contains(nt);
             p.setColor(Ui.alfa(color, nt.forca == 1 ? 150 : nt.forca == 2 ? 215 : 255));
             c.drawRoundRect(r, 5 * d, 5 * d, p);
             if (triada) {
@@ -263,6 +285,17 @@ public class PianoRollView extends View {
                 p.setTextSize(Math.min(11 * d, altFila * 0.55f));
                 c.drawText(Melodia.nomNota(nt.nota), Math.max(r.left, x0) + 5 * d, r.centerY() + p.getTextSize() * 0.36f, p);
             }
+        }
+        if (mode == RECT) {
+            float ax = Math.min(this.x0, rx1), bx = Math.max(this.x0, rx1), ay = Math.min(this.y0, ry1), by = Math.max(this.y0, ry1);
+            r.set(Math.max(ax, x0), ay, Math.min(bx, xFi), by);
+            p.setColor(Ui.alfa(color, 40));
+            c.drawRect(r, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(1.5f * d);
+            p.setColor(Ui.alfa(color, 200));
+            c.drawRect(r, p);
+            p.setStyle(Paint.Style.FILL);
         }
         c.restore();
         // teclat
@@ -348,7 +381,29 @@ public class PianoRollView extends View {
                 int pas = pasDeX(ev.getX());
                 if (pas < 0 || pas >= melodia.passos()) return false;
                 Melodia.Nota n = melodia.notaA(pas, nt);
-                if (n != null) {
+                if (n != null && triades.size() > 1 && triades.contains(n)) {
+                    // una nota de la selecció: es mouen totes
+                    triades.retainAll(melodia.notes);
+                    nota = n;
+                    mode = GRUP;
+                    grupPas = new int[triades.size()];
+                    grupNota = new int[triades.size()];
+                    grupMinPas = Integer.MAX_VALUE;
+                    grupMaxFi = 0;
+                    grupMinNota = Integer.MAX_VALUE;
+                    grupMaxNota = 0;
+                    for (int i = 0; i < triades.size(); i++) {
+                        Melodia.Nota t = triades.get(i);
+                        grupPas[i] = t.pas;
+                        grupNota[i] = t.nota;
+                        grupMinPas = Math.min(grupMinPas, t.pas);
+                        grupMaxFi = Math.max(grupMaxFi, t.fi());
+                        grupMinNota = Math.min(grupMinNota, t.nota);
+                        grupMaxNota = Math.max(grupMaxNota, t.nota);
+                    }
+                    nota0 = n.nota;
+                } else if (n != null) {
+                    if (!triades.contains(n)) triades.clear();
                     nota = n;
                     pas0 = n.pas;
                     nota0 = n.nota;
@@ -390,9 +445,31 @@ public class PianoRollView extends View {
                         invalidate();
                         if (oients != null) oients.canvi(false);
                     }
-                } else if (mode == NOU && mogut) {
-                    // el dit s'ha mogut: no és un toc, no es posa cap nota (un dit no desplaça)
-                    mode = CAP;
+                } else if ((mode == NOU || mode == RECT) && mogut) {
+                    // el dit s'ha mogut sobre buit: no es posa cap nota; es fa un rectangle per triar-ne
+                    mode = RECT;
+                    rx1 = ev.getX();
+                    ry1 = ev.getY();
+                    triaRectangle();
+                    invalidate();
+                } else if (mode == GRUP && mogut) {
+                    int dp = Math.max(-grupMinPas, Math.min(melodia.passos() - grupMaxFi, Math.round(dx / ac)));
+                    int dn = Math.max(Melodia.NOTA_MIN - grupMinNota, Math.min(Melodia.NOTA_MAX - grupMaxNota, -Math.round(dy / altFila)));
+                    int abans = nota.nota;
+                    boolean canvi = false;
+                    for (int i = 0; i < triades.size(); i++) {
+                        Melodia.Nota t = triades.get(i);
+                        if (t.pas != grupPas[i] + dp || t.nota != grupNota[i] + dn) canvi = true;
+                        t.pas = grupPas[i] + dp;
+                        t.nota = grupNota[i] + dn;
+                    }
+                    if (canvi) {
+                        invalidate();
+                        if (oients != null) {
+                            oients.canvi(false);
+                            if (nota.nota != abans) oients.prova(nota.nota);
+                        }
+                    }
                 } else if (mode == TECLAT && mogut) {
                     int nt = notaDeY(ev.getY());
                     if (nt != teclaPremuda && nt >= Melodia.NOTA_MIN && nt <= Melodia.NOTA_MAX) {
@@ -408,7 +485,25 @@ public class PianoRollView extends View {
                 mode = CAP;
                 teclaPremuda = -1;
                 getParent().requestDisallowInterceptTouchEvent(false);
-                if (m == NOU) {
+                if (m == NOU && !triades.isEmpty()) {
+                    // amb notes triades, tocar un lloc buit només treu la selecció
+                    triades.clear();
+                } else if (m == RECT) {
+                    if (!triades.isEmpty()) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                } else if (m == GRUP) {
+                    if (!mogut) {
+                        melodia.treu(nota);   // tocar-ne una (sense moure) la treu, com sempre
+                        triades.remove(nota);
+                    } else {
+                        // es tornen a posar en ordre (així les de la selecció no es trepitgen entre elles)
+                        java.util.List<Melodia.Nota> g = new java.util.ArrayList<>(triades);
+                        for (Melodia.Nota t : g) melodia.treu(t);
+                        g.sort((a, b) -> Integer.compare(a.pas, b.pas));
+                        for (Melodia.Nota t : g) melodia.posa(t);
+                        triades.retainAll(melodia.notes);
+                    }
+                    if (oients != null) oients.canvi(true);
+                } else if (m == NOU) {
                     Melodia.Nota n = new Melodia.Nota(pasNou, llargadaNova(), notaNova, 2);
                     melodia.posa(n);
                     if (oients != null) {
@@ -505,7 +600,13 @@ public class PianoRollView extends View {
 
     /** Desfà el que estava fent el dit (la nota torna on era). */
     private void cancelaToc() {
-        if ((mode == MOU || mode == ALLARGA) && nota != null) {
+        if (mode == GRUP && grupPas != null) {
+            for (int i = 0; i < triades.size() && i < grupPas.length; i++) {
+                triades.get(i).pas = grupPas[i];
+                triades.get(i).nota = grupNota[i];
+            }
+            if (oients != null) oients.canvi(true);
+        } else if ((mode == MOU || mode == ALLARGA) && nota != null) {
             nota.pas = pas0;
             nota.nota = nota0;
             nota.llarg = llarg0;

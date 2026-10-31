@@ -119,23 +119,26 @@ public class PianoRollActivity extends Activity {
         tit.addView(titol);
         subtitol = Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU));
         tit.addView(subtitol);
-        LinearLayout.LayoutParams lt = Ui.pes(1);
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
+        Ui.limitaAmple(tit, 170);
+        LinearLayout botons = Ui.desplacable(this, dalt);
 
         botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
         botoDesfes.setOnClickListener(v -> desfes());
-        dalt.addView(botoDesfes);
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoDesfes);
+        botons.addView(Ui.espai(this, 8));
         LinearLayout so = Ui.pastilla(this, melodia.esMidi() ? Icona.MIDI : melodia.poliSinte ? Icona.POLI : Icona.SINTE, "", Ui.SUPERFICIE2, Ui.TEXT);
         textSo = (TextView) so.getChildAt(so.getChildCount() - 1);
         so.setOnClickListener(v -> triaSo());
-        dalt.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         LinearLayout comp = Ui.pastilla(this, 0, "", Ui.SUPERFICIE2, Ui.TEXT);
         textCompassos = (TextView) comp.getChildAt(comp.getChildCount() - 1);
         comp.setOnClickListener(v -> triaCompassos());
-        dalt.addView(comp, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        // 2.32.1: sense el botó de compassos (en Roger no el fa servir)
         pastillaComp = comp;
         LinearLayout div = Ui.pastilla(this, Icona.GRAELLA, "", Ui.SUPERFICIE2, Ui.TEXT);
         pastillaDiv = div;
@@ -143,31 +146,31 @@ public class PianoRollActivity extends Activity {
         div.setOnClickListener(v -> triaDivisio());
         LinearLayout.LayoutParams ld = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40));
         ld.leftMargin = Ui.dp(this, 8);
-        dalt.addView(div, ld);
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(div, ld);
+        botons.addView(Ui.espai(this, 8));
         if (!melodia.esMidi()) {
             // 2.32: Notes (piano roll) o So (editor de so)
-            dalt.addView(Ui.segmentat(this, new String[]{"Notes", "So"}, 0, color(), i -> posaModeSo(i == 1)),
+            botons.addView(Ui.segmentat(this, new String[]{"Notes", "So"}, 0, color(), i -> posaModeSo(i == 1)),
                     new LinearLayout.LayoutParams(Ui.dp(this, 120), Ui.dp(this, 40)));
-            dalt.addView(Ui.espai(this, 8));
+            botons.addView(Ui.espai(this, 8));
         }
         botoSolo = new BotoSolo(this, color(), () -> {
             if (bucle != null) reprenBucle();   // el bucle de l'editor de so ja mira el Solo a cada moment
         });
-        dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, color(), 44, 20, "Escolta la frase");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null || bucleSo != null) aturaBucle();
             else sonaBucle(0);
         });
-        dalt.addView(botoPlay);
+        botons.addView(botoPlay);
         arrel.addView(dalt);
 
         // ajuda (2.31.2: sense pestanyes de compàs; el compàs que es veu surt al subtítol de dalt)
         segona = Ui.fila(this);
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
-        TextView ajuda = Ui.text(this, "Toca per posar una nota i toca-la per treure-la · arrossega-la per moure-la · "
+        TextView ajuda = Ui.text(this, "Toca per posar una nota i toca-la per treure-la · arrossega-la per moure-la · arrossega sobre buit per triar-ne unes quantes i mou-les juntes · "
                 + "arrossega la punta dreta per allargar-la · dos dits: obre'ls per fer zoom (de costat, el temps; amunt i avall, les files) i arrossega per moure't", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);

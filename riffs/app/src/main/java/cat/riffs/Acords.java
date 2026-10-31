@@ -37,6 +37,12 @@ public final class Acords {
         public int tensions = 0;
         /** Nota greu (0–11) o -1 = la mateixa arrel. */
         public int baix = -1;
+        /**
+         * Inversió (2.32.1): quantes vegades la nota més greu de l'acord puja una octava (positiu) o la més aguda
+         * en baixa una (negatiu). Així un acord sona més amunt o més avall sense canviar. −4 a +4.
+         */
+        public int inversio = 0;
+        public static final int MAX_INVERSIO = 4;
 
         public boolean buit() {
             return arrel < 0;
@@ -60,6 +66,7 @@ public final class Acords {
             a.tipus = tipus;
             a.tensions = tensions;
             a.baix = baix;
+            a.inversio = inversio;
             return a;
         }
 
@@ -162,15 +169,39 @@ public final class Acords {
             int[] iv = intervals();
             int extra = baix >= 0 && baix != arrel ? 1 : 0;
             int[] n = new int[iv.length + extra];
-            for (int i = 0; i < iv.length; i++) n[i] = Math.max(0, Math.min(127, r + iv[i]));
+            int[] ac = new int[iv.length];
+            for (int i = 0; i < iv.length; i++) ac[i] = r + iv[i];
+            inverteix(ac, inversio);
+            for (int i = 0; i < iv.length; i++) n[i] = Math.max(0, Math.min(127, ac[i]));
             if (extra == 1) n[iv.length] = Math.max(0, Math.min(127, doBase - 12 + Math.floorMod(baix, 12)));
             return n;
         }
 
-        /** En text, per desar-ho: «arrel,grafia,tipus,tensions,baix» o «-». */
+        /** Aplica la inversió a les notes de l'acord (sense la nota greu). */
+        static void inverteix(int[] ac, int inv) {
+            if (ac.length < 2) return;
+            for (int k = 0; k < Math.abs(inv); k++) {
+                java.util.Arrays.sort(ac);
+                if (inv > 0) ac[0] += 12;
+                else ac[ac.length - 1] -= 12;
+            }
+            java.util.Arrays.sort(ac);
+        }
+
+        /** La nota més greu de l'acord (sense la nota greu), 0–11; -1 si és buit. Per dir on comença. */
+        public int primeraNota() {
+            if (buit()) return -1;
+            int[] iv = intervals();
+            int[] ac = new int[iv.length];
+            for (int i = 0; i < iv.length; i++) ac[i] = 60 + arrel + iv[i];
+            inverteix(ac, inversio);
+            return Math.floorMod(ac[0], 12);
+        }
+
+        /** En text, per desar-ho: «arrel,grafia,tipus,tensions,baix[,inversió]» o «-». */
         public String text() {
             if (buit()) return "-";
-            return arrel + "," + grafia + "," + tipus + "," + tensions + "," + baix;
+            return arrel + "," + grafia + "," + tipus + "," + tensions + "," + baix + (inversio != 0 ? "," + inversio : "");
         }
 
         public static Acord deText(String s) {
@@ -184,6 +215,7 @@ public final class Acords {
                 a.tensions = Integer.parseInt(c[3].trim()) & ((1 << TENSIONS.length) - 1);
                 a.baix = Integer.parseInt(c[4].trim());
                 if (a.baix >= 0) a.baix = Math.floorMod(a.baix, 12);
+                if (c.length > 5) a.inversio = Math.max(-MAX_INVERSIO, Math.min(MAX_INVERSIO, Integer.parseInt(c[5].trim())));
             } catch (RuntimeException e) {
                 return new Acord();
             }

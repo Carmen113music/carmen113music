@@ -258,6 +258,32 @@ public final class Ui {
         return l;
     }
 
+    /**
+     * Una tira de botons que, si no hi caben, es desplaça amb el dit de costat (2.32.1: als editors, el Solo i el play
+     * quedaven fora de la pantalla). Si hi caben, queden a la dreta. S'afegeix a {@code pare} ocupant el lloc que sobra.
+     */
+    public static LinearLayout desplacable(Context c, LinearLayout pare) {
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(c);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.setFillViewport(true);
+        hs.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        LinearLayout dins = fila(c);
+        dins.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        hs.addView(dins, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        lp.leftMargin = dp(c, 8);
+        pare.addView(hs, lp);
+        return dins;
+    }
+
+    /** Que els textos d'una columna (títol i subtítol) no passin d'aquesta amplada. */
+    public static void limitaAmple(android.view.ViewGroup g, int dps) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View v = g.getChildAt(i);
+            if (v instanceof TextView) ((TextView) v).setMaxWidth(dp(g.getContext(), dps));
+        }
+    }
+
     public static LinearLayout fila(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.HORIZONTAL);

@@ -121,41 +121,43 @@ public class DrumpadActivity extends Activity {
         tit.addView(Ui.unaLinia(Ui.negreta(this, nom == null ? "Bateria" : nom, 16, Ui.TEXT)));
         subtitol = Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU));
         tit.addView(subtitol);
-        LinearLayout.LayoutParams lt = Ui.pes(1);
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
+        Ui.limitaAmple(tit, 170);
+        LinearLayout botons = Ui.desplacable(this, dalt);
 
         botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
         botoDesfes.setOnClickListener(v -> desfes());
-        dalt.addView(botoDesfes);
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoDesfes);
+        botons.addView(Ui.espai(this, 8));
         LinearLayout kit = Ui.pastilla(this, Icona.BATERIA, "", Ui.SUPERFICIE2, Ui.TEXT);
         kit.setMinimumHeight(Ui.dp(this, 40));
         textKit = (TextView) kit.getChildAt(kit.getChildCount() - 1);
         kit.setOnClickListener(v -> triaKit());
-        dalt.addView(kit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(kit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         LinearLayout comp = Ui.pastilla(this, 0, "", Ui.SUPERFICIE2, Ui.TEXT);
         textCompassos = (TextView) comp.getChildAt(comp.getChildCount() - 1);
         comp.setOnClickListener(v -> triaCompassos());
-        dalt.addView(comp, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        // 2.32.1: sense el botó de compassos (en Roger no el fa servir)
         LinearLayout div = Ui.pastilla(this, Icona.GRAELLA, "", Ui.SUPERFICIE2, Ui.TEXT);
         textDivisio = (TextView) div.getChildAt(div.getChildCount() - 1);
         div.setOnClickListener(v -> triaDivisio());
-        dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         botoSolo = new BotoSolo(this, Ui.BATERIA, () -> {
             if (bucle != null) reprenBucle();
         });
-        dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.BATERIA, 44, 20, "Escolta el ritme");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
             else sonaBucle(0);
         });
-        dalt.addView(botoPlay);
+        botons.addView(botoPlay);
         arrel.addView(dalt);
 
         // ajuda (2.31.2: sense pestanyes de compàs; el compàs que es veu surt al subtítol de dalt)

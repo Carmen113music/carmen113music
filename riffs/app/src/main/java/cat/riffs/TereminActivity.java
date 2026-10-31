@@ -89,29 +89,32 @@ public class TereminActivity extends Activity {
         tit.addView(titol);
         tit.addView(Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas)
                 + " · " + (gest.compassos == 1 ? "1 compàs" : gest.compassos + " compassos"), 12, Ui.SUAU)));
-        LinearLayout.LayoutParams lt = Ui.pes(1);
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
         lt.leftMargin = Ui.dp(this, 4);
         dalt.addView(tit, lt);
+        Ui.limitaAmple(tit, 170);
+        LinearLayout botons = Ui.desplacable(this, dalt);
         botoDesfes = Ui.botoIcona(this, Icona.DESFES, Ui.TEXT, Ui.SUPERFICIE2, 40, 20, "Desfés l'últim canvi");
         botoDesfes.setOnClickListener(v -> desfes());
-        dalt.addView(botoDesfes);
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoDesfes);
+        botons.addView(Ui.espai(this, 8));
         LinearLayout so = Ui.pastilla(this, Icona.TEREMIN, "", Ui.SUPERFICIE2, Ui.TEXT);
         textSo = (TextView) so.getChildAt(so.getChildCount() - 1);
         so.setOnClickListener(v -> triaSo());
-        dalt.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         botoSolo = new BotoSolo(this, Ui.TEREMIN, () -> {
             if (bucle != null) reprenBucle();
         });
-        dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        botons.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        botons.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.TEREMIN, 44, 20, "Escolta-ho");
         botoPlay.setOnClickListener(v -> {
             if (bucle != null) aturaBucle();
             else sonaBucle(0);
         });
-        dalt.addView(botoPlay);
+        botons.addView(botoPlay);
         arrel.addView(dalt);
 
         TextView ajuda = Ui.text(this, "El gest no es pot editar aquí: si no t'agrada, torna'l a gravar. "
