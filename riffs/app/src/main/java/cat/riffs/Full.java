@@ -334,9 +334,16 @@ public final class Full {
 
     private static void afegeixLlistaTria(Activity a, LinearLayout cos, LinearLayout files, int n) {
         ScrollView sc = new ScrollView(a);
+        files.setPadding(files.getPaddingLeft(), files.getPaddingTop(), files.getPaddingRight(), Ui.dp(a, 10));
         sc.addView(files);
+        // 2.31.2: la llista no pot ser més alta que l'espai que queda de veritat (en horitzontal, l'última fila
+        // quedava fora de la pantalla i no s'hi podia arribar); el que no hi cap es desplaça
+        android.graphics.Rect vis = new android.graphics.Rect();
+        a.getWindow().getDecorView().getWindowVisibleDisplayFrame(vis);
+        int altVisible = vis.height() > 0 ? vis.height() : a.getResources().getDisplayMetrics().heightPixels;
+        int maxim = Math.max(Ui.dp(a, 120), altVisible - Ui.dp(a, 175));
         LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(Ui.dp(a, 47) * n + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.6f)));
+                Math.min(Ui.dp(a, 47) * n + Ui.dp(a, 18), maxim));
         ls.topMargin = Ui.dp(a, 8);
         cos.addView(sc, ls);
     }

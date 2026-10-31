@@ -549,14 +549,19 @@ public final class Sinte {
         private double ic1 = 0, ic2 = 0;
         private double vel = 1;
         private long desDeNota = 0;
-        private final double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw;
+        private double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw;
         // unison (2.31): fases i desafinació (proporció de freqüència) de cada veu
-        private final int uni;
-        private final double[] fu1, fu2, du;
-        private final double guanyUni;
+        private int uni;
+        private double[] fu1, fu2, du;
+        private double guanyUni;
 
         public Veu(So o) {
             this.o = o;
+            refresca();
+        }
+
+        /** Torna a llegir els botons del so (2.32: l'editor de so els mou mentre sona). Les fases es conserven. */
+        public void refresca() {
             atac = Math.max(1, o.a * sr / 1000);
             atacF = Math.max(1, o.fa * sr / 1000);
             cD = coef(o.d);
@@ -569,16 +574,19 @@ public final class Sinte {
             drive = 1 + 9 * o.distorsio;
             normDrive = Math.tanh(drive * 0.6);
             pw = o.pols;
-            uni = Math.max(1, Math.min(7, o.unison));
-            fu1 = new double[uni];
-            fu2 = new double[uni];
-            du = new double[uni];
-            Random r0 = new Random(77);
-            for (int i = 0; i < uni; i++) {
-                du[i] = uni == 1 ? 1 : Math.pow(2, (i / (double) (uni - 1) - 0.5) * o.desafina / 1200.0);
-                fu1[i] = uni == 1 ? 0 : r0.nextDouble();   // fases repartides: no sonen totes en fase
-                fu2[i] = uni == 1 ? 0 : r0.nextDouble();
+            int u = Math.max(1, Math.min(7, o.unison));
+            if (fu1 == null || u != uni) {
+                uni = u;
+                fu1 = new double[uni];
+                fu2 = new double[uni];
+                du = new double[uni];
+                Random r0 = new Random(77);
+                for (int i = 0; i < uni; i++) {
+                    fu1[i] = uni == 1 ? 0 : r0.nextDouble();   // fases repartides: no sonen totes en fase
+                    fu2[i] = uni == 1 ? 0 : r0.nextDouble();
+                }
             }
+            for (int i = 0; i < uni; i++) du[i] = uni == 1 ? 1 : Math.pow(2, (i / (double) (uni - 1) - 0.5) * o.desafina / 1200.0);
             guanyUni = 1 / Math.sqrt(uni);
         }
 

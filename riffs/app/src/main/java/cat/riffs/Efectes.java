@@ -15,12 +15,13 @@ public final class Efectes {
     private final float[] lc;
     private int ic = 0;
     private double faseC = 0;
-    private final double dtC;
+    private double dtC;
 
     // delay: línia llarga amb realimentació (i un passa-baixos perquè les repeticions s'enfosqueixin)
     private final float[] ld;
     private int id = 0;
-    private final int retard;
+    private int retard;
+    private final double bpm;
     private float filtreD = 0;
 
     // reverb (tipus Freeverb, mono): 8 filtres en pinta en paral·lel i 4 passa-tot en sèrie
@@ -31,21 +32,40 @@ public final class Efectes {
     private final float[] fp;
     private final float[][] ba;
     private final int[] ia;
-    private final float realim, amort;
+    private float realim, amort;
 
     public Efectes(Sinte.So o, double bpm) {
+        this(o, bpm, false);
+    }
+
+    /**
+     * {@code viu}: per sonar en directe amb l'editor de so obert (2.32): les línies es fan de la mida màxima,
+     * perquè es puguin encendre i allargar els efectes mentre sona (cal cridar {@link #refresca()}).
+     */
+    public Efectes(Sinte.So o, double bpm, boolean viu) {
         this.o = o;
+        this.bpm = bpm;
         lc = new float[(int) (0.04 * SR)];
-        dtC = o.chorusHz / SR;
-        retard = Math.max(1, Math.min(4 * SR, (int) Math.round(msDelay(o, bpm) * SR / 1000)));
-        ld = new float[o.delay > 0 ? retard + 1 : 1];
+        int r0 = retardDe(o, bpm);
+        ld = new float[viu ? 2 * SR + 1 : o.delay > 0 ? r0 + 1 : 1];
         bp = new float[PINTES.length][];
         ip = new int[PINTES.length];
         fp = new float[PINTES.length];
-        for (int i = 0; i < PINTES.length; i++) bp[i] = new float[o.reverb > 0 ? PINTES[i] : 1];
+        for (int i = 0; i < PINTES.length; i++) bp[i] = new float[viu || o.reverb > 0 ? PINTES[i] : 1];
         ba = new float[PASSATOT.length][];
         ia = new int[PASSATOT.length];
-        for (int i = 0; i < PASSATOT.length; i++) ba[i] = new float[o.reverb > 0 ? PASSATOT[i] : 1];
+        for (int i = 0; i < PASSATOT.length; i++) ba[i] = new float[viu || o.reverb > 0 ? PASSATOT[i] : 1];
+        refresca();
+    }
+
+    private static int retardDe(Sinte.So o, double bpm) {
+        return Math.max(1, Math.min(4 * SR, (int) Math.round(msDelay(o, bpm) * SR / 1000)));
+    }
+
+    /** Torna a llegir els botons dels efectes. */
+    public void refresca() {
+        dtC = o.chorusHz / SR;
+        retard = Math.min(ld.length - 1, retardDe(o, bpm));
         realim = (float) (0.7 + 0.28 * o.reverbMida);
         amort = (float) (0.45 - 0.25 * o.reverbMida);
     }
@@ -99,6 +119,7 @@ public final class Efectes {
     }
 
     private float delay(float x) {
+        if (retard < 1) return x;
         int r = id - retard;
         if (r < 0) r += ld.length;
         float eco = ld[r];
@@ -109,6 +130,7 @@ public final class Efectes {
     }
 
     private float reverb(float x) {
+        if (bp[0].length < 2) return x;
         float in = x * 0.015f * 2;
         float s = 0;
         for (int i = 0; i < PINTES.length; i++) {

@@ -58,6 +58,11 @@ public final class Acompanyament {
         return a;
     }
 
+    /** El fader de la pista i el volum del clip que s'edita. */
+    public double guanyPropi() {
+        return guanyPropi;
+    }
+
     /** Si hi ha alguna altra pista que soni durant la finestra. */
     public boolean hiHaAltres() {
         return hiHaAltres;

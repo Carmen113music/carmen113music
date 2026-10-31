@@ -66,6 +66,19 @@ final class BotoSolo {
         }).start();
     }
 
+    /** La resta de pistes per a {@code n} mostres (null si el Solo està encès o no n'hi ha). Per al bucle en directe. */
+    float[] resta(int n) {
+        Acompanyament ac = acomp;
+        if (solo || ac == null || !ac.hiHaAltres()) return null;
+        return ac.resta(n);
+    }
+
+    /** El fader de la pista × el volum del clip (com sona a l'Estudi); 1 amb el Solo o sense projecte. */
+    double guanyPropi() {
+        Acompanyament ac = acomp;
+        return solo || ac == null || !ac.hiHaAltres() ? 1 : ac.guanyPropi();
+    }
+
     /** El so que ha de sonar en bucle: el propi sol, o barrejat amb la resta. */
     short[] so(short[] propi) {
         Acompanyament ac = acomp;

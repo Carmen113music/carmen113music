@@ -1136,6 +1136,12 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
+        for (Sinte.Preset p : SonsPropis.llista(Ui.dirSons(this), false)) {   // els desats a l'editor de so
+            ops.add(new Full.Accio(Icona.SINTE, p.nom + "  · meu", false, () -> {
+                creaSinte(p, false);
+                if (despres != null) despres.run();
+            }));
+        }
         Full.llista(this, "So del sinte", "Els baixos s'obren a les notes greus i els leads a les agudes. "
                 + "Al piano roll el pots canviar escoltant-los.", ops);
     }
@@ -1172,17 +1178,19 @@ public class ProjecteActivity extends Activity {
     /** «Pista nova → Poli»: primer la família (pads, tecles…) i després el so. */
     private void triaPresetPoli(Runnable despres) {
         List<Full.Accio> ops = new ArrayList<>();
-        for (int f = 0; f < Poli.FAMILIES.length; f++) {
-            int ff = f;
-            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f], false, () -> {
+        int families = Poli.FAMILIES.length + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
+        for (int f = 0; f < families; f++) {
+            int ff = f < Poli.FAMILIES.length ? f : -1;
+            String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
+            ops.add(new Full.Accio(Icona.POLI, nf, false, () -> {
                 List<Full.Accio> sons = new ArrayList<>();
-                for (Sinte.Preset p : Poli.deFamilia(ff)) {
+                for (Sinte.Preset p : ff < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(ff)) {
                     sons.add(new Full.Accio(Icona.POLI, p.nom, false, () -> {
                         creaSinte(p, true);
                         if (despres != null) despres.run();
                     }));
                 }
-                Full.llista(this, Poli.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", sons,
+                Full.llista(this, nf, "Al piano roll el pots canviar escoltant-los.", sons,
                         () -> triaPresetPoli(despres));   // «<»: torna a les famílies
             }));
         }
@@ -2156,12 +2164,15 @@ public class ProjecteActivity extends Activity {
             triaFamiliaPoliPanell(t, nom);
             return;
         }
-        Sinte.Preset[] ps = ter ? Sinte.PRESETS_TEREMIN : Sinte.PRESETS;
+        List<Sinte.Preset> llista = new ArrayList<>(java.util.Arrays.asList(ter ? Sinte.PRESETS_TEREMIN : Sinte.PRESETS));
+        int fabrica = llista.size();
+        if (!ter) llista.addAll(SonsPropis.llista(Ui.dirSons(this), false));   // els teus sons (2.32)
+        Sinte.Preset[] ps = llista.toArray(new Sinte.Preset[0]);
         String ara = ter ? gestDeLaPista(t).preset : base.preset;
         String[] noms = new String[ps.length];
         int triat = -1;
         for (int i = 0; i < ps.length; i++) {
-            noms[i] = ps[i].nom;
+            noms[i] = i >= fabrica ? ps[i].nom + "  · meu" : ps[i].nom;
             if (ps[i].nom.equals(ara)) triat = i;
         }
         Full.triaAmbProva(this, ter ? "So del teremin" : "So del sinte", "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
@@ -2179,11 +2190,13 @@ public class ProjecteActivity extends Activity {
     private void triaFamiliaPoliPanell(Projecte.Pista t, TextView nom) {
         List<Full.Accio> ops = new ArrayList<>();
         Melodia base = soDeLaPista(t);
-        int actual = Poli.familiaDe(base.preset);
-        for (int f = 0; f < Poli.FAMILIES.length; f++) {
-            int ff = f;
-            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> {
-                List<Sinte.Preset> ps = Poli.deFamilia(ff);
+        int actual = Poli.familiaDe(SonsPropis.base(base.preset));
+        int families = Poli.FAMILIES.length + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
+        for (int f = 0; f < families; f++) {
+            int ff = f < Poli.FAMILIES.length ? f : -1;
+            String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
+            ops.add(new Full.Accio(Icona.POLI, nf + (ff >= 0 && ff == actual ? "  (ara)" : ""), false, () -> {
+                List<Sinte.Preset> ps = ff < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(ff);
                 String[] noms = new String[ps.size()];
                 Melodia ara = soDeLaPista(t);
                 int triat = -1;
@@ -2191,8 +2204,8 @@ public class ProjecteActivity extends Activity {
                     noms[i] = ps.get(i).nom;
                     if (noms[i].equals(ara.preset)) triat = i;
                 }
-                Sinte.Preset original = Poli.preset(ara.preset);
-                Full.triaAmbProva(this, Poli.FAMILIES[ff], "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+                Sinte.Preset original = new Sinte.Preset(ara.preset, false, ara.so.copia());   // també si era modificat
+                Full.triaAmbProva(this, nf, "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
                                 + "Totes les finestres d'aquesta pista l'agafaran.",
                         noms, triat, Ui.POLI,
                         i -> {
@@ -2200,9 +2213,7 @@ public class ProjecteActivity extends Activity {
                             demoSo(t, false);
                         },
                         i -> canviaSoPista(t, ps.get(i), -1, nom),
-                        () -> {
-                            if (original != null) canviaSoPista(t, original, -1, nom);   // «<»: torna al so d'abans
-                        },
+                        () -> canviaSoPista(t, original, -1, nom),   // «<»: torna al so d'abans
                         () -> triaFamiliaPoliPanell(t, nom));
             }));
         }

@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.31.2:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Pròximes fases: editor del so del sinte, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.32:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Pròximes fases: editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -110,12 +110,20 @@ El primer cop l'app demana permís de micròfon.
   - Els pads es recorden. Els acords que tenies a les tecles abans de la 2.29 s'han passat als pads.
 - En aturar, el que has tocat queda en finestres noves, ajustat a semicorxeres, i es pot retocar al piano roll.
 
+### Editor de so (sinte i Poli, 2.32)
+- Al piano roll, l'interruptor **Notes / So** de dalt canvia entre les notes i l'**editor de so**, tipus plugin: targetes amb **botons rodons** per a tot el sinte: **oscil·lador 1** (ona, pols), **oscil·lador 2** (ona, semitons, fi, mescla), **sub i soroll**, **unison** (veus i desafinació), **filtre** (tall, èmfasi, envolupant, segueix la nota), **envolupant del filtre** i **del volum** (atac, caiguda, sosteniment, final), **LFO** (velocitat, vibrato, filtre, PWM, retard), **glide i distorsió**, **chorus**, **delay** (quantitat, temps a tempo del projecte, repeticions), **reverb** (quantitat, sala) i **volum**.
+- **Arrossega un botó amunt o avall** per girar-lo; **de costat**, el panell es desplaça. **Doble toc**: torna al valor del so de fàbrica. Les **ones** es canvien tocant-les.
+- Amb el **play**, la frase sona en bucle i **cada moviment se sent a l'instant** (aquí el so es fa en directe). Si passes de Notes a So mentre sona, continua sonant. Sense play, en deixar anar un botó sona una nota.
+- Quan mous un botó, el so passa a dir-se «… (modificat)». **< >** canvien al so anterior o següent. **Restaura** torna al so de fàbrica. **Desa el so** el guarda amb el nom que vulguis: surt a **«Els meus sons»** (al Poli, com una família més; al sinte, al final de la llista, marcat «· meu») al piano roll, al panell del teclat i a «+ Pista nova». La paperera esborra un so teu (la pista el conserva).
+- El so nou s'aplica a **totes les finestres de la pista**. **Desfés** també desfà els moviments dels botons.
+- Els instruments MIDI no tenen editor de so.
+
 ### Pistes de sinte polifònic («Poli», 2.31)
 - **+ Pista nova → Poli**: tria la família (**Pads**, **Cordes i cors**, **Tecles**, **Metalls i stabs**, **Plucks i arpegis**, **Moderns**) i el so. Hi ha **50 sons**, de vintage (Juno, Solina, metalls dels 80, orgues, piano elèctric) a moderns (supersaw, future bass, synthwave, lo-fi, ambient). La pista és **taronja**, amb un teclat i un acord a la icona.
 - És **polifònica** (fins a 10 notes alhora) i porta els seus efectes: **chorus**, **delay** (va a temps del projecte) i **reverb**. La cua de la reverb i del delay torna a entrar pel principi de la finestra, com la resta de sintes.
 - Funciona igual que les altres: **mantén premut** la fila per posar-hi una finestra, **doble toc** per obrir el **piano roll** (acords: les notes es poden posar una sobre l'altra), botó de gravar + **mantén premut el play** per gravar tocant el teclat polifònic, i el botó del teclat de la capçalera per **assajar**. També té els **pads d'acords** (interruptor Notes / Acords).
 - **Canviar el so**: al piano roll (botó del so) o tocant el nom de la pista al panell del teclat: família → so (cada un sona en tocar-lo amb un arpegi i un acord). S'aplica a tota la pista.
-- Properament: l'**editor de so** (botons, faders i interruptors per modificar-lo mentre sona i desar-lo com a so propi).
+- **Editor de so**: igual que al sinte (vegeu «Editor de so» més avall).
 
 ### Pistes de teremin
 - **+ Pista nova → Teremin** i tria un so: *clàssic*, *de pel·lícula*, *de vidre*, *veu*, *violoncel* o *sirena*. La pista és **rosa**, amb la icona d'una antena, i ja surt amb el **botó de gravar encès**.
@@ -167,6 +175,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.32** (31/10/2026) — **Editor de so** del sinte i del Poli (interruptor Notes / So al piano roll): 37 botons rodons en 13 seccions, el bucle sona en directe i els canvis se senten a l'instant, so anterior i següent, Restaura, **Desa el so** («Els meus sons»). Els menús que pugen des de baix ja no queden tallats per sota (en horitzontal no es podia triar l'última opció).
 - **2.31.2** (31/10/2026) — **Editor dels pads d'acords al mateix panell**: el llapis va al costat de l'interruptor Notes / Acords (ja no queda tallat) i, encès, mostra els pads en petit a l'esquerra i les quatre columnes (fonamental, tipus, tensions, nota greu) a la dreta. **Fora les pestanyes de compàs** del piano roll i del drumpad (et mous amb dos dits); el compàs que es veu surt al subtítol de dalt.
 - **2.31.1** (31/10/2026) — En canviar el so **des de l'editor** (piano roll o teremin), la pista que es deia com el so d'abans pren el nom del nou (abans només passava des del panell del teclat), i el títol de l'editor també canvia a l'instant. Si el nom de la pista l'havies posat tu, no es toca.
 - **2.31** (31/10/2026) — **Sinte polifònic «Poli»**: tipus de pista nou (taronja) amb **50 sons** en 6 famílies (pads, cordes i cors, tecles, metalls i stabs, plucks i arpegis, moderns). Fins a 10 notes alhora, amb **unison** (veus desafinades), **PWM**, **chorus**, **delay a temps** i **reverb**. Piano roll amb acords, gravar i assajar amb el teclat polifònic i els pads d'acords, canviar el so per famílies. El sinte monofònic i el teremin sonen exactament igual que abans (comprovat).

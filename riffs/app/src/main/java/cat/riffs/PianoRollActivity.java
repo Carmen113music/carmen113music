@@ -51,6 +51,12 @@ public class PianoRollActivity extends Activity {
 
     // so
     private AudioTrack bucle;
+    // editor de so (2.32)
+    private boolean modeSo = false;
+    private BucleSo bucleSo;
+    private EditorSo editorSo;
+    private LinearLayout vistaSo, segona, pastillaComp, pastillaDiv;
+    private FrameLayout botoEsborraSo;
     private int llargBucle;
     private int iniciBucle;
     private AudioTrack prova;
@@ -130,27 +136,36 @@ public class PianoRollActivity extends Activity {
         textCompassos = (TextView) comp.getChildAt(comp.getChildCount() - 1);
         comp.setOnClickListener(v -> triaCompassos());
         dalt.addView(comp, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
-        dalt.addView(Ui.espai(this, 8));
+        pastillaComp = comp;
         LinearLayout div = Ui.pastilla(this, Icona.GRAELLA, "", Ui.SUPERFICIE2, Ui.TEXT);
+        pastillaDiv = div;
         textDivisio = (TextView) div.getChildAt(div.getChildCount() - 1);
         div.setOnClickListener(v -> triaDivisio());
-        dalt.addView(div, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        LinearLayout.LayoutParams ld = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40));
+        ld.leftMargin = Ui.dp(this, 8);
+        dalt.addView(div, ld);
         dalt.addView(Ui.espai(this, 8));
+        if (!melodia.esMidi()) {
+            // 2.32: Notes (piano roll) o So (editor de so)
+            dalt.addView(Ui.segmentat(this, new String[]{"Notes", "So"}, 0, color(), i -> posaModeSo(i == 1)),
+                    new LinearLayout.LayoutParams(Ui.dp(this, 120), Ui.dp(this, 40)));
+            dalt.addView(Ui.espai(this, 8));
+        }
         botoSolo = new BotoSolo(this, color(), () -> {
-            if (bucle != null) reprenBucle();
+            if (bucle != null) reprenBucle();   // el bucle de l'editor de so ja mira el Solo a cada moment
         });
         dalt.addView(botoSolo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
         dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, color(), 44, 20, "Escolta la frase");
         botoPlay.setOnClickListener(v -> {
-            if (bucle != null) aturaBucle();
+            if (bucle != null || bucleSo != null) aturaBucle();
             else sonaBucle(0);
         });
         dalt.addView(botoPlay);
         arrel.addView(dalt);
 
         // ajuda (2.31.2: sense pestanyes de compàs; el compàs que es veu surt al subtítol de dalt)
-        LinearLayout segona = Ui.fila(this);
+        segona = Ui.fila(this);
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         TextView ajuda = Ui.text(this, "Toca per posar una nota i toca-la per treure-la · arrossega-la per moure-la · "
                 + "arrossega la punta dreta per allargar-la · dos dits: obre'ls per fer zoom (de costat, el temps; amunt i avall, les files) i arrossega per moure't", 11, Ui.APAGAT);
@@ -166,11 +181,16 @@ public class PianoRollActivity extends Activity {
         roll.setPadding(0, 0, Ui.dp(this, 6), 0);
         scroll.addView(roll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         arrel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        if (!melodia.esMidi()) {
+            vistaSo = creaVistaSo();
+            vistaSo.setVisibility(android.view.View.GONE);
+            arrel.addView(vistaSo, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        }
         setContentView(arrel);
         // la resta de pistes de l'Estudi, per sentir-les amb el bucle (si el Solo no està encès)
         botoSolo.carrega(carpeta, wav, in.getLongExtra(DrumpadActivity.EXTRA_POS, -1),
                 Math.round(Melodia.MAX_COMPASSOS * Patro.msCompas(bpm, compas)), () -> {
-                    if (bucle != null) reprenBucle();
+                    refaBucle();
                 });
 
         roll.posa(melodia, new PianoRollView.Oients() {
@@ -179,7 +199,7 @@ public class PianoRollActivity extends Activity {
                 canviat = true;
                 if (acabat) {
                     desaMelodia();
-                    if (bucle != null) reprenBucle();
+                    refaBucle();
                 }
             }
 
@@ -232,6 +252,11 @@ public class PianoRollActivity extends Activity {
     private void actualitzaCapcalera() {
         textSo.setText(melodia.preset == null || melodia.preset.isEmpty() ? "So" : melodia.preset);
         if (titol != null) titol.setText(Ui.nomAmbSo(nomInicial, presetInicial, melodia.preset));
+        if (editorSo != null) editorSo.refresca();
+        if (botoEsborraSo != null) {
+            botoEsborraSo.setVisibility(SonsPropis.troba(Ui.dirSons(this), melodia.poliSinte, melodia.preset) != null
+                    ? android.view.View.VISIBLE : android.view.View.GONE);
+        }
         textCompassos.setText(melodia.compassos == 1 ? "1 compàs" : melodia.compassos + " compassos");
         textDivisio.setText(melodia.divisio() + "/temps");
         subtitol.setText(Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas)
@@ -282,7 +307,7 @@ public class PianoRollActivity extends Activity {
         soCanviat = true;
         desaMelodia();
         actualitzaCapcalera();
-        if (bucle != null) reprenBucle();
+        refaBucle();
     }
 
     /** Un arpegi i un acord curts amb l'instrument, per sentir com sona. */
@@ -309,72 +334,232 @@ public class PianoRollActivity extends Activity {
             triaFamiliaPoli();
             return;
         }
-        String[] noms = new String[Sinte.PRESETS.length];
+        List<Sinte.Preset> ps = totsElsSons();
+        String[] noms = new String[ps.size()];
         int triat = -1;
+        int fabrica = Sinte.PRESETS.length;
         for (int i = 0; i < noms.length; i++) {
-            noms[i] = Sinte.PRESETS[i].nom;
-            if (Sinte.PRESETS[i].nom.equals(melodia.preset)) triat = i;
+            noms[i] = i >= fabrica ? ps.get(i).nom + "  · meu" : ps.get(i).nom;
+            if (ps.get(i).nom.equals(melodia.preset)) triat = i;
         }
+        Sinte.So abans = melodia.so.copia();
+        String presetAbans = melodia.preset;
         Full.triaAmbProva(this, "So del sinte", "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
                         + "Totes les finestres d'aquesta pista agafaran aquest so.",
                 noms, triat, Ui.SINTE,
-                i -> provaPreset(Sinte.PRESETS[i]),
+                i -> provaPreset(ps.get(i)),
                 i -> {
-                    if (Sinte.PRESETS[i].nom.equals(melodia.preset)) return;
-                    melodia.posaPreset(Sinte.PRESETS[i]);
-                    canviat = true;
-                    soCanviat = true;
-                    desaMelodia();
-                    actualitzaCapcalera();
-                    if (bucle != null) reprenBucle();
-                });
+                    if (ps.get(i).nom.equals(melodia.preset)) return;
+                    posaSo(ps.get(i));
+                },
+                () -> posaSo(new Sinte.Preset(presetAbans, false, abans)),   // «<»: el so d'abans (també si era modificat)
+                null);
     }
 
     /** Sinte polifònic: primer la família (pads, tecles…) i després el so (cada un sona en tocar-lo). */
     private void triaFamiliaPoli() {
         List<Full.Accio> ops = new ArrayList<>();
-        int actual = Poli.familiaDe(melodia.preset);
+        int actual = Poli.familiaDe(SonsPropis.base(melodia.preset));
         for (int f = 0; f < Poli.FAMILIES.length; f++) {
             int ff = f;
             ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(ff)));
         }
+        if (!SonsPropis.llista(Ui.dirSons(this), true).isEmpty()) {
+            boolean meu = SonsPropis.troba(Ui.dirSons(this), true, SonsPropis.base(melodia.preset)) != null;
+            ops.add(new Full.Accio(Icona.POLI, "Els meus sons" + (meu ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(-1)));
+        }
         Full.llista(this, "So del sinte polifònic", "Ara: " + melodia.preset + ". Tria una família.", ops);
     }
 
+    /** {@code f} = −1: els sons desats. */
     private void triaPoliDeFamilia(int f) {
-        List<Sinte.Preset> ps = Poli.deFamilia(f);
+        List<Sinte.Preset> ps = f < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(f);
         String[] noms = new String[ps.size()];
         int triat = -1;
         for (int i = 0; i < noms.length; i++) {
             noms[i] = ps.get(i).nom;
             if (noms[i].equals(melodia.preset)) triat = i;
         }
-        Sinte.Preset original = Poli.preset(melodia.preset);
-        Full.triaAmbProva(this, Poli.FAMILIES[f], "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+        Sinte.Preset original = new Sinte.Preset(melodia.preset, false, melodia.so.copia());
+        Full.triaAmbProva(this, f < 0 ? "Els meus sons" : Poli.FAMILIES[f], "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
                         + "Totes les finestres d'aquesta pista agafaran aquest so.",
                 noms, triat, Ui.POLI,
                 i -> provaPoli(ps.get(i)),
                 i -> posaPresetPoli(ps.get(i)),
-                () -> {
-                    if (original != null) posaPresetPoli(original);   // «<»: torna al so d'abans
-                },
+                () -> posaPresetPoli(original),   // «<»: torna al so d'abans (també si era modificat)
                 this::triaFamiliaPoli);
     }
 
     private void posaPresetPoli(Sinte.Preset p) {
-        if (p.nom.equals(melodia.preset)) return;
-        melodia.posaPreset(p);
-        canviat = true;
-        soCanviat = true;
-        desaMelodia();
-        actualitzaCapcalera();
-        if (bucle != null) reprenBucle();
+        if (p.nom.equals(melodia.preset) && p.so == melodia.so) return;
+        posaSo(p);
     }
 
     /** Un arpegi i un acord amb un so del sinte polifònic. */
     private void provaPoli(Sinte.Preset p) {
         int pas = (int) Math.round(60000.0 / bpm / 2 * Sinte.MOSTREIG / 1000.0);
         sona(Sinte.a16(Poli.toca(p.so, Poli.tocsDeProva(pas), 8 * pas, false, bpm), p.so.volumDb));
+    }
+
+    // ---------- Editor de so (2.32) ----------
+
+    /** Passa de les notes a l'editor de so (o al revés). Si sonava, continua sonant pel mateix lloc. */
+    private void posaModeSo(boolean so) {
+        if (so == modeSo || vistaSo == null) return;
+        boolean sonava = bucle != null || bucleSo != null;
+        int pos = sonava ? posicioActual() : 0;
+        alliberaBucle();
+        roll.removeCallbacks(segueix);
+        roll.posaPasSonant(-1);
+        modeSo = so;
+        int vis = so ? android.view.View.GONE : android.view.View.VISIBLE;
+        scroll.setVisibility(vis);
+        segona.setVisibility(vis);
+        pastillaComp.setVisibility(vis);
+        pastillaDiv.setVisibility(vis);
+        vistaSo.setVisibility(so ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (so) editorSo.refresca();
+        if (sonava) sonaBucle(pos);
+        else Ui.canviaIcona(botoPlay, Icona.PLAY, Ui.SOBRE_COLOR, 20);
+    }
+
+    /** El so de fàbrica (o propi) d'on ve el que hi ha ara (per al doble toc dels botons i «Restaura»). */
+    private Sinte.Preset presetOrigen() {
+        String b = SonsPropis.base(melodia.preset);
+        Sinte.Preset p = melodia.poliSinte ? Poli.preset(b) : Sinte.preset(b);
+        if (p == null) p = SonsPropis.troba(Ui.dirSons(this), melodia.poliSinte, b);
+        return p;
+    }
+
+    /** Tots els sons per anar endavant i enrere: els de fàbrica i els teus. */
+    private List<Sinte.Preset> totsElsSons() {
+        List<Sinte.Preset> r = new ArrayList<>();
+        if (melodia.poliSinte) {
+            for (Sinte.Preset p : Poli.sons()) r.add(p);
+        } else {
+            for (Sinte.Preset p : Sinte.PRESETS) r.add(p);
+        }
+        r.addAll(SonsPropis.llista(Ui.dirSons(this), melodia.poliSinte));
+        return r;
+    }
+
+    private LinearLayout creaVistaSo() {
+        LinearLayout v = Ui.columna(this);
+        LinearLayout barra = Ui.fila(this);
+        barra.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        barra.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 10), Ui.dp(this, 4));
+        FrameLayout abans = Ui.botoIcona(this, Icona.ENRERE, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "So anterior");
+        FrameLayout despres = Ui.botoIcona(this, Icona.XEVRO, Ui.TEXT, Ui.SUPERFICIE2, 36, 16, "So següent");
+        abans.setOnClickListener(x -> saltaSo(-1));
+        despres.setOnClickListener(x -> saltaSo(1));
+        barra.addView(abans);
+        barra.addView(Ui.espai(this, 6));
+        barra.addView(despres);
+        barra.addView(Ui.espai(this, 10));
+        TextView ajuda = Ui.cartell(Ui.text(this, "Arrossega els botons amunt o avall · doble toc: valor de fàbrica · "
+                + "amb el play, se sent a l'instant", 11, Ui.APAGAT));
+        barra.addView(ajuda, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        barra.addView(Ui.espai(this, 8));
+        LinearLayout restaura = Ui.pastilla(this, Icona.DESFES, "Restaura", Ui.SUPERFICIE2, Ui.TEXT);
+        restaura.setOnClickListener(x -> restauraSo());
+        barra.addView(restaura, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        barra.addView(Ui.espai(this, 8));
+        botoEsborraSo = Ui.botoIcona(this, Icona.PAPERERA, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Esborra aquest so teu");
+        botoEsborraSo.setOnClickListener(x -> esborraSo());
+        barra.addView(botoEsborraSo);
+        barra.addView(Ui.espai(this, 8));
+        LinearLayout desa = Ui.pastilla(this, Icona.BAIXA, "Desa el so", color(), Ui.SOBRE_COLOR);
+        desa.setOnClickListener(x -> desaSo());
+        barra.addView(desa, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+        v.addView(barra);
+        editorSo = new EditorSo(this, color(), () -> melodia.so, () -> {
+            Sinte.Preset p = presetOrigen();
+            return p == null ? null : p.so;
+        }, this::botoMogut);
+        v.addView(editorSo.vista, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        return v;
+    }
+
+    /** S'ha mogut un botó de l'editor de so. */
+    private void botoMogut(boolean acabat) {
+        canviat = true;
+        if (!melodia.preset.endsWith(SonsPropis.MODIFICAT)) {
+            melodia.preset = SonsPropis.modificat(melodia.preset);
+            textSo.setText(melodia.preset);
+        }
+        if (bucleSo != null) bucleSo.canviat();
+        if (!acabat) return;
+        canviat = true;
+        soCanviat = true;
+        desaMelodia();
+        if (bucleSo == null) provaNota(melodia.esGreu() ? 48 : 60);   // sense play, una nota per sentir-ho
+    }
+
+    private void saltaSo(int pas) {
+        List<Sinte.Preset> ps = totsElsSons();
+        if (ps.isEmpty()) return;
+        String b = SonsPropis.base(melodia.preset);
+        int i = -1;
+        for (int k = 0; k < ps.size(); k++) if (ps.get(k).nom.equals(b)) i = k;
+        int nou = i < 0 ? 0 : Math.floorMod(i + pas, ps.size());
+        posaSo(ps.get(nou));
+    }
+
+    /** Posa un so sencer (de fàbrica o teu) a la frase. */
+    private void posaSo(Sinte.Preset p) {
+        melodia.posaPreset(p);
+        canviat = true;
+        soCanviat = true;
+        desaMelodia();
+        actualitzaCapcalera();
+        refaBucle();
+        if (bucleSo == null && modeSo) provaNota(melodia.esGreu() ? 48 : 60);
+    }
+
+    private void restauraSo() {
+        Sinte.Preset p = presetOrigen();
+        if (p == null) {
+            Ui.avis(this, "No hi ha cap so de fàbrica per tornar-hi");
+            return;
+        }
+        posaSo(p);
+        Ui.avis(this, "Tornes a tenir «" + p.nom + "» tal com era");
+    }
+
+    private void desaSo() {
+        String proposta = SonsPropis.base(melodia.preset);
+        Full.demanaText(this, "Desa com a so teu", proposta, "Desa", nom -> {
+            String n = nom == null ? "" : nom.trim();
+            if (n.isEmpty()) return;
+            // que no es confongui amb un de fàbrica
+            boolean deFabrica = melodia.poliSinte ? Poli.preset(n) != null : Sinte.preset(n) != null;
+            if (deFabrica) n = n + " (meu)";
+            try {
+                SonsPropis.desa(Ui.dirSons(this), n, melodia.poliSinte, melodia.esGreu(), melodia.so);
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar el so");
+                return;
+            }
+            melodia.preset = n;
+            canviat = true;
+            soCanviat = true;
+            desaMelodia();
+            actualitzaCapcalera();
+            Ui.historial(this, "So desat: «" + n + "»");
+            Ui.avis(this, "Desat. El trobaràs a «Els meus sons»");
+        });
+    }
+
+    private void esborraSo() {
+        String n = melodia.preset;
+        Full.confirma(this, "Esborrar «" + n + "»?", "Desapareix de la llista dels teus sons. Aquesta pista conserva el so tal com és.",
+                "Esborra", true, () -> {
+                    SonsPropis.esborra(Ui.dirSons(this), n, melodia.poliSinte);
+                    melodia.preset = SonsPropis.modificat(n);
+                    desaMelodia();
+                    actualitzaCapcalera();
+                    Ui.historial(this, "So esborrat: «" + n + "»");
+                });
     }
 
     private void triaCompassos() {
@@ -389,7 +574,7 @@ public class PianoRollActivity extends Activity {
                 canviat = true;
                 desaMelodia();
                 actualitzaCapcalera();
-                if (bucle != null) reprenBucle();
+                refaBucle();
             }));
         }
         Full.llista(this, "Llargada de la frase", "Els compassos nous surten en blanc; si l'escurces, es perden les notes del final. "
@@ -406,7 +591,7 @@ public class PianoRollActivity extends Activity {
                 canviat = true;
                 desaMelodia();
                 actualitzaCapcalera();
-                if (bucle != null) reprenBucle();
+                refaBucle();
             }));
         }
         Full.llista(this, "Graella", "En quantes caselles es parteix cada temps. Les notes que ja hi ha es queden al seu lloc.", ops);
@@ -480,6 +665,16 @@ public class PianoRollActivity extends Activity {
 
     private void sonaBucle(int pos) {
         aturaProva();
+        if (modeSo) {
+            BucleSo b = new BucleSo(melodia, bpm, compas, pos, botoSolo);
+            if (!b.comenca()) {
+                Ui.avis(this, "No s'ha pogut fer sonar la frase");
+                return;
+            }
+            bucleSo = b;
+            Ui.canviaIcona(botoPlay, Icona.STOP, Ui.SOBRE_COLOR, 18);
+            return;
+        }
         short[] so = botoSolo.so(melodia.renderitza(bpm, compas));
         int inici = pos > 0 && pos < so.length ? pos : 0;
         if (inici > 0) {
@@ -504,6 +699,27 @@ public class PianoRollActivity extends Activity {
         roll.postOnAnimation(segueix);
     }
 
+    /** Torna a fer sonar el bucle amb la frase o el so nous (si sona). */
+    private void refaBucle() {
+        if (bucleSo != null) bucleSo.posaMelodia(melodia);
+        else if (bucle != null) reprenBucle();
+    }
+
+    /** On és el que sona ara (mostra de la frase), o 0. */
+    private int posicioActual() {
+        if (bucleSo != null) return bucleSo.posicio();
+        if (bucle == null) return 0;
+        long p = posicioQueSona();
+        if (p < 0) {
+            try {
+                p = bucle.getPlaybackHeadPosition() + iniciBucle;
+            } catch (RuntimeException ignorat) {
+                p = 0;
+            }
+        }
+        return (int) (p % Math.max(1, llargBucle));
+    }
+
     private void reprenBucle() {
         int pos = 0;
         long vell = llargBucle;
@@ -525,6 +741,10 @@ public class PianoRollActivity extends Activity {
     }
 
     private void alliberaBucle() {
+        if (bucleSo != null) {
+            bucleSo.atura();
+            bucleSo = null;
+        }
         if (bucle != null) {
             try {
                 bucle.stop();
@@ -573,13 +793,14 @@ public class PianoRollActivity extends Activity {
         if (!java.util.Objects.equals(anterior.preset, melodia.preset)) soCanviat = true;
         melodia = anterior;
         roll.canviaMelodia(anterior);
+        if (bucleSo != null) bucleSo.posaMelodia(anterior);
         canviat = true;
         desfent = true;
         desaMelodia();
         desfent = false;
         pintaDesfes();
         actualitzaPantalla();
-        if (bucle != null) reprenBucle();
+        refaBucle();
     }
 
 

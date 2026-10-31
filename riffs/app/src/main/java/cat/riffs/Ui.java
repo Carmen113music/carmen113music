@@ -50,8 +50,11 @@ public final class Ui {
      * («Violoncel 2»), passa a començar pel nou («Piano acústic 2»). Si l'havies posat tu, no es toca.
      */
     public static String nomAmbSo(String nom, String vell, String nou) {
-        if (nom == null || vell == null || nou == null || vell.isEmpty() || vell.equals(nou) || !nom.startsWith(vell)) return nom;
-        return nou + nom.substring(vell.length());
+        if (nom == null || vell == null || nou == null) return nom;
+        // «Pad càlid (modificat)» és el mateix so per al nom de la pista (2.32)
+        String v = SonsPropis.base(vell), n = SonsPropis.base(nou);
+        if (v.isEmpty() || v.equals(n) || !nom.startsWith(v)) return nom;
+        return n + nom.substring(v.length());
     }
     public static final int SOBRE_COLOR = 0xFF141416; // text sobre ambre o turquesa
 
@@ -64,6 +67,11 @@ public final class Ui {
 
     public static Biblioteca biblioteca(Context c) {
         return new Biblioteca(new File(c.getFilesDir(), "biblioteca"));
+    }
+
+    /** On es desen els sons propis de l'editor de so (2.32). */
+    public static File dirSons(Context c) {
+        return new File(c.getFilesDir(), "sons");
     }
 
     public static File fitxerHistorial(Context c) {

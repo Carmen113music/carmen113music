@@ -109,8 +109,9 @@ public final class Melodia {
     }
 
     public Sinte.Preset presetTriat() {
-        if (poliSinte) return Poli.preset(preset);
-        return Sinte.preset(preset);
+        String b = SonsPropis.base(preset);
+        if (poliSinte) return Poli.preset(b);
+        return Sinte.preset(b);
     }
 
     public boolean esGreu() {

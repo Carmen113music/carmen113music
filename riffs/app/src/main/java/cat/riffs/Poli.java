@@ -28,12 +28,23 @@ public final class Poli {
         private final Efectes fx;
 
         public Motor(Sinte.So so, double bpm) {
+            this(so, bpm, false);
+        }
+
+        /** {@code viu}: amb l'editor de so obert (els efectes sempre a punt i {@link #refresca()}). */
+        public Motor(Sinte.So so, double bpm, boolean viu) {
             this.so = so;
             for (int i = 0; i < VEUS; i++) {
                 veus[i] = new Sinte.Veu(so);
                 nota[i] = -1;
             }
-            fx = so.ambEfectes() ? new Efectes(so, bpm) : null;
+            fx = viu || so.ambEfectes() ? new Efectes(so, bpm, viu) : null;
+        }
+
+        /** Torna a llegir els botons del so (l'editor els ha mogut). */
+        public void refresca() {
+            for (Sinte.Veu v : veus) v.refresca();
+            if (fx != null) fx.refresca();
         }
 
         /** Comença una nota (si ja sonava, la torna a atacar a la mateixa veu). */
