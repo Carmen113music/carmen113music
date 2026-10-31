@@ -160,6 +160,20 @@ public final class Ui {
         return t;
     }
 
+    /**
+     * Text d'informació en una sola línia que, si no hi cap, es desplaça sol de dreta a esquerra com un cartell
+     * lluminós (2.29). Sempre ha d'anar amb amplada 0 i pes 1, perquè mai no empenyi els botons.
+     */
+    public static TextView cartell(TextView t) {
+        t.setSingleLine(true);
+        t.setHorizontallyScrolling(true);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE);
+        t.setMarqueeRepeatLimit(-1);
+        t.setHorizontalFadingEdgeEnabled(true);
+        t.setSelected(true);   // el cartell només corre si la vista està «triada»
+        return t;
+    }
+
     public static GradientDrawable rodo(int color, float radiPx) {
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);

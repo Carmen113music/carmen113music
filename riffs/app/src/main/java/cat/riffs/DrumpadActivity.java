@@ -36,6 +36,7 @@ public class DrumpadActivity extends Activity {
     public static final String EXTRA_COMPAS = "compas";
     /** On és la finestra a la línia de temps de l'Estudi (ms), per fer sonar la resta de pistes. */
     public static final String EXTRA_POS = "pos";
+    private static final String PREF_FILA = "drumpad_fila_dp";
 
     private File carpeta;
     private String wav;
@@ -161,7 +162,7 @@ public class DrumpadActivity extends Activity {
         segona.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         filaCompassos = Ui.fila(this);
         segona.addView(filaCompassos);
-        TextView ajuda = Ui.text(this, "Toca per posar o treure un cop · mantén premut i arrossega amunt o avall per la força · toca el nom per triar el so · dos dits de costat per canviar de compàs", 11, Ui.APAGAT);
+        TextView ajuda = Ui.text(this, "Toca per posar o treure un cop · mantén premut i arrossega amunt o avall per la força · toca el nom per triar el so · dos dits: desplaçar i zoom", 11, Ui.APAGAT);
         ajuda.setMaxLines(2);
         LinearLayout.LayoutParams la = Ui.pes(1);
         la.leftMargin = Ui.dp(this, 12);
@@ -209,7 +210,14 @@ public class DrumpadActivity extends Activity {
             public void compas(int c) {
                 actualitzaCapcalera();
             }
+
+            @Override
+            public void alcada(float dp) {
+                Ui.prefs(DrumpadActivity.this).edit().putFloat(PREF_FILA, dp).apply();
+            }
         });
+        float filaDp = Ui.prefs(this).getFloat(PREF_FILA, 0);
+        if (filaDp > 0) graella.posaAltFila(filaDp * getResources().getDisplayMetrics().density);
         actualitzaCapcalera();
         pintaDesfes();
 
@@ -232,6 +240,7 @@ public class DrumpadActivity extends Activity {
             for (int i = 0; i < ops.length; i++) ops[i] = "Compàs " + (i + 1);
             filaCompassos.addView(Ui.segmentat(this, ops, graella.compasVisible(), Ui.BATERIA, i -> graella.posaCompas(i)));
         }
+        graella.limita();
         graella.requestLayout();
         graella.invalidate();
     }
@@ -265,7 +274,7 @@ public class DrumpadActivity extends Activity {
             ops.add(new Full.Accio(Icona.GRAELLA, t, false, () -> {
                 if (nn == patro.compassos) return;
                 patro.posaCompassos(nn);
-                graella.posaCompas(Math.min(graella.compasVisible(), nn - 1));
+                graella.limita();
                 canviat = true;
                 desaPatro();
                 actualitzaCapcalera();

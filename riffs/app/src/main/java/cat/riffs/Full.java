@@ -203,84 +203,73 @@ public final class Full {
 
     /** Panell amb un títol i una llista d'opcions (una per fila, amb icona). */
     public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions) {
-        LinearLayout cos = Ui.columna(a);
-        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 6), Ui.dp(a, 20), 0);
-        cos.addView(Ui.negreta(a, titol, 17, Ui.TEXT));
-        if (subtitol != null && !subtitol.isEmpty()) {
-            TextView st = Ui.text(a, subtitol, 13, Ui.SUAU);
-            st.setLineSpacing(0, 1.2f);
-            cos.addView(st, Ui.ample(a, 4));
-        }
+        llista(a, titol, subtitol, opcions, null);
+    }
+
+    /**
+     * Llista per triar una opció (tocar-la la tria i tanca). A dalt, la fletxa «<» torna enrere sense triar res
+     * ({@code enrere}: què fer en tornar, per exemple tornar a la llista d'abans; null = només tancar).
+     * Té el mateix aspecte que {@link #triaAmbProva} (2.30: tots els panells de triar són iguals).
+     */
+    public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions, Runnable enrere) {
         Dialog[] d = new Dialog[1];
+        LinearLayout cos = capTria(a, titol, subtitol, () -> {
+            d[0].dismiss();
+            if (enrere != null) enrere.run();
+        }, null);
         LinearLayout files = Ui.columna(a);
         for (Accio ac : opcions) {
-            LinearLayout f = Ui.fila(a);
-            f.setClickable(true);
-            f.setFocusable(true);
-            f.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(a, 14)));
-            f.setPadding(Ui.dp(a, 14), 0, Ui.dp(a, 14), 0);
-            f.setMinimumHeight(Ui.dp(a, 52));
             int c = ac.perill ? Ui.ACCENT : Ui.TEXT;
-            f.addView(Ui.imatge(a, ac.icona, c, 20), new LinearLayout.LayoutParams(Ui.dp(a, 22), Ui.dp(a, 22)));
-            f.addView(Ui.espai(a, 12));
-            f.addView(Ui.unaLinia(Ui.negreta(a, ac.nom, 15, c)), Ui.pes(1));
+            LinearLayout f = filaTria(a, ac.icona, ac.nom, c);
+            f.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(a, 12)));
             f.setOnClickListener(v -> {
                 d[0].dismiss();
                 ac.fet.run();
             });
-            files.addView(f, Ui.ample(a, 8));
+            files.addView(f, Ui.ample(a, 5));
         }
-        ScrollView sc = new ScrollView(a);
-        sc.addView(files);
-        LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(Ui.dp(a, 60) * opcions.size() + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.55f)));
-        cos.addView(sc, ls);
+        afegeixLlistaTria(a, cos, files, opcions.size());
         d[0] = panellBaix(a, cos);
         d[0].show();
     }
 
-    /**
-     * Panell per triar un so escoltant-lo: tocar una fila el fa sonar ({@code prova}) i el deixa triat ({@code tria}),
-     * però el panell no es tanca, perquè se'n puguin provar uns quants. «Fet» el tanca.
-     */
     public static void triaAmbProva(Activity a, String titol, String subtitol, String[] noms, int triat, int color,
                                     Ui.AmbIndex prova, Ui.AmbIndex tria) {
-        LinearLayout cos = Ui.columna(a);
-        cos.setPadding(Ui.dp(a, 20), Ui.dp(a, 6), Ui.dp(a, 20), 0);
-        LinearLayout cap = Ui.fila(a);
-        LinearLayout tx = Ui.columna(a);
-        tx.addView(Ui.negreta(a, titol, 17, Ui.TEXT));
-        if (subtitol != null && !subtitol.isEmpty()) {
-            TextView st = Ui.text(a, subtitol, 13, Ui.SUAU);
-            st.setLineSpacing(0, 1.2f);
-            tx.addView(st, Ui.ample(a, 4));
-        }
-        cap.addView(tx, Ui.pes(1));
-        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
-        cap.addView(fet);
-        cos.addView(cap);
+        triaAmbProva(a, titol, subtitol, noms, triat, color, prova, tria, null, null);
+    }
 
-        LinearLayout files = Ui.columna(a);
+    /**
+     * Panell per triar un so escoltant-lo: tocar una fila el fa sonar ({@code prova}) i el deixa triat ({@code tria}),
+     * però el panell no es tanca, perquè se'n puguin provar uns quants. «Fet» el tanca amb el que hi ha triat.
+     * La fletxa «<» torna enrere **sense canviar res**: si ja s'havia triat un altre so, es torna al d'abans
+     * ({@code tria(triat)}, o {@code desfes} si el d'abans no és a la llista) i després {@code enrere} (pot ser null).
+     */
+    public static void triaAmbProva(Activity a, String titol, String subtitol, String[] noms, int triat, int color,
+                                    Ui.AmbIndex prova, Ui.AmbIndex tria, Runnable desfes, Runnable enrere) {
         final int[] sel = {triat};
+        Dialog[] d = new Dialog[1];
+        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
+        LinearLayout cos = capTria(a, titol, subtitol, () -> {
+            d[0].dismiss();
+            if (sel[0] != triat) {
+                if (triat >= 0) tria.fet(triat);
+                else if (desfes != null) desfes.run();
+            }
+            if (enrere != null) enrere.run();
+        }, fet);
+        LinearLayout files = Ui.columna(a);
         List<LinearLayout> rows = new java.util.ArrayList<>();
         Runnable pinta = () -> {
             for (int i = 0; i < rows.size(); i++) {
                 boolean t = i == sel[0];
                 LinearLayout f = rows.get(i);
-                f.setBackground(Ui.tocable(t ? Ui.alfa(color, 50) : Ui.SUPERFICIE2, Ui.dp(a, 14)));
+                f.setBackground(Ui.tocable(t ? Ui.alfa(color, 50) : Ui.SUPERFICIE2, Ui.dp(a, 12)));
                 Ui.colorIcona(f, t ? color : Ui.SUAU);
             }
         };
         for (int i = 0; i < noms.length; i++) {
             int idx = i;
-            LinearLayout f = Ui.fila(a);
-            f.setClickable(true);
-            f.setFocusable(true);
-            f.setPadding(Ui.dp(a, 14), 0, Ui.dp(a, 14), 0);
-            f.setMinimumHeight(Ui.dp(a, 48));
-            f.addView(Ui.imatge(a, Icona.PLAY, Ui.SUAU, 18), new LinearLayout.LayoutParams(Ui.dp(a, 20), Ui.dp(a, 20)));
-            f.addView(Ui.espai(a, 12));
-            f.addView(Ui.unaLinia(Ui.negreta(a, noms[i], 15, Ui.TEXT)), Ui.pes(1));
+            LinearLayout f = filaTria(a, Icona.PLAY, noms[i], Ui.TEXT);
             f.setOnClickListener(v -> {
                 prova.fet(idx);
                 if (sel[0] != idx) {
@@ -290,17 +279,200 @@ public final class Full {
                 }
             });
             rows.add(f);
-            files.addView(f, Ui.ample(a, 6));
+            files.addView(f, Ui.ample(a, 5));
         }
         pinta.run();
+        afegeixLlistaTria(a, cos, files, noms.length);
+        d[0] = panellBaix(a, cos);
+        fet.setOnClickListener(v -> d[0].dismiss());
+        d[0].show();
+    }
+
+    /** Capçalera comuna dels panells de triar: «<», títol (i subtítol) i, si n'hi ha, un botó a la dreta. */
+    private static LinearLayout capTria(Activity a, String titol, String subtitol, Runnable enrere, View dreta) {
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 12), Ui.dp(a, 2), Ui.dp(a, 18), 0);
+        LinearLayout cap = Ui.fila(a);
+        cap.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout torna = Ui.botoIcona(a, Icona.ENRERE, Ui.TEXT, Ui.SUPERFICIE2, 38, 18, "Enrere sense triar");
+        torna.setOnClickListener(v -> enrere.run());
+        cap.addView(torna);
+        cap.addView(Ui.espai(a, 10));
+        LinearLayout tx = Ui.columna(a);
+        tx.addView(Ui.unaLinia(Ui.negreta(a, titol, 15, Ui.TEXT)));
+        if (subtitol != null && !subtitol.isEmpty()) {
+            TextView st = Ui.text(a, subtitol, 12, Ui.SUAU);
+            st.setLineSpacing(0, 1.15f);
+            st.setMaxLines(2);
+            st.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tx.addView(st, Ui.ample(a, 2));
+        }
+        cap.addView(tx, Ui.pes(1));
+        if (dreta != null) {
+            cap.addView(Ui.espai(a, 10));
+            cap.addView(dreta, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(a, 38)));
+        }
+        cos.addView(cap);
+        return cos;
+    }
+
+    /** Una fila dels panells de triar (la mateixa mida i lletra a tot arreu). */
+    private static LinearLayout filaTria(Activity a, int icona, String nom, int color) {
+        LinearLayout f = Ui.fila(a);
+        f.setClickable(true);
+        f.setFocusable(true);
+        f.setGravity(Gravity.CENTER_VERTICAL);
+        f.setPadding(Ui.dp(a, 12), 0, Ui.dp(a, 12), 0);
+        f.setMinimumHeight(Ui.dp(a, 42));
+        if (icona > 0) {
+            f.addView(Ui.imatge(a, icona, Ui.SUAU, 16), new LinearLayout.LayoutParams(Ui.dp(a, 18), Ui.dp(a, 18)));
+            f.addView(Ui.espai(a, 10));
+        }
+        f.addView(Ui.unaLinia(Ui.negreta(a, nom, 13, color)), Ui.pes(1));
+        return f;
+    }
+
+    private static void afegeixLlistaTria(Activity a, LinearLayout cos, LinearLayout files, int n) {
         ScrollView sc = new ScrollView(a);
         sc.addView(files);
         LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(Ui.dp(a, 54) * noms.length + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.55f)));
+                Math.min(Ui.dp(a, 47) * n + Ui.dp(a, 8), (int) (a.getResources().getDisplayMetrics().heightPixels * 0.6f)));
+        ls.topMargin = Ui.dp(a, 8);
         cos.addView(sc, ls);
+    }
+
+    // ---------- Editor d'acords (com el del Cubase) ----------
+
+    /**
+     * Editor de l'acord d'un pad: quatre columnes (Fonamental, Tipus, Tensions, Nota greu). Cada toc canvia l'acord,
+     * el fa sonar ({@code prova}) i el desa ({@code canvi}). «Fet» (o tocar fora) tanca.
+     */
+    public static void editaAcord(Activity a, String titol, Acords.Acord inicial, int color,
+                                  java.util.function.Consumer<Acords.Acord> prova,
+                                  java.util.function.Consumer<Acords.Acord> canvi) {
+        Acords.Acord ac = inicial.buit() ? new Acords.Acord() : inicial.copia();
+        if (ac.buit()) ac.arrel = 0;
+        LinearLayout cos = Ui.columna(a);
+        cos.setPadding(Ui.dp(a, 16), Ui.dp(a, 2), Ui.dp(a, 16), 0);
+        LinearLayout cap = Ui.fila(a);
+        cap.addView(Ui.negreta(a, titol, 16, Ui.SUAU));
+        cap.addView(Ui.espai(a, 14));
+        TextView nom = Ui.unaLinia(Ui.negreta(a, "", 22, Ui.TEXT));
+        cap.addView(nom, Ui.pes(1));
+        LinearLayout buida = Ui.pastilla(a, Icona.PAPERERA, "Buida el pad", Ui.SUPERFICIE2, Ui.TEXT);
+        cap.addView(buida, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(a, 38)));
+        cap.addView(Ui.espai(a, 8));
+        LinearLayout fet = Ui.pastilla(a, 0, "Fet", Ui.TEXT, Ui.SOBRE_COLOR);
+        cap.addView(fet, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(a, 38)));
+        cos.addView(cap);
+
+        String[] baixos = new String[13];
+        baixos[0] = "—";
+        for (int i = 0; i < 12; i++) baixos[i + 1] = Acords.NOTES[i];
+        List<TextView> bArrel = new java.util.ArrayList<>(), bTipus = new java.util.ArrayList<>(),
+                bTens = new java.util.ArrayList<>(), bBaix = new java.util.ArrayList<>();
+        LinearLayout cols = Ui.fila(a);
+        cols.setGravity(Gravity.TOP);
+        cols.addView(columnaAcord(a, "Fonamental", Acords.NOTES, 3, bArrel), Ui.pes(3));
+        cols.addView(Ui.espai(a, 12));
+        cols.addView(columnaAcord(a, "Tipus", Acords.TIPUS, 2, bTipus), Ui.pes(2));
+        cols.addView(Ui.espai(a, 12));
+        cols.addView(columnaAcord(a, "Tensions", Acords.TENSIONS, 3, bTens), Ui.pes(3));
+        cols.addView(Ui.espai(a, 12));
+        cols.addView(columnaAcord(a, "Nota greu", baixos, 3, bBaix), Ui.pes(3));
+        ScrollView sc = new ScrollView(a);
+        sc.addView(cols);
+        cos.addView(sc, Ui.ample(a, 8));
+
+        Runnable[] pinta = new Runnable[1];
+        pinta[0] = () -> {
+            nom.setText(ac.nom());
+            for (int i = 0; i < bArrel.size(); i++) marcaBoto(a, bArrel.get(i), i == ac.arrel, color);
+            for (int i = 0; i < bTipus.size(); i++) marcaBoto(a, bTipus.get(i), i == ac.tipus, color);
+            for (int i = 0; i < bTens.size(); i++) marcaBoto(a, bTens.get(i), ac.te(i), color);
+            for (int i = 0; i < bBaix.size(); i++) marcaBoto(a, bBaix.get(i), i == ac.baix + 1, color);
+        };
+        Runnable canviat = () -> {
+            pinta[0].run();
+            canvi.accept(ac.copia());
+            prova.accept(ac.copia());
+        };
+        for (int i = 0; i < bArrel.size(); i++) {
+            int k = i;
+            bArrel.get(i).setOnClickListener(v -> {
+                ac.arrel = k;
+                ac.grafia = 0;
+                canviat.run();
+            });
+        }
+        for (int i = 0; i < bTipus.size(); i++) {
+            int k = i;
+            bTipus.get(i).setOnClickListener(v -> {
+                ac.tipus = k;
+                canviat.run();
+            });
+        }
+        for (int i = 0; i < bTens.size(); i++) {
+            int k = i;
+            bTens.get(i).setOnClickListener(v -> {
+                ac.commuta(k);
+                canviat.run();
+            });
+        }
+        for (int i = 0; i < bBaix.size(); i++) {
+            int k = i;
+            bBaix.get(i).setOnClickListener(v -> {
+                ac.baix = k - 1;
+                canviat.run();
+            });
+        }
+        pinta[0].run();
+        if (inicial.buit()) canvi.accept(ac.copia());   // el pad buit passa a tenir l'acord que es veu (C)
+        nom.setOnClickListener(v -> prova.accept(ac.copia()));
         Dialog d = panellBaix(a, cos);
         fet.setOnClickListener(v -> d.dismiss());
+        buida.setOnClickListener(v -> {
+            canvi.accept(new Acords.Acord());
+            d.dismiss();
+        });
         d.show();
+    }
+
+    private static LinearLayout columnaAcord(Activity a, String titol, String[] noms, int cols, List<TextView> botons) {
+        LinearLayout c = Ui.columna(a);
+        c.addView(Ui.etiqueta(a, titol));
+        LinearLayout fila = null;
+        for (int i = 0; i < noms.length; i++) {
+            if (i % cols == 0) {
+                fila = Ui.fila(a);
+                c.addView(fila, Ui.ample(a, 5));
+            }
+            TextView t = Ui.negreta(a, noms[i], 13, Ui.TEXT);
+            t.setGravity(Gravity.CENTER);
+            t.setMinHeight(Ui.dp(a, 34));
+            t.setClickable(true);
+            t.setSingleLine(true);
+            LinearLayout.LayoutParams lp = Ui.pes(1);
+            if (i % cols != 0) lp.leftMargin = Ui.dp(a, 5);
+            fila.addView(t, lp);
+            botons.add(t);
+        }
+        // que l'última fila tingui les caselles de la mateixa mida
+        int resta = noms.length % cols;
+        if (resta != 0) {
+            for (int i = resta; i < cols; i++) {
+                View v = new View(a);
+                LinearLayout.LayoutParams lp = Ui.pes(1);
+                lp.leftMargin = Ui.dp(a, 5);
+                fila.addView(v, lp);
+            }
+        }
+        return c;
+    }
+
+    private static void marcaBoto(Activity a, TextView t, boolean on, int color) {
+        t.setBackground(Ui.tocable(on ? color : Ui.SUPERFICIE2, Ui.dp(a, 10)));
+        t.setTextColor(on ? Ui.SOBRE_COLOR : Ui.TEXT);
     }
 
     // ---------- Confirmar ----------

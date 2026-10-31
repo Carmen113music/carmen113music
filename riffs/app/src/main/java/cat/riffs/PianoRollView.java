@@ -14,7 +14,7 @@ import android.widget.ScrollView;
  * i, a la dreta, la graella del compàs que es veu, amb una fila per nota i una columna per casella.
  * Tocar una casella buida posa una nota; tocar una nota la treu; arrossegar-la la mou (de costat i amunt/avall);
  * arrossegar-ne la punta dreta l'allarga o l'escurça. Tocar el teclat fa sonar la nota.
- * Va dins un ScrollView (amunt i avall es desplaça). Dos dits: obrir-los o tancar-los de costat = zoom del temps,
+ * Va dins un ScrollView, però amb un dit no es desplaça mai (2.29). Dos dits: obrir-los o tancar-los de costat = zoom del temps,
  * amunt i avall = alçada de les files, arrossegar = desplaçar-se (un dit edita, dos dits mouen, com a l'Estudi).
  */
 public class PianoRollView extends View {
@@ -37,6 +37,8 @@ public class PianoRollView extends View {
     // gest de dos dits: encara no se sap, desplaçar, zoom del temps, zoom de les files
     private static final int DD_NOSE = 0, DD_MOU = 1, DD_ZOOM_H = 2, DD_ZOOM_V = 3;
     public static final float FILA_MIN_DP = 14, FILA_MAX_DP = 56;
+    /** Colors de les files (2.29: més clars perquè es vegin les línies del temps). */
+    static final int FILA_BLANCA = 0xFF2E2E36, FILA_NEGRA = 0xFF24242B;
 
     private Melodia melodia;
     private Oients oients;
@@ -206,14 +208,14 @@ public class PianoRollView extends View {
         for (int i = 0; i < n; i++) {
             int nt = Melodia.NOTA_MAX - i;
             float top = i * altFila;
-            p.setColor(Melodia.esNegra(nt) ? 0xFF151519 : Ui.SUPERFICIE);
+            p.setColor(Melodia.esNegra(nt) ? FILA_NEGRA : FILA_BLANCA);
             c.drawRect(x0, top, xFrase, top + altFila, p);
             if (Math.floorMod(nt, 12) == 0) {
                 // ratlla sota cada Do (separa les octaves)
-                p.setColor(Ui.LINIA_FORTA);
+                p.setColor(Ui.alfa(Ui.TEXT, 70));
                 c.drawRect(x0, top + altFila - 1.2f * d, xFrase, top + altFila, p);
             } else if (Math.floorMod(nt, 12) == 5) {
-                p.setColor(Ui.LINIA);
+                p.setColor(Ui.alfa(Ui.TEXT, 30));
                 c.drawRect(x0, top + altFila - 0.8f * d, xFrase, top + altFila, p);
             }
         }
@@ -230,9 +232,9 @@ public class PianoRollView extends View {
         for (int s = s0; s <= s1; s++) {
             boolean compas = s % ppc == 0, temps = s % grup == 0;
             if (!compas && !temps && ac < 6 * d) continue;
-            p.setColor(compas ? Ui.alfa(Ui.TEXT, 110) : temps ? Ui.alfa(Ui.TEXT, 46) : Ui.alfa(Ui.TEXT, 12));
+            p.setColor(compas ? Ui.alfa(Ui.TEXT, 210) : temps ? Ui.alfa(Ui.TEXT, 120) : Ui.alfa(Ui.TEXT, 38));
             float x = xDePas(s);
-            float w = (compas ? 2f : temps ? 1.4f : 0.8f) * d;
+            float w = (compas ? 2.4f : temps ? 1.6f : 0.8f) * d;
             c.drawRect(x - w / 2, 0, x + w / 2, n * altFila, p);
         }
         // notes
@@ -331,6 +333,8 @@ public class PianoRollView extends View {
                 x0 = ev.getX();
                 y0 = ev.getY();
                 mogut = false;
+                // un dit no desplaça mai la pantalla (2.29): el ScrollView no s'ho queda
+                getParent().requestDisallowInterceptTouchEvent(true);
                 int nt = notaDeY(ev.getY());
                 if (nt < Melodia.NOTA_MIN || nt > Melodia.NOTA_MAX) return false;
                 if (ev.getX() < ampleTecles) {
@@ -387,7 +391,7 @@ public class PianoRollView extends View {
                         if (oients != null) oients.canvi(false);
                     }
                 } else if (mode == NOU && mogut) {
-                    // és un desplaçament, no una nota nova (amunt i avall ho fa el ScrollView)
+                    // el dit s'ha mogut: no és un toc, no es posa cap nota (un dit no desplaça)
                     mode = CAP;
                 } else if (mode == TECLAT && mogut) {
                     int nt = notaDeY(ev.getY());

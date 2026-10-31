@@ -8,7 +8,8 @@ import android.view.View;
 
 /**
  * Superfície per tocar el teremin: una quadrícula amb un punt al mig. Amb el dit a la dreta del punt sona més agut,
- * a l'esquerra més greu (una línia per semitò, més marcada a cada Do); amunt més fort, avall més fluix.
+ * a l'esquerra més greu (una línia per semitò, més marcada a cada Do, i el nom de cada nota blanca; les franges
+ * fosques són les notes negres); amunt més fort, avall més fluix.
  * Només compta un dit. Si «notes justes» està encès, el to salta a la nota més propera (amb el glide del so).
  */
 public class TereminView extends View {
@@ -22,6 +23,7 @@ public class TereminView extends View {
 
     /** Semitons a cada costat del punt del mig. */
     public static final int RANG = 12;
+    private static final String[] NOMS = {"Do", "", "Re", "", "Mi", "Fa", "", "Sol", "", "La", "", "Si"};
 
     private int centre = 72;
     private boolean justes = false;
@@ -82,24 +84,47 @@ public class TereminView extends View {
         // línies de volum (cada quart)
         p.setColor(Ui.LINIA);
         for (int k = 1; k < 4; k++) c.drawRect(0, h * k / 4f - 0.5f * d, w, h * k / 4f + 0.5f * d, p);
-        // una línia per semitò; més forta a cada Do, amb el nom
-        p.setTextSize(11 * d);
+        // franges de les notes negres (com les tecles d'un piano): ocupen la zona on sona aquella nota
+        float ampleSemi = w / (2f * RANG);
+        p.setColor(0xFF111114);
+        for (int n = centre - RANG; n <= centre + RANG; n++) {
+            if (!Melodia.esNegra(n)) continue;
+            float x = xDeNota(n);
+            c.drawRect(Math.max(0, x - ampleSemi / 2), 0, Math.min(w, x + ampleSemi / 2), h, p);
+        }
+        // una línia per semitò (més forta a cada Do)
         for (int n = centre - RANG; n <= centre + RANG; n++) {
             float x = xDeNota(n);
             boolean esDo = Math.floorMod(n, 12) == 0;
-            p.setColor(esDo ? Ui.alfa(Ui.TEXT, 90) : Melodia.esNegra(n) ? Ui.alfa(Ui.TEXT, 14) : Ui.alfa(Ui.TEXT, 30));
+            p.setColor(esDo ? Ui.alfa(Ui.TEXT, 110) : Melodia.esNegra(n) ? Ui.alfa(Ui.TEXT, 18) : Ui.alfa(Ui.TEXT, 40));
             float g = (esDo ? 1.5f : 0.8f) * d;
             c.drawRect(x - g / 2, 0, x + g / 2, h, p);
-            if (esDo || n == centre) {
-                p.setColor(Ui.SUAU);
-                String t = Melodia.nomNota(n);
-                c.drawText(t, x + 4 * d, h - 8 * d, p);
+        }
+        // el nom de cada nota blanca, a baix i a dalt (2.29); primer els Do, i els altres només si no els trepitgen
+        java.util.List<float[]> ocupat = new java.util.ArrayList<>();
+        for (int passada = 0; passada < 2; passada++) {
+            for (int n = centre - RANG; n <= centre + RANG; n++) {
+                if (Melodia.esNegra(n)) continue;
+                boolean esDo = Math.floorMod(n, 12) == 0;
+                if (esDo != (passada == 0)) continue;
+                String t = esDo ? Melodia.nomNota(n) : NOMS[Math.floorMod(n, 12)];
+                p.setTextSize((esDo ? 12 : 11) * d);
+                float tw = p.measureText(t);
+                float tx = Math.max(4 * d, Math.min(w - tw - 4 * d, xDeNota(n) - tw / 2));
+                boolean xoca = false;
+                for (float[] o : ocupat) if (tx < o[1] + 3 * d && tx + tw > o[0] - 3 * d) xoca = true;
+                if (xoca) continue;
+                ocupat.add(new float[]{tx, tx + tw});
+                p.setColor(esDo ? Ui.TEXT : n == centre ? Ui.TEREMIN : Ui.SUAU);
+                c.drawText(t, tx, h - 8 * d, p);
+                c.drawText(t, tx, 30 * d, p);   // i també a dalt, perquè el dit no les tapi
             }
         }
         // rètols de volum
         p.setColor(Ui.APAGAT);
-        c.drawText("fort", 8 * d, 16 * d, p);
-        c.drawText("fluix", 8 * d, h - 24 * d, p);
+        p.setTextSize(11 * d);
+        c.drawText("fort", 8 * d, 14 * d, p);
+        c.drawText("fluix", 8 * d, h - 26 * d, p);
         // el punt del mig
         p.setColor(Ui.alfa(Ui.TEREMIN, 110));
         c.drawCircle(w / 2f, h / 2f, 7 * d, p);

@@ -154,7 +154,11 @@ public class ProjecteActivity extends Activity {
         LinearLayout dalt = Ui.fila(this);
         dalt.setPadding(Ui.dp(this, 2), Ui.dp(this, 1), Ui.dp(this, 10), Ui.dp(this, 1));
         FrameLayout enrere = Ui.botoIcona(this, Icona.ENRERE, Ui.TEXT, 0x00000000, 34, 20, "Enrere");
-        enrere.setOnClickListener(v -> finish());
+        // amb el teclat o el teremin oberts, la fletxa tanca el panell (i no surt del projecte)
+        enrere.setOnClickListener(v -> {
+            if (panellTeclat != null) tancaPanell();
+            else finish();
+        });
         dalt.addView(enrere);
         TextView nom = Ui.unaLinia(Ui.negreta(this, projecte.carpeta.getName(), 15, Ui.TEXT));
         nomTitol = nom;
@@ -233,9 +237,8 @@ public class ProjecteActivity extends Activity {
         dalt.addView(accions);
 
         // El text d'informació ocupa només l'espai que sobra: mai no pot empènyer els botons fora de la pantalla
-        textInfo = Ui.unaLinia(Ui.text(this, "", 13, Ui.GUITARRA));
+        textInfo = Ui.cartell(Ui.text(this, "", 13, Ui.GUITARRA));
         textInfo.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        textInfo.setEllipsize(android.text.TextUtils.TruncateAt.END);
         dalt.addView(textInfo, dalt.indexOfChild(accions), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         dalt.addView(Ui.espai(this, 12));
 
@@ -1536,7 +1539,7 @@ public class ProjecteActivity extends Activity {
     /** En vertical la barra de dalt no hi cap sencera: s'amaguen el nom del projecte i la posició. */
     private void ajustaBarra(android.content.res.Configuration conf) {
         boolean vertical = conf.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT;
-        if (nomTitol != null) nomTitol.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        if (nomTitol != null) nomTitol.setVisibility(vertical || panellTeclat != null ? View.GONE : View.VISIBLE);
         if (textPosicio != null) textPosicio.setVisibility(vertical ? View.GONE : View.VISIBLE);
     }
 
@@ -1946,6 +1949,19 @@ public class ProjecteActivity extends Activity {
     }
 
     /**
+     * La barra del panell amb «Tanca» a part, a la dreta: si els botons de l'esquerra no hi caben, es retallen ells,
+     * però «Tanca» sempre es veu sencer.
+     */
+    private LinearLayout ambTanca(LinearLayout barra) {
+        LinearLayout fora = Ui.fila(this);
+        fora.setGravity(Gravity.CENTER_VERTICAL);
+        fora.addView(barra, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        afegeixTanca(fora);
+        if (assaig) fora.addView(Ui.espai(this, 12));
+        return fora;
+    }
+
+    /**
      * Obre el teclat (o la quadrícula del teremin) d'una pista per tocar-la sense gravar: sona en directe, amb el
      * so de la pista. Es pot fer sonar el projecte amb el play mentre tant. Tornar a tocar el botó el tanca.
      */
@@ -1997,51 +2013,236 @@ public class ProjecteActivity extends Activity {
         pistaSinte = null;
     }
 
-    /** Els acords de cada tecla (es recorden). */
+    // ---------- Pads d'acords (2.29) ----------
+
+    /** Els acords dels 12 pads (es recorden; si no n'hi ha, es converteixen els de les tecles d'abans). */
     private Acords acords() {
-        return Acords.deText(Ui.prefs(this).getString("acords_mapa", ""));
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        return Acords.deText(pr.getString("acords_pads", pr.getString("acords_mapa", "")));
     }
 
-    /** Tria quin acord fa cada tecla (Do … Si): primer la tecla, després l'arrel i el tipus. */
-    private void editaAcords(TeclatView teclat) {
-        Acords a = acords();
-        List<Full.Accio> ops = new ArrayList<>();
-        for (int pc = 0; pc < 12; pc++) {
-            int k = pc;
-            ops.add(new Full.Accio(Icona.MIDI, "Tecla " + Acords.nomNota(k) + "  →  " + a.nom(k), false, () -> triaArrel(teclat, k)));
-        }
-        ops.add(new Full.Accio(Icona.HISTORIAL, "Torna als acords de Do major", false, () -> {
-            Ui.prefs(this).edit().putString("acords_mapa", Acords.perDefecte().text()).apply();
-            if (teclat.acords() != null) teclat.posaAcords(acords());
-        }));
-        Full.llista(this, "Acords de cada tecla", "Quan els acords estan encesos, cada tecla fa sonar el seu acord "
-                + "(l'arrel, a la nota més propera a la tecla).", ops);
+    private void desaAcords(Acords a) {
+        Ui.prefs(this).edit().putString("acords_pads", a.text()).apply();
     }
 
-    private void triaArrel(TeclatView teclat, int pc) {
+    /** Llista dels 50 presets: el triat posa els seus acords, en ordre, als pads 1, 2, 3… */
+    private void triaPresetAcords(PadsView pads, Runnable despres) {
         List<Full.Accio> ops = new ArrayList<>();
-        for (int r = 0; r < 12; r++) {
-            int rr = r;
-            ops.add(new Full.Accio(Icona.MIDI, Acords.nomNota(r), false, () -> triaTipus(teclat, pc, rr)));
-        }
-        Full.llista(this, "Tecla " + Acords.nomNota(pc) + ": arrel de l'acord", null, ops);
-    }
-
-    private void triaTipus(TeclatView teclat, int pc, int arrel) {
-        List<Full.Accio> ops = new ArrayList<>();
-        for (int k = 0; k < Acords.TIPUS.length; k++) {
-            int kk = k;
-            ops.add(new Full.Accio(Icona.MIDI, Acords.nomNota(arrel) + Acords.TIPUS[k].sufix + "  ·  " + Acords.TIPUS[k].nom, false, () -> {
-                Acords a = acords();
-                a.arrel[pc] = arrel;
-                a.tipus[pc] = kk;
-                Ui.prefs(this).edit().putString("acords_mapa", a.text()).apply();
-                if (teclat.acords() != null) teclat.posaAcords(a);
-                else teclat.invalidate();
-                Ui.avis(this, "Tecla " + Acords.nomNota(pc) + " → " + a.nom(pc));
+        String ara = pads.acords().preset;
+        for (int i = 0; i < AcordsPresets.quants(); i++) {
+            int k = i;
+            boolean es = AcordsPresets.titol(i).equals(ara);
+            ops.add(new Full.Accio(Icona.MIDI, AcordsPresets.titol(i) + " · " + AcordsPresets.grup(i) + (es ? "  (ara)" : ""), false, () -> {
+                Acords a = Acords.dePreset(k);
+                desaAcords(a);
+                pads.posaAcords(a);
+                if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, "Tecla " + Acords.nomNota(pc) + ": tipus d'acord", null, ops);
+        Full.llista(this, "Presets d'acords", "Posa els 8 acords de la cançó, en ordre, als pads 1 a 8 "
+                + "(d'esquerra a dreta, com en un piano: C, C#, D…). Amb el llapis en pots canviar qualsevol.", ops);
+    }
+
+    /** Fa sonar un acord una estona (per escoltar-lo a l'editor). */
+    private void provaAcord(int[] notes, View on) {
+        MidiViu m = midiViu;
+        if (m == null || notes.length == 0) return;
+        for (int n : notes) m.encen(n, MidiSo.velocitat(2));
+        on.postDelayed(() -> {
+            for (int n : notes) m.apaga(n);
+        }, 900);
+    }
+
+    // ---------- Canviar el so des del panell (2.29) ----------
+
+    /** La capçalera del panell: icona i nom de la pista; tocar-la obre la llista de sons. */
+    private LinearLayout capcaleraSo(Projecte.Pista t) {
+        int color = Ui.colorPista(t);
+        LinearLayout cap = Ui.fila(this);
+        cap.setClickable(true);
+        cap.setContentDescription("Canvia el so");
+        cap.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(this, 18)));
+        cap.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 8), 0);
+        cap.setMinimumHeight(Ui.dp(this, 36));
+        cap.setGravity(Gravity.CENTER_VERTICAL);
+        cap.addView(Ui.imatge(this, Ui.iconaPista(t), color, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        cap.addView(Ui.espai(this, 8));
+        TextView nom = Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT));
+        nom.setMaxWidth(Ui.dp(this, 140));
+        cap.addView(nom);
+        cap.addView(Ui.espai(this, 4));
+        View xevro = Ui.imatge(this, Icona.XEVRO, Ui.SUAU, 14);
+        xevro.setRotation(90);   // cap avall: obre una llista
+        cap.addView(xevro, new LinearLayout.LayoutParams(Ui.dp(this, 14), Ui.dp(this, 14)));
+        cap.setOnClickListener(v -> triaSoPanell(t, nom));
+        return cap;
+    }
+
+    private void triaSoPanell(Projecte.Pista t, TextView nom) {
+        if (!projecte.pistes.contains(t)) return;
+        boolean ter = t.esTeremin();
+        Melodia base = ter ? null : soDeLaPista(t);
+        if (base != null && base.poli()) {
+            triaFamiliaPanell(t, nom, base);
+            return;
+        }
+        Sinte.Preset[] ps = ter ? Sinte.PRESETS_TEREMIN : Sinte.PRESETS;
+        String ara = ter ? gestDeLaPista(t).preset : base.preset;
+        String[] noms = new String[ps.length];
+        int triat = -1;
+        for (int i = 0; i < ps.length; i++) {
+            noms[i] = ps[i].nom;
+            if (ps[i].nom.equals(ara)) triat = i;
+        }
+        Full.triaAmbProva(this, ter ? "So del teremin" : "So del sinte", "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+                        + "Totes les finestres d'aquesta pista agafaran aquest so (també el que ja has gravat).",
+                noms, triat, Ui.colorPista(t),
+                i -> {
+                    canviaSoPista(t, ps[i], -1, nom);
+                    demoSo(t, ps[i].greu);
+                },
+                i -> canviaSoPista(t, ps[i], -1, nom),   // (si ja el té, no fa res; la fletxa «<» el fa servir per tornar enrere)
+                null, null);
+    }
+
+    private void triaFamiliaPanell(Projecte.Pista t, TextView nom, Melodia base) {
+        if (Banc.actual() == null) {
+            Full.avis(this, "No hi ha banc de sons", "Cal baixar el banc MIDI: Gravar → botó d'ajustos → Instruments MIDI.",
+                    "Obre", () -> startActivity(new android.content.Intent(this, BancActivity.class)));
+            return;
+        }
+        List<Full.Accio> ops = new ArrayList<>();
+        int actual = base.programa / 8;
+        for (int f = 0; f < Gm.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.MIDI, Gm.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> {
+                String[] noms = new String[8];
+                for (int i = 0; i < 8; i++) noms[i] = Gm.nom(ff * 8 + i);
+                Melodia ara = soDeLaPista(t);
+                int triat = ara.programa / 8 == ff ? ara.programa % 8 : -1;
+                int original = ara.programa;
+                Full.triaAmbProva(this, Gm.FAMILIES[ff], "Toca un instrument per escoltar-lo; queda triat. «Fet» per tancar. "
+                                + "Totes les finestres d'aquesta pista l'agafaran.",
+                        noms, triat, Ui.MIDI,
+                        i -> {
+                            canviaSoPista(t, null, ff * 8 + i, nom);
+                            demoSo(t, Gm.esGreu(ff * 8 + i));
+                        },
+                        i -> canviaSoPista(t, null, ff * 8 + i, nom),
+                        () -> canviaSoPista(t, null, original, nom),          // «<»: torna a l'instrument d'abans
+                        () -> triaFamiliaPanell(t, nom, soDeLaPista(t)));      // i a la llista de famílies
+            }));
+        }
+        Full.llista(this, "Instrument", "Ara: " + Gm.nom(base.programa) + ". Tria una família.", ops);
+    }
+
+    /**
+     * Canvia el so de tota la pista (la frase o el gest principal i totes les finestres): es desa, es torna a fer el
+     * so de les finestres i el que sona en directe agafa el so nou. Si la pista es deia com el so d'abans, pren el nom
+     * del nou.
+     */
+    private void canviaSoPista(Projecte.Pista t, Sinte.Preset preset, int programa, TextView nom) {
+        boolean ter = t.esTeremin();
+        java.util.Set<String> wavs = new java.util.LinkedHashSet<>();
+        wavs.add(t.wav);
+        for (Projecte.Clip k : t.clips) if (ter ? Projecte.esTeremin(k.wav) : Projecte.esNotes(k.wav)) wavs.add(k.wav);
+        String vell = null, nou = null;
+        Sinte.So so = null;
+        int bancMidi = 0;
+        for (String w : wavs) {
+            try {
+                if (ter) {
+                    File f = Gest.fitxerDe(projecte.carpeta, w);
+                    Gest g = Gest.llegeix(f);
+                    if (g == null) continue;
+                    if (preset.nom.equals(g.preset)) continue;
+                    if (vell == null) vell = g.preset;
+                    g.posaPreset(preset);
+                    nou = g.preset;
+                    so = g.so;
+                    g.desa(f);
+                } else {
+                    File f = Melodia.fitxerDe(projecte.carpeta, w);
+                    Melodia m = Melodia.llegeix(f);
+                    if (m == null) continue;
+                    if (programa >= 0 ? m.programa == programa : preset.nom.equals(m.preset)) continue;
+                    if (vell == null) vell = m.preset;
+                    if (programa >= 0) m.posaInstrument(programa);
+                    else m.posaPreset(preset);
+                    nou = m.preset;
+                    so = m.so;
+                    bancMidi = m.bancMidi;
+                    m.desa(f);
+                }
+            } catch (IOException e) {
+                continue;
+            }
+            if (new File(projecte.carpeta, w).isFile() || projecte.enUs(w)) refaBateria(w, false, 1);
+        }
+        if (nou == null) return;   // ja tenia aquest so
+        if (vell != null && t.nomPropi != null && !vell.isEmpty() && t.nomPropi.startsWith(vell)) {
+            t.nomPropi = nou + t.nomPropi.substring(vell.length());
+        }
+        // el so en directe
+        double guany = Mesclador.lineal(t.volumDb);
+        if (sinteViu != null && so != null) {
+            SinteViu sv = new SinteViu(so, guany);
+            if (sv.comenca()) {
+                SinteViu vellViu = sinteViu;
+                sinteViu = sv;
+                vellViu.atura();
+            }
+        }
+        if (midiViu != null && programa >= 0) {
+            MidiViu mv = new MidiViu(Banc.actual(), bancMidi, programa, guany);
+            if (mv.comenca()) {
+                MidiViu vellViu = midiViu;
+                midiViu = mv;
+                vellViu.atura();
+            }
+        }
+        desa();
+        Ui.historial(this, "So de la pista «" + t.nomVisible() + "»: " + nou);
+        if (nom != null) nom.setText(t.nomVisible());
+        ompleCapcaleres();
+        if (taulaVisible) ompleTaula();
+        vista.avisa();
+        refresca();
+    }
+
+    /** Un trosset per sentir el so nou (pel so en directe; no es grava). */
+    private void demoSo(Projecte.Pista t, boolean greu) {
+        View on = panellTeclat != null ? panellTeclat : pistes;
+        if (t.esTeremin()) {
+            SinteViu sv = sinteViu;
+            if (sv == null) return;
+            int c = Ui.prefs(this).getInt("teremin_centre", 72);
+            sv.engega(c, 0.8);
+            on.postDelayed(() -> sv.posa(c + 7, 0.85), 350);
+            on.postDelayed(sv::deixa, 800);
+            return;
+        }
+        if (midiViu != null) {
+            MidiViu m = midiViu;
+            int b = greu ? 36 : 60;
+            int[] ns = {0, 4, 7, 12};
+            for (int i = 0; i < ns.length; i++) {
+                int n = b + ns[i], k = i;
+                on.postDelayed(() -> m.encen(n, MidiSo.velocitat(2)), k * 180L);
+                on.postDelayed(() -> m.apaga(n), k * 180L + 170);
+            }
+            on.postDelayed(() -> { for (int n : new int[]{b, b + 4, b + 7}) m.encen(n, MidiSo.velocitat(2)); }, 720);
+            on.postDelayed(() -> { for (int n : new int[]{b, b + 4, b + 7}) m.apaga(n); }, 1400);
+            return;
+        }
+        SinteViu sv = sinteViu;
+        if (sv == null) return;
+        int[] ns = greu ? new int[]{36, 36, 43, 48} : new int[]{60, 63, 67, 72};
+        for (int i = 0; i < ns.length; i++) {
+            int n = ns[i];
+            on.postDelayed(() -> sv.nota(n, false), i * 180L);
+        }
+        on.postDelayed(sv::deixa, ns.length * 180L);
     }
 
     // ---------- MIDI ----------
@@ -2070,7 +2271,8 @@ public class ProjecteActivity extends Activity {
                         if (despres != null) despres.run();
                     }));
                 }
-                Full.llista(this, Gm.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", ins);
+                Full.llista(this, Gm.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", ins,
+                        () -> triaInstrumentNou(despres));   // «<»: torna a les famílies
             }));
         }
         Full.llista(this, "Instrument MIDI", "Polifònic: pots fer acords. Tria una família.", ops);
@@ -2106,7 +2308,10 @@ public class ProjecteActivity extends Activity {
         textInfo.setText("Mantén premut a la fila per posar-hi una frase, o grava-hi amb el teclat");
     }
 
-    /** El teclat virtual, als dos terços de baix de la pantalla (per sobre de les pistes). */
+    /**
+     * El teclat virtual, als dos terços de baix de la pantalla (per sobre de les pistes). A les pistes MIDI, un
+     * interruptor Notes / Acords canvia el teclat pels 12 pads d'acords.
+     */
     private void mostraTeclat(Projecte.Pista t, int doEsquerra) {
         amagaTeclat();
         LinearLayout panell = Ui.columna(this);
@@ -2120,72 +2325,147 @@ public class ProjecteActivity extends Activity {
 
         TeclatView teclat = new TeclatView(this);
         teclat.posaBase(doEsquerra);
+        PadsView pads = poli ? new PadsView(this) : null;
+        boolean[] modeAcords = {poli && Ui.prefs(this).getBoolean("acords_encesos", false)};
+        if (pads != null) {
+            pads.posaAcords(acords());
+            pads.posaBase(Ui.prefs(this).getInt("acords_octava", 48));
+        }
+
         LinearLayout barra = Ui.fila(this);
-        barra.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
+        barra.setPadding(Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
         barra.setGravity(Gravity.CENTER_VERTICAL);
-        barra.addView(Ui.imatge(this, Ui.iconaPista(t), color, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
-        barra.addView(Ui.espai(this, 8));
-        barra.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT)));
-        barra.addView(Ui.espai(this, 16));
+        barra.addView(capcaleraSo(t));
+        barra.addView(Ui.espai(this, 12));
         FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
-        TextView rang = Ui.negreta(this, "", 13, Ui.SUAU);
+        TextView rang = Ui.unaLinia(Ui.negreta(this, "", 13, Ui.SUAU));
         FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
-        Runnable posaRang = () -> rang.setText(Melodia.nomNota(teclat.base()) + " – " + Melodia.nomNota(teclat.base() + 24));
+        Runnable posaRang = () -> rang.setText(modeAcords[0] ? "Octava " + Melodia.nomNota(pads.base())
+                : Melodia.nomNota(teclat.base()) + " – " + Melodia.nomNota(teclat.base() + 24));
         menys.setOnClickListener(v -> {
-            teclat.posaBase(teclat.base() - 12);
+            if (modeAcords[0]) {
+                pads.posaBase(pads.base() - 12);
+                Ui.prefs(this).edit().putInt("acords_octava", pads.base()).apply();
+            } else {
+                teclat.posaBase(teclat.base() - 12);
+            }
             posaRang.run();
         });
         mes.setOnClickListener(v -> {
-            teclat.posaBase(teclat.base() + 12);
+            if (modeAcords[0]) {
+                pads.posaBase(pads.base() + 12);
+                Ui.prefs(this).edit().putInt("acords_octava", pads.base()).apply();
+            } else {
+                teclat.posaBase(teclat.base() + 12);
+            }
             posaRang.run();
         });
-        posaRang.run();
         barra.addView(menys);
-        barra.addView(Ui.espai(this, 8));
+        barra.addView(Ui.espai(this, 6));
         barra.addView(rang);
-        barra.addView(Ui.espai(this, 8));
+        barra.addView(Ui.espai(this, 6));
         barra.addView(mes);
+
+        textTeclat = Ui.cartell(Ui.text(this, assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa", 12, Ui.APAGAT));
+        textTeclat.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        Runnable textBase = () -> {
+            if (textTeclat == null) return;
+            textTeclat.setTextColor(Ui.APAGAT);
+            if (pads != null && modeAcords[0] && pads.edita()) {
+                textTeclat.setTextColor(Ui.MIDI);
+                textTeclat.setText("Toca un pad per canviar-ne l'acord · torna a tocar el llapis per acabar");
+            } else {
+                textTeclat.setText(assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa");
+            }
+        };
+
+        FrameLayout zona = new FrameLayout(this);
         if (poli) {
-            // pads d'acords: cada tecla fa sonar el seu acord
+            // interruptor Notes / Acords, preset i llapis (aquests dos, només amb els acords)
             barra.addView(Ui.espai(this, 12));
-            LinearLayout boto = Ui.pastilla(this, 0, "Acords", Ui.SUPERFICIE2, Ui.TEXT);
-            boto.setMinimumHeight(Ui.dp(this, 36));
-            TextView tb = (TextView) boto.getChildAt(boto.getChildCount() - 1);
-            Runnable pinta = () -> {
-                boolean on = teclat.acords() != null;
-                boto.setBackground(Ui.tocable(on ? Ui.MIDI : Ui.SUPERFICIE2, Ui.dp(this, 24)));
-                tb.setTextColor(on ? Ui.SOBRE_COLOR : Ui.TEXT);
+            LinearLayout preset = Ui.pastilla(this, Icona.MIDI, "", Ui.SUPERFICIE2, Ui.TEXT);
+            preset.setMinimumHeight(Ui.dp(this, 36));
+            TextView tp = (TextView) preset.getChildAt(preset.getChildCount() - 1);
+            tp.setMaxWidth(Ui.dp(this, 120));
+            Ui.unaLinia(tp);
+            Runnable posaPreset = () -> {
+                String pr = pads.acords().preset;
+                tp.setText(pr == null || pr.isEmpty() ? "Presets" : pr);
             };
-            boto.setOnClickListener(v -> {
-                boolean on = teclat.acords() == null;
-                teclat.posaAcords(on ? acords() : null);
-                Ui.prefs(this).edit().putBoolean("acords_encesos", on).apply();
-                pinta.run();
+            FrameLayout llapis = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Canvia l'acord d'un pad");
+            Runnable pintaLlapis = () -> {
+                boolean on = pads.edita();
+                llapis.setBackground(Ui.tocable(on ? Ui.MIDI : Ui.SUPERFICIE2, Ui.dp(this, 18)));
+                Ui.colorIcona(llapis, on ? Ui.SOBRE_COLOR : Ui.TEXT);
+            };
+            Runnable aplicaMode = () -> {
+                teclat.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
+                pads.deixaTot(android.os.SystemClock.uptimeMillis() * 1_000_000L);
+                if (!modeAcords[0] && pads.edita()) pads.posaEdita(false);
+                teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
+                pads.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+                preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+                llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+                posaRang.run();
+                pintaLlapis.run();
+                textBase.run();
+            };
+            LinearLayout interruptor = Ui.segmentat(this, new String[]{"Notes", "Acords"}, modeAcords[0] ? 1 : 0, Ui.MIDI, i -> {
+                modeAcords[0] = i == 1;
+                Ui.prefs(this).edit().putBoolean("acords_encesos", modeAcords[0]).apply();
+                aplicaMode.run();
             });
-            if (Ui.prefs(this).getBoolean("acords_encesos", false)) teclat.posaAcords(acords());
-            pinta.run();
-            barra.addView(boto, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(interruptor, new LinearLayout.LayoutParams(Ui.dp(this, 150), Ui.dp(this, 40)));
             barra.addView(Ui.espai(this, 8));
-            FrameLayout edita = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Tria quin acord fa cada tecla");
-            edita.setOnClickListener(v -> editaAcords(teclat));
-            barra.addView(edita);
+            preset.setOnClickListener(v -> triaPresetAcords(pads, posaPreset));
+            barra.addView(preset, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(Ui.espai(this, 8));
+            llapis.setOnClickListener(v -> {
+                pads.posaEdita(!pads.edita());
+                pintaLlapis.run();
+                textBase.run();
+            });
+            barra.addView(llapis);
+            pads.posaColor(Ui.MIDI);
+            pads.posaOient(pad -> {
+                Acords a = pads.acords();
+                Full.editaAcord(this, "Pad " + (pad + 1), a.pads[pad], Ui.MIDI,
+                        ac -> provaAcord(ac.notes(pads.base()), pads),
+                        ac -> {
+                            a.pads[pad] = ac;
+                            if (a.preset != null && !a.preset.isEmpty() && !a.preset.endsWith(" (modificat)")) {
+                                a.preset = a.preset + " (modificat)";
+                            }
+                            desaAcords(a);
+                            pads.invalidate();
+                            posaPreset.run();
+                        });
+            });
+            posaPreset.run();
+            zona.addView(pads, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            // l'interruptor ja s'ha creat: posem cada cosa al seu lloc
+            barra.post(aplicaMode);
+            teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
+            pads.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+            preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+            llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
         }
-        textTeclat = Ui.text(this, assaig ? "Assaig: no es grava res" : "Toca el teclat · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
-        textTeclat.setGravity(Gravity.END);
-        LinearLayout.LayoutParams lt = Ui.pes(1);
+        posaRang.run();
+        // el text d'informació només ocupa el lloc que sobra (i corre si no hi cap); «Tanca» no es mou mai
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         lt.leftMargin = Ui.dp(this, 12);
-        barra.addView(Ui.unaLinia(textTeclat), lt);
-        afegeixTanca(barra);
-        panell.addView(barra);
+        barra.addView(textTeclat, lt);
+        panell.addView(ambTanca(barra));
 
         teclat.setPadding(0, 0, 0, 0);
         if (poli) {
-            teclat.posaOientPoli(new TeclatView.OientPoli() {
+            TeclatView.OientPoli op = new TeclatView.OientPoli() {
                 @Override
                 public void encen(int nota, long nanos) {
                     if (!(gravantSinte || assaig) || midiViu == null) return;
                     midiViu.encen(nota, MidiSo.velocitat(2));
                     if (gravantSinte) notesGravades.encen(nota, 2, msDeNano(nanos));
+                    if (textTeclat == null) return;
                     textTeclat.setTextColor(Ui.MIDI);
                     textTeclat.setText(Melodia.nomNota(nota));
                 }
@@ -2194,17 +2474,20 @@ public class ProjecteActivity extends Activity {
                 public void apaga(int nota, long nanos) {
                     if (!(gravantSinte || assaig) || midiViu == null) return;
                     midiViu.apaga(nota);
-                    if (!gravantSinte) return;
+                    if (!gravantSinte || textTeclat == null) return;
                     notesGravades.apaga(nota, msDeNano(nanos));
                     textTeclat.setTextColor(Ui.APAGAT);
                     textTeclat.setText(notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
                 }
-            });
+            };
+            teclat.posaOientPoli(op);
+            pads.posaOientPoli(op);
         }
         teclat.posaOient((nota, lligada, nanos) -> {
             if (!(gravantSinte || assaig) || sinteViu == null) return;
             if (nota >= 0) sinteViu.nota(nota, lligada);
             else sinteViu.deixa();
+            if (textTeclat == null) return;
             if (!gravantSinte) {
                 textTeclat.setTextColor(nota >= 0 ? Ui.SINTE : Ui.APAGAT);
                 textTeclat.setText(nota >= 0 ? Melodia.nomNota(nota) : "Assaig: no es grava res");
@@ -2214,15 +2497,12 @@ public class ProjecteActivity extends Activity {
             textTeclat.setTextColor(nota >= 0 ? Ui.SINTE : Ui.APAGAT);
             textTeclat.setText(nota >= 0 ? Melodia.nomNota(nota) : notesGravades.compte() == 1 ? "1 nota" : notesGravades.compte() + " notes");
         });
+        zona.addView(teclat, 0, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         LinearLayout.LayoutParams lk = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         lk.setMargins(Ui.dp(this, 6), 0, Ui.dp(this, 6), Ui.dp(this, 6));
-        panell.addView(teclat, lk);
+        panell.addView(zona, lk);
 
-        int alt = getWindow().getDecorView().getHeight();
-        if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, alt * 2 / 3, Gravity.BOTTOM);
-        addContentView(panell, lp);
-        panellTeclat = panell;
+        obrePanell(panell);
     }
 
     /** La quadrícula del teremin, als dos terços de baix. */
@@ -2241,10 +2521,8 @@ public class ProjecteActivity extends Activity {
         LinearLayout barra = Ui.fila(this);
         barra.setPadding(Ui.dp(this, 12), Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4));
         barra.setGravity(Gravity.CENTER_VERTICAL);
-        barra.addView(Ui.imatge(this, Icona.TEREMIN, Ui.TEREMIN, 18), new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
-        barra.addView(Ui.espai(this, 8));
-        barra.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 14, Ui.TEXT)));
-        barra.addView(Ui.espai(this, 16));
+        barra.addView(capcaleraSo(t));
+        barra.addView(Ui.espai(this, 12));
         FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
         TextView rang = Ui.negreta(this, "", 13, Ui.SUAU);
         FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
@@ -2281,13 +2559,13 @@ public class ProjecteActivity extends Activity {
         });
         pintaJustes.run();
         barra.addView(justes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
-        textTeclat = Ui.text(this, assaig ? "Assaig: no es grava res" : "Dreta = agut, amunt = fort · el quadrat de dalt atura i desa", 12, Ui.APAGAT);
-        textTeclat.setGravity(Gravity.END);
-        LinearLayout.LayoutParams lt = Ui.pes(1);
+        // text curt (corre com un cartell si no hi cap); «Tanca» queda sempre fixat a la dreta
+        textTeclat = Ui.cartell(Ui.text(this, assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa", 12, Ui.APAGAT));
+        textTeclat.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         lt.leftMargin = Ui.dp(this, 12);
-        barra.addView(Ui.unaLinia(textTeclat), lt);
-        afegeixTanca(barra);
-        panell.addView(barra);
+        barra.addView(textTeclat, lt);
+        panell.addView(ambTanca(barra));
 
         pad.posaOient(new TereminView.Oient() {
             @Override
@@ -2309,11 +2587,7 @@ public class ProjecteActivity extends Activity {
         lk.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 8), Ui.dp(this, 8));
         panell.addView(pad, lk);
 
-        int alt = getWindow().getDecorView().getHeight();
-        if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, alt * 2 / 3, Gravity.BOTTOM);
-        addContentView(panell, lp);
-        panellTeclat = panell;
+        obrePanell(panell);
     }
 
     /** Posa el gest gravat al teremin en finestres noves (a partir de l'entrada). */
@@ -2369,6 +2643,17 @@ public class ProjecteActivity extends Activity {
         }
         panellTeclat = null;
         textTeclat = null;
+        ajustaBarra(getResources().getConfiguration());
+    }
+
+    /** Amb el panell obert, a dalt només es veu la fletxa (el nom del projecte s'amaga). */
+    private void obrePanell(View panell) {
+        int alt = getWindow().getDecorView().getHeight();
+        if (alt <= 0) alt = getResources().getDisplayMetrics().heightPixels;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, alt * 2 / 3, Gravity.BOTTOM);
+        addContentView(panell, lp);
+        panellTeclat = panell;
+        if (nomTitol != null) nomTitol.setVisibility(View.GONE);
     }
 
     /** Atura la gravació del sinte i posa el que s'ha tocat en finestres noves de la pista (a partir de l'entrada). */
@@ -2618,6 +2903,20 @@ public class ProjecteActivity extends Activity {
         pintaDesfes();
         textInfo.setTextColor(Ui.SUAU);
         textInfo.setText(desfes.pot() ? "Desfet (queden " + desfes.passos() + " passos)" : "Desfet");
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (panellTeclat != null) tancaPanell();
+        else super.onBackPressed();
+    }
+
+    /** Tanca el panell del teclat o del teremin: si s'està gravant, primer atura i desa la gravació. */
+    private void tancaPanell() {
+        if (gravantSinte) aturaGravacio(null);
+        else tancaAssaig();
+        amagaTeclat();
     }
 
     @Override

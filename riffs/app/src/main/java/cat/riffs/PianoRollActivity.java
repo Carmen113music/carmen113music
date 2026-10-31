@@ -264,20 +264,24 @@ public class PianoRollActivity extends Activity {
         String[] noms = new String[8];
         for (int i = 0; i < 8; i++) noms[i] = Gm.nom(f * 8 + i);
         int triat = melodia.programa / 8 == f ? melodia.programa % 8 : -1;
+        int original = melodia.programa;
         Full.triaAmbProva(this, Gm.FAMILIES[f], "Toca un instrument per escoltar-lo; queda triat. «Fet» per tancar. "
                         + "Totes les finestres d'aquesta pista agafaran aquest instrument.",
                 noms, triat, Ui.MIDI,
                 i -> provaInstrument(f * 8 + i),
-                i -> {
-                    int prog = f * 8 + i;
-                    if (prog == melodia.programa) return;
-                    melodia.posaInstrument(prog);
-                    canviat = true;
-                    soCanviat = true;
-                    desaMelodia();
-                    actualitzaCapcalera();
-                    if (bucle != null) reprenBucle();
-                });
+                i -> posaPrograma(f * 8 + i),
+                () -> posaPrograma(original),   // «<»: torna a l'instrument d'abans
+                this::triaInstrument);           // i a la llista de famílies
+    }
+
+    private void posaPrograma(int prog) {
+        if (prog == melodia.programa) return;
+        melodia.posaInstrument(prog);
+        canviat = true;
+        soCanviat = true;
+        desaMelodia();
+        actualitzaCapcalera();
+        if (bucle != null) reprenBucle();
     }
 
     /** Un arpegi i un acord curts amb l'instrument, per sentir com sona. */
