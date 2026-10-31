@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37, POLI = 38;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -430,6 +430,20 @@ public class Icona extends Drawable {
                 r.set(17, 15.5f, 22, 18.5f);
                 c.drawOval(r, traz);
                 linia(c, 6.5f, 17.5f, 9, 17.5f);
+                break;
+            case POLI:
+                // teclat baixet amb un acord (tres notes) a sobre
+                r.set(3.5f, 12, 20.5f, 20.5f);
+                c.drawRoundRect(r, 2, 2, traz);
+                linia(c, 9.17f, 16, 9.17f, 20.5f);
+                linia(c, 14.83f, 16, 14.83f, 20.5f);
+                r.set(7.6f, 12, 10.7f, 16);
+                c.drawRect(r, ple);
+                r.set(13.3f, 12, 16.4f, 16);
+                c.drawRect(r, ple);
+                c.drawCircle(7, 8, 1.7f, ple);
+                c.drawCircle(12, 5.5f, 1.7f, ple);
+                c.drawCircle(17, 3, 1.7f, ple);
                 break;
             case SINTE:
                 // teclat: tres tecles blanques i dues de negres

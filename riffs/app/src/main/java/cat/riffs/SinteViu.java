@@ -16,6 +16,9 @@ final class SinteViu {
 
     private final Sinte.So so;
     private final float guany;
+    private final double bpm;
+    /** Sinte polifònic (2.31): diverses notes alhora ({@link #encen} / {@link #apaga}). */
+    private final boolean poli;
     private final ConcurrentLinkedQueue<int[]> cua = new ConcurrentLinkedQueue<>();  // {nota, lligada}; nota < 0 = deixa
     private AudioTrack track;
     private Thread fil;
@@ -26,7 +29,14 @@ final class SinteViu {
 
     /** {@code guanyPista}: el fader de la pista (1 = 0 dB). */
     SinteViu(Sinte.So so, double guanyPista) {
+        this(so, guanyPista, 120, false);
+    }
+
+    /** {@code bpm}: el tempo del projecte (el delay va a temps). {@code poli}: sinte polifònic. */
+    SinteViu(Sinte.So so, double guanyPista, double bpm, boolean poli) {
         this.so = so;
+        this.bpm = bpm;
+        this.poli = poli;
         this.guany = (float) (0.7 * Math.pow(10, so.volumDb / 20) * (guanyPista > 0 ? guanyPista : 1));
     }
 
@@ -73,6 +83,25 @@ final class SinteViu {
         cua.add(new int[]{-1, 0});
     }
 
+    boolean poli() {
+        return poli;
+    }
+
+    /** Polifònic: comença una nota. */
+    void encen(int nota) {
+        cua.add(new int[]{nota, 3});
+    }
+
+    /** Polifònic: deixa anar una nota. */
+    void apaga(int nota) {
+        cua.add(new int[]{nota, 4});
+    }
+
+    /** Polifònic: les deixa anar totes. */
+    void apagaTot() {
+        cua.add(new int[]{-1, 5});
+    }
+
     /** Teremin: el dit es posa (comença a sonar) a aquest to (amb decimals) i volum (0 a 1). */
     void engega(double nota, double vol) {
         teremin = true;
@@ -88,7 +117,12 @@ final class SinteViu {
     }
 
     private void bucle() {
+        if (poli) {
+            buclePoli();
+            return;
+        }
         Sinte.Veu veu = new Sinte.Veu(so);
+        Efectes fx = so.ambEfectes() ? new Efectes(so, bpm) : null;
         short[] tros = new short[TROS];
         double cG = 1 - Math.exp(-1.0 / (0.008 * Sinte.MOSTREIG));
         double g = 1;
@@ -107,12 +141,44 @@ final class SinteViu {
             }
             if (teremin) veu.posaNota(notaCont);
             double objectiu = teremin ? Gest.guanyDeVolum(volCont) : 1;
-            if (veu.callada()) {
+            if (veu.callada() && fx == null) {
                 java.util.Arrays.fill(tros, (short) 0);
             } else {
                 for (int i = 0; i < TROS; i++) {
                     g += (objectiu - g) * cG;
-                    float v = (float) (veu.mostra() * guany * g);
+                    float x = veu.callada() ? 0f : (float) (veu.mostra() * g);
+                    if (fx != null) x = fx.processa(x);
+                    float v = x * guany;
+                    float av = Math.abs(v);
+                    if (av > 0.9f) v = Math.signum(v) * (0.9f + 0.1f * (float) Math.tanh((av - 0.9f) / 0.1f));
+                    tros[i] = (short) Math.round(v * 32767f);
+                }
+            }
+            int w;
+            try {
+                w = track.write(tros, 0, TROS);
+            } catch (RuntimeException ex) {
+                break;
+            }
+            if (w <= 0) break;
+        }
+    }
+
+    private void buclePoli() {
+        Poli.Motor m = new Poli.Motor(so, bpm);
+        short[] tros = new short[TROS];
+        while (viu) {
+            int[] e;
+            while ((e = cua.poll()) != null) {
+                if (e[1] == 3) m.encen(e[0], 2);
+                else if (e[1] == 4) m.apaga(e[0]);
+                else if (e[1] == 5) m.apagaTot();
+            }
+            if (m.callat() && !m.ambEfectes()) {
+                java.util.Arrays.fill(tros, (short) 0);
+            } else {
+                for (int i = 0; i < TROS; i++) {
+                    float v = m.mostra() * guany;
                     float av = Math.abs(v);
                     if (av > 0.9f) v = Math.signum(v) * (0.9f + 0.1f * (float) Math.tanh((av - 0.9f) / 0.1f));
                     tros[i] = (short) Math.round(v * 32767f);

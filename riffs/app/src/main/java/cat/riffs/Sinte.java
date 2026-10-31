@@ -40,6 +40,22 @@ public final class Sinte {
         public double lfoRetardMs = 0;    // el vibrato entra al cap d'una estona
         public double distorsio = 0;      // 0 a 1
         public double volumDb = 0;
+        // 2.31 (amb els valors per defecte, el so és exactament el d'abans)
+        public int unison = 1;            // veus per nota (1 a 7), desafinades entre elles
+        public double desafina = 0;       // cents entre la veu més greu i la més aguda de l'unison (0 a 100)
+        public double lfoPols = 0;        // el LFO mou l'amplada de la quadrada (PWM, 0 a 1)
+        public double chorus = 0;         // 0 a 1
+        public double chorusHz = 0.8;
+        public double delay = 0;          // quant se sent el retorn (0 a 1)
+        public double delayTemps = 0.75;  // en temps (negres): 0,75 = corxera amb punt
+        public double delayRepeticio = 0.35;   // realimentació (0 a 0,9)
+        public double reverb = 0;         // 0 a 1
+        public double reverbMida = 0.6;   // 0 a 1 (sala petita → catedral)
+
+        /** Si té algun efecte (chorus, delay o reverb). */
+        public boolean ambEfectes() {
+            return chorus > 0 || delay > 0 || reverb > 0;
+        }
 
         public So copia() {
             Properties p = new Properties();
@@ -75,6 +91,16 @@ public final class Sinte {
             posa(p, k + "lfoRetard", lfoRetardMs);
             posa(p, k + "distorsio", distorsio);
             posa(p, k + "volum", volumDb);
+            p.setProperty(k + "unison", Integer.toString(unison));
+            posa(p, k + "desafina", desafina);
+            posa(p, k + "lfoPols", lfoPols);
+            posa(p, k + "chorus", chorus);
+            posa(p, k + "chorusHz", chorusHz);
+            posa(p, k + "delay", delay);
+            posa(p, k + "delayTemps", delayTemps);
+            posa(p, k + "delayRep", delayRepeticio);
+            posa(p, k + "reverb", reverb);
+            posa(p, k + "reverbMida", reverbMida);
         }
 
         public static So llegeix(Properties p, String k) {
@@ -106,12 +132,27 @@ public final class Sinte {
             o.lfoRetardMs = entre(nombre(p, k + "lfoRetard", o.lfoRetardMs), 0, 2000);
             o.distorsio = entre(nombre(p, k + "distorsio", o.distorsio), 0, 1);
             o.volumDb = entre(nombre(p, k + "volum", o.volumDb), -30, 6);
+            o.unison = (int) entre(nombre(p, k + "unison", o.unison), 1, 7);
+            o.desafina = entre(nombre(p, k + "desafina", o.desafina), 0, 100);
+            o.lfoPols = entre(nombre(p, k + "lfoPols", o.lfoPols), 0, 1);
+            o.chorus = entre(nombre(p, k + "chorus", o.chorus), 0, 1);
+            o.chorusHz = entre(nombre(p, k + "chorusHz", o.chorusHz), 0.05, 8);
+            o.delay = entre(nombre(p, k + "delay", o.delay), 0, 1);
+            o.delayTemps = entre(nombre(p, k + "delayTemps", o.delayTemps), 0.125, 2);
+            o.delayRepeticio = entre(nombre(p, k + "delayRep", o.delayRepeticio), 0, 0.9);
+            o.reverb = entre(nombre(p, k + "reverb", o.reverb), 0, 1);
+            o.reverbMida = entre(nombre(p, k + "reverbMida", o.reverbMida), 0, 1);
             return o;
         }
 
         /** Temps que pot sonar després de deixar la nota. */
         long cuaMostres() {
             return Math.round(Math.max(r, fr) * 1.2 * MOSTREIG / 1000.0) + MOSTREIG / 50;
+        }
+
+        /** El que poden allargar els efectes (delay i reverb), en mostres, al tempo {@code bpm}. */
+        long cuaEfectes(double bpm) {
+            return Efectes.cuaMostres(this, bpm);
         }
     }
 
@@ -450,7 +491,13 @@ public final class Sinte {
      * si no, el so s'allarga fins que acaba la cua.
      */
     public static float[] toca(So o, List<Toc> notes, int n, boolean roda) {
-        int cua = (int) o.cuaMostres();
+        return toca(o, notes, n, roda, 120);
+    }
+
+    /** Com {@link #toca(So, List, int, boolean)}, amb els efectes al tempo {@code bpm} (el delay va a temps). */
+    public static float[] toca(So o, List<Toc> notes, int n, boolean roda, double bpm) {
+        Efectes fx = o.ambEfectes() ? new Efectes(o, bpm) : null;
+        int cua = (int) o.cuaMostres() + (fx != null ? (int) o.cuaEfectes(bpm) : 0);
         int total = n + cua;
         float[] out = new float[total];
         if (notes.isEmpty()) return roda ? new float[n] : out;
@@ -469,11 +516,16 @@ public final class Sinte {
             }
             if (fiActual >= 0 && i >= fiActual) v.deixa();
             if (v.callada() && k >= notes.size()) {
-                // ja no queda res per sonar
+                // ja no queda res per sonar (més que la cua dels efectes)
+                if (fx != null) {
+                    out[i] = fx.processa(0f);
+                    continue;
+                }
                 if (i >= n) break;
                 continue;
             }
-            out[i] = v.mostra();
+            float x = v.mostra();
+            out[i] = fx != null ? fx.processa(x) : x;
         }
         if (!roda) return out;
         float[] r = new float[n];
@@ -498,6 +550,10 @@ public final class Sinte {
         private double vel = 1;
         private long desDeNota = 0;
         private final double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw;
+        // unison (2.31): fases i desafinació (proporció de freqüència) de cada veu
+        private final int uni;
+        private final double[] fu1, fu2, du;
+        private final double guanyUni;
 
         public Veu(So o) {
             this.o = o;
@@ -513,6 +569,17 @@ public final class Sinte {
             drive = 1 + 9 * o.distorsio;
             normDrive = Math.tanh(drive * 0.6);
             pw = o.pols;
+            uni = Math.max(1, Math.min(7, o.unison));
+            fu1 = new double[uni];
+            fu2 = new double[uni];
+            du = new double[uni];
+            Random r0 = new Random(77);
+            for (int i = 0; i < uni; i++) {
+                du[i] = uni == 1 ? 1 : Math.pow(2, (i / (double) (uni - 1) - 0.5) * o.desafina / 1200.0);
+                fu1[i] = uni == 1 ? 0 : r0.nextDouble();   // fases repartides: no sonen totes en fase
+                fu2[i] = uni == 1 ? 0 : r0.nextDouble();
+            }
+            guanyUni = 1 / Math.sqrt(uni);
         }
 
         /**
@@ -602,7 +669,25 @@ public final class Sinte {
             double f2 = hz(nota + o.semitons2 + o.cents2 / 100.0);
             double dt1 = f1 / sr, dt2 = f2 / sr, dtSub = dt1 / 2;
 
-            double x = ona(o.ona1, fase1, dt1, pw) * (1 - o.mescla2) + ona(o.ona2, fase2, dt2, pw) * o.mescla2;
+            double pwAra = pw;
+            if (o.lfoPols > 0) pwAra = Math.max(0.05, Math.min(0.95, pw + o.lfoPols * 0.45 * lfo));
+            double x;
+            if (uni == 1) {
+                x = ona(o.ona1, fase1, dt1, pwAra) * (1 - o.mescla2) + ona(o.ona2, fase2, dt2, pwAra) * o.mescla2;
+            } else {
+                double s1 = 0, s2 = 0;
+                for (int u = 0; u < uni; u++) {
+                    double k = du[u];
+                    double e1 = dt1 * k, e2 = dt2 * k;
+                    s1 += ona(o.ona1, fu1[u], e1, pwAra);
+                    if (o.mescla2 > 0) s2 += ona(o.ona2, fu2[u], e2, pwAra);
+                    fu1[u] += e1;
+                    if (fu1[u] >= 1) fu1[u] -= 1;
+                    fu2[u] += e2;
+                    if (fu2[u] >= 1) fu2[u] -= 1;
+                }
+                x = (s1 * (1 - o.mescla2) + s2 * o.mescla2) * guanyUni;
+            }
             if (o.sub > 0) x += o.sub * 0.8 * quadrada(faseSub, dtSub, 0.5);
             if (o.soroll > 0) x += o.soroll * (rnd.nextFloat() * 2 - 1);
             x *= guany1;

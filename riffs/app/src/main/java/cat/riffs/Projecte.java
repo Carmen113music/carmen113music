@@ -65,24 +65,31 @@ public final class Projecte {
         return wav != null && wav.startsWith(DIR_MIDI + "/");
     }
 
-    /** Pistes de notes (piano roll): sinte propi o MIDI. Les dues fan servir {@code Melodia}. */
+    /** Carpeta amagada on van les notes i el so de les pistes de sinte polifònic («Poli», 2.31). */
+    public static final String DIR_POLI = ".poli";
+
+    public static boolean esPoli(String wav) {
+        return wav != null && wav.startsWith(DIR_POLI + "/");
+    }
+
+    /** Pistes de notes (piano roll): sinte propi, sinte polifònic o MIDI. Totes fan servir {@code Melodia}. */
     public static boolean esNotes(String wav) {
-        return esSinte(wav) || esMidi(wav);
+        return esSinte(wav) || esMidi(wav) || esPoli(wav);
     }
 
     /** So generat per l'app (bateria, sinte, MIDI o teremin), no una gravació: cada finestra és un ritme o una frase sencera. */
     public static boolean esGenerat(String wav) {
-        return esBateria(wav) || esSinte(wav) || esMidi(wav) || esTeremin(wav);
+        return esBateria(wav) || esNotes(wav) || esTeremin(wav);
     }
 
     /** Instrument que es toca en directe (sinte, MIDI o teremin): té botó de gravar. */
     public static boolean esInstrument(String wav) {
-        return esSinte(wav) || esMidi(wav) || esTeremin(wav);
+        return esNotes(wav) || esTeremin(wav);
     }
 
     /** Nom de les preses generades: «Bateria», «Sinte», «MIDI» o «Teremin». */
     public static String nomGenerat(String wav) {
-        return esSinte(wav) ? "Sinte" : esMidi(wav) ? "MIDI" : esTeremin(wav) ? "Teremin" : "Bateria";
+        return esSinte(wav) ? "Sinte" : esPoli(wav) ? "Poli" : esMidi(wav) ? "MIDI" : esTeremin(wav) ? "Teremin" : "Bateria";
     }
 
     /** Una gravació de la carpeta. La bandera del primer temps és seva (la comparteixen tots els seus clips). */
@@ -183,6 +190,11 @@ public final class Projecte {
         /** Pista de teremin. */
         public boolean esTeremin() {
             return Projecte.esTeremin(wav);
+        }
+
+        /** Pista de sinte polifònic («Poli»). */
+        public boolean esPoli() {
+            return Projecte.esPoli(wav);
         }
 
         /** Pista MIDI (instrument del banc). */
@@ -456,14 +468,19 @@ public final class Projecte {
         return wavLliure(DIR_MIDI + "/m");
     }
 
-    /** Un nom lliure del mateix tipus que la pista de notes {@code wav} (sinte o MIDI). */
+    /** Un nom de fitxer lliure per a una frase de sinte polifònic nova: «.poli/p1.wav»… */
+    public String wavPoliLliure() {
+        return wavLliure(DIR_POLI + "/p");
+    }
+
+    /** Un nom lliure del mateix tipus que la pista de notes {@code wav} (sinte, poli o MIDI). */
     public String wavNotesLliure(String wav) {
-        return esMidi(wav) ? wavMidiLliure() : wavSinteLliure();
+        return esMidi(wav) ? wavMidiLliure() : esPoli(wav) ? wavPoliLliure() : wavSinteLliure();
     }
 
     /** El mateix tipus de nom lliure que {@code wav} (bateria, sinte, MIDI o teremin). */
     public String wavLliureCom(String wav) {
-        return esSinte(wav) ? wavSinteLliure() : esMidi(wav) ? wavMidiLliure() : esTeremin(wav) ? wavTereminLliure() : wavBateriaLliure();
+        return esNotes(wav) ? wavNotesLliure(wav) : esTeremin(wav) ? wavTereminLliure() : wavBateriaLliure();
     }
 
     private String wavLliure(String prefix) {

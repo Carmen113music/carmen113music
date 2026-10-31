@@ -83,7 +83,10 @@ public class TereminActivity extends Activity {
         dalt.addView(enrere);
         LinearLayout tit = Ui.columna(this);
         String nom = in.getStringExtra(DrumpadActivity.EXTRA_NOM);
-        tit.addView(Ui.unaLinia(Ui.negreta(this, nom == null ? "Teremin" : nom, 16, Ui.TEXT)));
+        nomInicial = nom == null ? "Teremin" : nom;
+        presetInicial = gest.preset;
+        titol = Ui.unaLinia(Ui.negreta(this, nomInicial, 16, Ui.TEXT));
+        tit.addView(titol);
         tit.addView(Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas)
                 + " · " + (gest.compassos == 1 ? "1 compàs" : gest.compassos + " compassos"), 12, Ui.SUAU)));
         LinearLayout.LayoutParams lt = Ui.pes(1);
@@ -131,8 +134,12 @@ public class TereminActivity extends Activity {
                 });
     }
 
+    private TextView titol;
+    private String nomInicial, presetInicial;
+
     private void actualitza() {
         textSo.setText(gest.preset == null || gest.preset.isEmpty() ? "So" : gest.preset);
+        if (titol != null) titol.setText(Ui.nomAmbSo(nomInicial, presetInicial, gest.preset));
         corba.invalidate();
     }
 

@@ -96,7 +96,7 @@ public class PianoRollActivity extends Activity {
 
         desfes.inici(melodia.text());
         // el banc MIDI es llegeix d'entrada (el primer cop triga una mica)
-        if (melodia.poli()) new Thread(Banc::actual, "banc").start();
+        if (melodia.esMidi()) new Thread(Banc::actual, "banc").start();
         LinearLayout arrel = Ui.pantalla(this);
 
         // barra de dalt
@@ -107,7 +107,10 @@ public class PianoRollActivity extends Activity {
         dalt.addView(enrere);
         LinearLayout tit = Ui.columna(this);
         String nom = in.getStringExtra(DrumpadActivity.EXTRA_NOM);
-        tit.addView(Ui.unaLinia(Ui.negreta(this, nom == null ? "Sinte" : nom, 16, Ui.TEXT)));
+        nomInicial = nom == null ? "Sinte" : nom;
+        presetInicial = melodia.preset;
+        titol = Ui.unaLinia(Ui.negreta(this, nomInicial, 16, Ui.TEXT));
+        tit.addView(titol);
         tit.addView(Ui.unaLinia(Ui.text(this, Math.round(bpm) + " BPM · " + Ritme.nomCompas(compas), 12, Ui.SUAU)));
         LinearLayout.LayoutParams lt = Ui.pes(1);
         lt.leftMargin = Ui.dp(this, 4);
@@ -117,7 +120,7 @@ public class PianoRollActivity extends Activity {
         botoDesfes.setOnClickListener(v -> desfes());
         dalt.addView(botoDesfes);
         dalt.addView(Ui.espai(this, 8));
-        LinearLayout so = Ui.pastilla(this, melodia.poli() ? Icona.MIDI : Icona.SINTE, "", Ui.SUPERFICIE2, Ui.TEXT);
+        LinearLayout so = Ui.pastilla(this, melodia.esMidi() ? Icona.MIDI : melodia.poliSinte ? Icona.POLI : Icona.SINTE, "", Ui.SUPERFICIE2, Ui.TEXT);
         textSo = (TextView) so.getChildAt(so.getChildCount() - 1);
         so.setOnClickListener(v -> triaSo());
         dalt.addView(so, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
@@ -225,8 +228,12 @@ public class PianoRollActivity extends Activity {
         scroll.scrollTo(0, Math.max(0, Math.round(roll.yDe(centre) - h / 2f)));
     }
 
+    private TextView titol;
+    private String nomInicial, presetInicial;
+
     private void actualitzaCapcalera() {
         textSo.setText(melodia.preset == null || melodia.preset.isEmpty() ? "So" : melodia.preset);
+        if (titol != null) titol.setText(Ui.nomAmbSo(nomInicial, presetInicial, melodia.preset));
         textCompassos.setText(melodia.compassos == 1 ? "1 compàs" : melodia.compassos + " compassos");
         textDivisio.setText(melodia.divisio() + "/temps");
         filaCompassos.removeAllViews();
@@ -241,7 +248,7 @@ public class PianoRollActivity extends Activity {
     // ---------- Opcions ----------
 
     private int color() {
-        return melodia != null && melodia.poli() ? Ui.MIDI : Ui.SINTE;
+        return melodia == null ? Ui.SINTE : melodia.esMidi() ? Ui.MIDI : melodia.poliSinte ? Ui.POLI : Ui.SINTE;
     }
 
     /** Pista MIDI: primer la família i després l'instrument (cada un sona en tocar-lo). */
@@ -300,8 +307,12 @@ public class PianoRollActivity extends Activity {
     }
 
     private void triaSo() {
-        if (melodia.poli()) {
+        if (melodia.esMidi()) {
             triaInstrument();
+            return;
+        }
+        if (melodia.poliSinte) {
+            triaFamiliaPoli();
             return;
         }
         String[] noms = new String[Sinte.PRESETS.length];
@@ -323,6 +334,53 @@ public class PianoRollActivity extends Activity {
                     actualitzaCapcalera();
                     if (bucle != null) reprenBucle();
                 });
+    }
+
+    /** Sinte polifònic: primer la família (pads, tecles…) i després el so (cada un sona en tocar-lo). */
+    private void triaFamiliaPoli() {
+        List<Full.Accio> ops = new ArrayList<>();
+        int actual = Poli.familiaDe(melodia.preset);
+        for (int f = 0; f < Poli.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(ff)));
+        }
+        Full.llista(this, "So del sinte polifònic", "Ara: " + melodia.preset + ". Tria una família.", ops);
+    }
+
+    private void triaPoliDeFamilia(int f) {
+        List<Sinte.Preset> ps = Poli.deFamilia(f);
+        String[] noms = new String[ps.size()];
+        int triat = -1;
+        for (int i = 0; i < noms.length; i++) {
+            noms[i] = ps.get(i).nom;
+            if (noms[i].equals(melodia.preset)) triat = i;
+        }
+        Sinte.Preset original = Poli.preset(melodia.preset);
+        Full.triaAmbProva(this, Poli.FAMILIES[f], "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+                        + "Totes les finestres d'aquesta pista agafaran aquest so.",
+                noms, triat, Ui.POLI,
+                i -> provaPoli(ps.get(i)),
+                i -> posaPresetPoli(ps.get(i)),
+                () -> {
+                    if (original != null) posaPresetPoli(original);   // «<»: torna al so d'abans
+                },
+                this::triaFamiliaPoli);
+    }
+
+    private void posaPresetPoli(Sinte.Preset p) {
+        if (p.nom.equals(melodia.preset)) return;
+        melodia.posaPreset(p);
+        canviat = true;
+        soCanviat = true;
+        desaMelodia();
+        actualitzaCapcalera();
+        if (bucle != null) reprenBucle();
+    }
+
+    /** Un arpegi i un acord amb un so del sinte polifònic. */
+    private void provaPoli(Sinte.Preset p) {
+        int pas = (int) Math.round(60000.0 / bpm / 2 * Sinte.MOSTREIG / 1000.0);
+        sona(Sinte.a16(Poli.toca(p.so, Poli.tocsDeProva(pas), 8 * pas, false, bpm), p.so.volumDb));
     }
 
     private void triaCompassos() {

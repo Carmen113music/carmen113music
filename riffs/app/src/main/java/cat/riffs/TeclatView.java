@@ -195,7 +195,16 @@ public class TeclatView extends View {
         }
     }
 
+    private int color = 0;
+
+    /** El color de les tecles premudes (el de la pista). 0 = el de sempre (sinte o MIDI). */
+    public void posaColor(int c) {
+        color = c;
+        invalidate();
+    }
+
     private int colorPremuda() {
+        if (color != 0) return color;
         return oientPoli != null ? Ui.MIDI : Ui.SINTE;
     }
 

@@ -47,6 +47,8 @@ public final class Melodia {
     /** Instrument MIDI del banc (0–127), o -1 si és el sinte propi. Amb instrument MIDI, la frase és polifònica. */
     public int programa = -1;
     public int bancMidi = 0;
+    /** Sinte polifònic propi («Poli», 2.31): el so és {@code so}, però hi pot haver acords. */
+    public boolean poliSinte = false;
     /** Ordenades per inici, sense trepitjar-se. */
     public final List<Nota> notes = new ArrayList<>();
 
@@ -70,8 +72,20 @@ public final class Melodia {
         return m;
     }
 
-    /** Si poden sonar diverses notes alhora (instrument MIDI). */
+    /** Frase buida del sinte polifònic amb aquest so. */
+    public static Melodia novaPoli(Sinte.Preset p, int compas) {
+        Melodia m = nova(p, compas);
+        m.poliSinte = true;
+        return m;
+    }
+
+    /** Si poden sonar diverses notes alhora (instrument MIDI o sinte polifònic). */
     public boolean poli() {
+        return programa >= 0 || poliSinte;
+    }
+
+    /** Si el so és un instrument del banc MIDI. */
+    public boolean esMidi() {
         return programa >= 0;
     }
 
@@ -90,15 +104,17 @@ public final class Melodia {
         m.so = so.copia();
         m.programa = programa;
         m.bancMidi = bancMidi;
+        m.poliSinte = poliSinte;
         return m;
     }
 
     public Sinte.Preset presetTriat() {
+        if (poliSinte) return Poli.preset(preset);
         return Sinte.preset(preset);
     }
 
     public boolean esGreu() {
-        if (poli()) return Gm.esGreu(programa);
+        if (esMidi()) return Gm.esGreu(programa);
         Sinte.Preset p = presetTriat();
         return p != null && p.greu;
     }
@@ -217,8 +233,9 @@ public final class Melodia {
             int fi = (int) Math.round((double) x.fi() * n / total);
             tocs.add(new Sinte.Toc(ini, fi, x.nota, x.forca));
         }
-        if (poli()) return Sinte.a16(MidiSo.toca(Banc.actual(), bancMidi, programa, tocs, n, true), so.volumDb);
-        return Sinte.a16(Sinte.toca(so, tocs, n, true), so.volumDb);
+        if (esMidi()) return Sinte.a16(MidiSo.toca(Banc.actual(), bancMidi, programa, tocs, n, true), so.volumDb);
+        if (poliSinte) return Sinte.a16(Poli.toca(so, tocs, n, true, bpm), so.volumDb);
+        return Sinte.a16(Sinte.toca(so, tocs, n, true, bpm), so.volumDb);
     }
 
     /** Una nota d'aquesta frase (amb el seu so o instrument), per escoltar-la. */
@@ -227,7 +244,7 @@ public final class Melodia {
         int n = Math.max(1, ms * Sinte.MOSTREIG / 1000);
         List<Sinte.Toc> t = new ArrayList<>();
         t.add(new Sinte.Toc(0, n, nota, 2));
-        float[] x = MidiSo.toca(Banc.actual(), bancMidi, programa, t, n, false);
+        float[] x = poliSinte ? Poli.toca(so, t, n, false, 120) : MidiSo.toca(Banc.actual(), bancMidi, programa, t, n, false);
         // sense el silenci del final
         int fi = x.length;
         while (fi > n && Math.abs(x[fi - 1]) < 1e-4f) fi--;
@@ -282,6 +299,7 @@ public final class Melodia {
         m.so = Sinte.So.llegeix(p, "so.");
         m.programa = Math.max(-1, Math.min(127, enter(p.getProperty("programa"), -1)));
         m.bancMidi = Math.max(0, Math.min(128, enter(p.getProperty("bancmidi"), 0)));
+        m.poliSinte = "1".equals(p.getProperty("polisinte"));
         String ns = p.getProperty("notes", "").trim();
         if (!ns.isEmpty()) {
             for (String t : ns.split(";")) {
@@ -319,6 +337,7 @@ public final class Melodia {
         so.desa(p, "so.");
         p.setProperty("programa", Integer.toString(programa));
         p.setProperty("bancmidi", Integer.toString(bancMidi));
+        if (poliSinte) p.setProperty("polisinte", "1");
         StringBuilder sb = new StringBuilder();
         for (Nota x : notes) {
             if (sb.length() > 0) sb.append(';');

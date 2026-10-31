@@ -942,10 +942,11 @@ public class ProjecteActivity extends Activity {
             if (despres != null) despres.run();
         }));
         ops.add(new Full.Accio(Icona.SINTE, "Sinte", false, () -> triaPresetNou(despres)));
+        ops.add(new Full.Accio(Icona.POLI, "Poli", false, () -> triaPresetPoli(despres)));
         ops.add(new Full.Accio(Icona.MIDI, "MIDI", false, () -> triaInstrumentNou(despres)));
         ops.add(new Full.Accio(Icona.TEREMIN, "Teremin", false, () -> triaPresetTeremin(despres)));
         Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits. "
-                + "Sinte: baixos i melodies amb el piano roll. MIDI: 128 instruments (piano, cordes…), amb acords. "
+                + "Sinte: baixos i melodies amb el piano roll. Poli: sinte polifònic per a pads, tecles i acords (50 sons). MIDI: 128 instruments (piano, cordes…), amb acords. "
                 + "Teremin: es toca en directe lliscant el dit.", ops);
     }
 
@@ -1085,7 +1086,9 @@ public class ProjecteActivity extends Activity {
         refaBateria(wav, true, 1);
         if (req != DRUMPAD && data.getBooleanExtra(PianoRollActivity.EXTRA_SO_CANVIAT, false)) {
             sonsIgualsALaPista(wav);
+            reanomenaPerSo(wav, presetEditor);
         }
+        presetEditor = null;
         desa();
         ompleCapcaleres();
         if (taulaVisible) ompleTaula();
@@ -1129,7 +1132,7 @@ public class ProjecteActivity extends Activity {
         List<Full.Accio> ops = new ArrayList<>();
         for (Sinte.Preset p : Sinte.PRESETS) {
             ops.add(new Full.Accio(Icona.SINTE, p.nom, false, () -> {
-                creaSinte(p);
+                creaSinte(p, false);
                 if (despres != null) despres.run();
             }));
         }
@@ -1138,16 +1141,16 @@ public class ProjecteActivity extends Activity {
     }
 
     /** Crea una pista de sinte buida (amb una primera frase buida a punt per a la primera finestra). */
-    private void creaSinte(Sinte.Preset preset) {
+    private void creaSinte(Sinte.Preset preset, boolean poli) {
         atura();
         String wav;
         try {
-            Melodia m = Melodia.nova(preset, projecte.compas);
-            wav = projecte.wavSinteLliure();
+            Melodia m = poli ? Melodia.novaPoli(preset, projecte.compas) : Melodia.nova(preset, projecte.compas);
+            wav = poli ? projecte.wavPoliLliure() : projecte.wavSinteLliure();
             m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
             long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
             int n = 1;
-            for (Projecte.Pista x : projecte.pistes) if (x.esSinte()) n++;
+            for (Projecte.Pista x : projecte.pistes) if (poli ? x.esPoli() : x.esSinte()) n++;
             synchronized (projecte) {
                 projecte.afegeixSinte(wav, durada, n > 1 ? preset.nom + " " + n : preset.nom);
             }
@@ -1157,13 +1160,33 @@ public class ProjecteActivity extends Activity {
             return;
         }
         desa();
-        Ui.historial(this, "Pista de sinte nova («" + preset.nom + "») a «" + projecte.carpeta.getName() + "»");
+        Ui.historial(this, (poli ? "Pista de sinte polifònic nova («" : "Pista de sinte nova («") + preset.nom + "») a «" + projecte.carpeta.getName() + "»");
         ompleCapcaleres();
         posaEtiquetaPistes();
         pistes.requestLayout();
         pistes.invalidate();
-        textInfo.setTextColor(Ui.SINTE);
+        textInfo.setTextColor(poli ? Ui.POLI : Ui.SINTE);
         textInfo.setText("Mantén premut a la fila del sinte per posar-hi una frase");
+    }
+
+    /** «Pista nova → Poli»: primer la família (pads, tecles…) i després el so. */
+    private void triaPresetPoli(Runnable despres) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (int f = 0; f < Poli.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f], false, () -> {
+                List<Full.Accio> sons = new ArrayList<>();
+                for (Sinte.Preset p : Poli.deFamilia(ff)) {
+                    sons.add(new Full.Accio(Icona.POLI, p.nom, false, () -> {
+                        creaSinte(p, true);
+                        if (despres != null) despres.run();
+                    }));
+                }
+                Full.llista(this, Poli.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", sons,
+                        () -> triaPresetPoli(despres));   // «<»: torna a les famílies
+            }));
+        }
+        Full.llista(this, "Sinte polifònic", "Pots tocar acords. Tria una família.", ops);
     }
 
     /**
@@ -1184,7 +1207,8 @@ public class ProjecteActivity extends Activity {
                 Melodia ma = abans == null ? null : Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, abans.wav));
                 if (ma == null) ma = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, t.wav));
                 Melodia m = ma != null ? ma.buidaAmbElMateixSo()
-                        : t.esMidi() ? Melodia.novaMidi(0, projecte.compas) : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
+                        : t.esMidi() ? Melodia.novaMidi(0, projecte.compas)
+                        : t.esPoli() ? Melodia.novaPoli(Poli.PRESETS[0].preset, projecte.compas) : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
                 wav = projecte.wavNotesLliure(t.wav);
                 m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
             }
@@ -1230,6 +1254,7 @@ public class ProjecteActivity extends Activity {
         i.putExtra(DrumpadActivity.EXTRA_NOM, nom);
         i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
         i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
+        presetEditor = presetDe(clip.wav);
         startActivityForResult(i, PIANO_ROLL);
     }
 
@@ -1237,6 +1262,34 @@ public class ProjecteActivity extends Activity {
      * S'ha canviat el so d'una finestra de sinte: totes les finestres de la mateixa pista agafen aquest so
      * (un sinte per pista, com en un estudi de debò). Les notes de cada finestra no es toquen.
      */
+    /** El so que tenia la finestra en obrir-ne l'editor (per canviar el nom de la pista si en tornar n'és un altre). */
+    private String presetEditor;
+
+    private String presetDe(String wav) {
+        if (Projecte.esTeremin(wav)) {
+            Gest g = Gest.llegeix(Gest.fitxerDe(projecte.carpeta, wav));
+            return g == null ? null : g.preset;
+        }
+        Melodia m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, wav));
+        return m == null ? null : m.preset;
+    }
+
+    /** Les pistes que tenen la finestra {@code wav} i es deien com el so {@code vell} prenen el nom del so nou. */
+    private void reanomenaPerSo(String wav, String vell) {
+        String nou = presetDe(wav);
+        if (vell == null || nou == null || vell.equals(nou)) return;
+        for (Projecte.Pista p : projecte.pistes) {
+            boolean hiEs = p.wav.equals(wav);
+            for (Projecte.Clip k : p.clips) if (k.wav.equals(wav)) hiEs = true;
+            if (!hiEs || p.nomPropi == null) continue;
+            String n = Ui.nomAmbSo(p.nomPropi, vell, nou);
+            if (!n.equals(p.nomPropi)) {
+                p.nomPropi = n;
+                Ui.historial(this, "So de la pista «" + n + "»: " + nou);
+            }
+        }
+    }
+
     private void sonsIgualsALaPista(String wav) {
         boolean ter = Projecte.esTeremin(wav);
         String preset;
@@ -1351,6 +1404,7 @@ public class ProjecteActivity extends Activity {
         i.putExtra(DrumpadActivity.EXTRA_NOM, nomPista + " · compàs " + compas);
         i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
         i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
+        presetEditor = presetDe(clip.wav);
         startActivityForResult(i, TEREMIN);
     }
 
@@ -1864,7 +1918,8 @@ public class ProjecteActivity extends Activity {
                 if (m != null) break;
             }
         }
-        return m != null ? m : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
+        if (m != null) return m;
+        return t.esPoli() ? Melodia.novaPoli(Poli.PRESETS[0].preset, projecte.compas) : Melodia.nova(Sinte.PRESETS[0], projecte.compas);
     }
 
     /** Moment de la línia de temps (ms) que se sentia a {@code nanos} (System.nanoTime). */
@@ -1889,7 +1944,7 @@ public class ProjecteActivity extends Activity {
         notesGravades = new GravacioNotes();
         gestGravat = new Gest.Gravacio();
         pistaSinte = t;
-        if (!ter && base.poli()) {
+        if (!ter && base.esMidi()) {
             // MIDI: polifònic, amb l'instrument del banc
             Banc b = Banc.actual();
             if (b == null) {
@@ -1904,7 +1959,7 @@ public class ProjecteActivity extends Activity {
                 return;
             }
         } else {
-            sinteViu = new SinteViu(so, Mesclador.lineal(t.volumDb));
+            sinteViu = new SinteViu(so, Mesclador.lineal(t.volumDb), projecte.bpm, base != null && base.poliSinte);
             if (!sinteViu.comenca()) {
                 sinteViu = null;
                 Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
@@ -1972,7 +2027,7 @@ public class ProjecteActivity extends Activity {
         if (jaEra) return;
         boolean ter = t.esTeremin();
         Melodia base = ter ? null : soDeLaPista(t);
-        if (!ter && base.poli()) {
+        if (!ter && base.esMidi()) {
             Banc b = Banc.actual();
             if (b == null) {
                 Full.avis(this, "No hi ha banc de sons", "Per tocar les pistes MIDI cal el banc de sons: Gravar → botó d'ajustos → Instruments MIDI.",
@@ -1986,7 +2041,8 @@ public class ProjecteActivity extends Activity {
                 return;
             }
         } else {
-            sinteViu = new SinteViu(ter ? gestDeLaPista(t).so : base.so, Mesclador.lineal(t.volumDb));
+            sinteViu = new SinteViu(ter ? gestDeLaPista(t).so : base.so, Mesclador.lineal(t.volumDb), projecte.bpm,
+                    base != null && base.poliSinte);
             if (!sinteViu.comenca()) {
                 sinteViu = null;
                 Ui.avis(this, "No s'ha pogut obrir la sortida de so per al sinte.");
@@ -2045,12 +2101,22 @@ public class ProjecteActivity extends Activity {
 
     /** Fa sonar un acord una estona (per escoltar-lo a l'editor). */
     private void provaAcord(int[] notes, View on) {
-        MidiViu m = midiViu;
-        if (m == null || notes.length == 0) return;
-        for (int n : notes) m.encen(n, MidiSo.velocitat(2));
+        if ((midiViu == null && sinteViu == null) || notes.length == 0) return;
+        for (int n : notes) encenViu(n);
         on.postDelayed(() -> {
-            for (int n : notes) m.apaga(n);
+            for (int n : notes) apagaViu(n);
         }, 900);
+    }
+
+    /** Polifònic: encén una nota del que sona en directe (MIDI o sinte polifònic). */
+    private void encenViu(int nota) {
+        if (midiViu != null) midiViu.encen(nota, MidiSo.velocitat(2));
+        else if (sinteViu != null && sinteViu.poli()) sinteViu.encen(nota);
+    }
+
+    private void apagaViu(int nota) {
+        if (midiViu != null) midiViu.apaga(nota);
+        else if (sinteViu != null && sinteViu.poli()) sinteViu.apaga(nota);
     }
 
     // ---------- Canviar el so des del panell (2.29) ----------
@@ -2082,8 +2148,12 @@ public class ProjecteActivity extends Activity {
         if (!projecte.pistes.contains(t)) return;
         boolean ter = t.esTeremin();
         Melodia base = ter ? null : soDeLaPista(t);
-        if (base != null && base.poli()) {
+        if (base != null && base.esMidi()) {
             triaFamiliaPanell(t, nom, base);
+            return;
+        }
+        if (base != null && base.poliSinte) {
+            triaFamiliaPoliPanell(t, nom);
             return;
         }
         Sinte.Preset[] ps = ter ? Sinte.PRESETS_TEREMIN : Sinte.PRESETS;
@@ -2103,6 +2173,40 @@ public class ProjecteActivity extends Activity {
                 },
                 i -> canviaSoPista(t, ps[i], -1, nom),   // (si ja el té, no fa res; la fletxa «<» el fa servir per tornar enrere)
                 null, null);
+    }
+
+    /** Sinte polifònic: família i després el so (sona en tocar-lo; s'aplica a tota la pista). */
+    private void triaFamiliaPoliPanell(Projecte.Pista t, TextView nom) {
+        List<Full.Accio> ops = new ArrayList<>();
+        Melodia base = soDeLaPista(t);
+        int actual = Poli.familiaDe(base.preset);
+        for (int f = 0; f < Poli.FAMILIES.length; f++) {
+            int ff = f;
+            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> {
+                List<Sinte.Preset> ps = Poli.deFamilia(ff);
+                String[] noms = new String[ps.size()];
+                Melodia ara = soDeLaPista(t);
+                int triat = -1;
+                for (int i = 0; i < noms.length; i++) {
+                    noms[i] = ps.get(i).nom;
+                    if (noms[i].equals(ara.preset)) triat = i;
+                }
+                Sinte.Preset original = Poli.preset(ara.preset);
+                Full.triaAmbProva(this, Poli.FAMILIES[ff], "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+                                + "Totes les finestres d'aquesta pista l'agafaran.",
+                        noms, triat, Ui.POLI,
+                        i -> {
+                            canviaSoPista(t, ps.get(i), -1, nom);
+                            demoSo(t, false);
+                        },
+                        i -> canviaSoPista(t, ps.get(i), -1, nom),
+                        () -> {
+                            if (original != null) canviaSoPista(t, original, -1, nom);   // «<»: torna al so d'abans
+                        },
+                        () -> triaFamiliaPoliPanell(t, nom));
+            }));
+        }
+        Full.llista(this, "So del sinte polifònic", "Ara: " + base.preset + ". Tria una família.", ops);
     }
 
     private void triaFamiliaPanell(Projecte.Pista t, TextView nom, Melodia base) {
@@ -2180,13 +2284,11 @@ public class ProjecteActivity extends Activity {
             if (new File(projecte.carpeta, w).isFile() || projecte.enUs(w)) refaBateria(w, false, 1);
         }
         if (nou == null) return;   // ja tenia aquest so
-        if (vell != null && t.nomPropi != null && !vell.isEmpty() && t.nomPropi.startsWith(vell)) {
-            t.nomPropi = nou + t.nomPropi.substring(vell.length());
-        }
+        if (t.nomPropi != null) t.nomPropi = Ui.nomAmbSo(t.nomPropi, vell, nou);
         // el so en directe
         double guany = Mesclador.lineal(t.volumDb);
         if (sinteViu != null && so != null) {
-            SinteViu sv = new SinteViu(so, guany);
+            SinteViu sv = new SinteViu(so, guany, projecte.bpm, sinteViu.poli());
             if (sv.comenca()) {
                 SinteViu vellViu = sinteViu;
                 sinteViu = sv;
@@ -2237,6 +2339,17 @@ public class ProjecteActivity extends Activity {
         }
         SinteViu sv = sinteViu;
         if (sv == null) return;
+        if (sv.poli()) {
+            int[] ns = {60, 64, 67, 72};
+            for (int i = 0; i < ns.length; i++) {
+                int n = ns[i], k = i;
+                on.postDelayed(() -> sv.encen(n), k * 180L);
+                on.postDelayed(() -> sv.apaga(n), k * 180L + 170);
+            }
+            on.postDelayed(() -> { for (int n : new int[]{48, 60, 64, 67}) sv.encen(n); }, 720);
+            on.postDelayed(sv::apagaTot, 1500);
+            return;
+        }
         int[] ns = greu ? new int[]{36, 36, 43, 48} : new int[]{60, 63, 67, 72};
         for (int i = 0; i < ns.length; i++) {
             int n = ns[i];
@@ -2319,12 +2432,13 @@ public class ProjecteActivity extends Activity {
         panell.setClickable(true);   // que els tocs no passin a les pistes de sota
         View vora = new View(this);
         int color = Ui.colorPista(t);
-        boolean poli = midiViu != null;
+        boolean poli = midiViu != null || (sinteViu != null && sinteViu.poli());
         vora.setBackgroundColor(color);
         panell.addView(vora, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
 
         TeclatView teclat = new TeclatView(this);
         teclat.posaBase(doEsquerra);
+        teclat.posaColor(color);
         PadsView pads = poli ? new PadsView(this) : null;
         boolean[] modeAcords = {poli && Ui.prefs(this).getBoolean("acords_encesos", false)};
         if (pads != null) {
@@ -2372,7 +2486,7 @@ public class ProjecteActivity extends Activity {
             if (textTeclat == null) return;
             textTeclat.setTextColor(Ui.APAGAT);
             if (pads != null && modeAcords[0] && pads.edita()) {
-                textTeclat.setTextColor(Ui.MIDI);
+                textTeclat.setTextColor(color);
                 textTeclat.setText("Toca un pad per canviar-ne l'acord · torna a tocar el llapis per acabar");
             } else {
                 textTeclat.setText(assaig ? "Assaig: no es grava res" : "Gravant · el quadrat de dalt atura i desa");
@@ -2383,7 +2497,7 @@ public class ProjecteActivity extends Activity {
         if (poli) {
             // interruptor Notes / Acords, preset i llapis (aquests dos, només amb els acords)
             barra.addView(Ui.espai(this, 12));
-            LinearLayout preset = Ui.pastilla(this, Icona.MIDI, "", Ui.SUPERFICIE2, Ui.TEXT);
+            LinearLayout preset = Ui.pastilla(this, Ui.iconaPista(t), "", Ui.SUPERFICIE2, Ui.TEXT);
             preset.setMinimumHeight(Ui.dp(this, 36));
             TextView tp = (TextView) preset.getChildAt(preset.getChildCount() - 1);
             tp.setMaxWidth(Ui.dp(this, 120));
@@ -2395,7 +2509,7 @@ public class ProjecteActivity extends Activity {
             FrameLayout llapis = Ui.botoIcona(this, Icona.LLAPIS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Canvia l'acord d'un pad");
             Runnable pintaLlapis = () -> {
                 boolean on = pads.edita();
-                llapis.setBackground(Ui.tocable(on ? Ui.MIDI : Ui.SUPERFICIE2, Ui.dp(this, 18)));
+                llapis.setBackground(Ui.tocable(on ? color : Ui.SUPERFICIE2, Ui.dp(this, 18)));
                 Ui.colorIcona(llapis, on ? Ui.SOBRE_COLOR : Ui.TEXT);
             };
             Runnable aplicaMode = () -> {
@@ -2410,7 +2524,7 @@ public class ProjecteActivity extends Activity {
                 pintaLlapis.run();
                 textBase.run();
             };
-            LinearLayout interruptor = Ui.segmentat(this, new String[]{"Notes", "Acords"}, modeAcords[0] ? 1 : 0, Ui.MIDI, i -> {
+            LinearLayout interruptor = Ui.segmentat(this, new String[]{"Notes", "Acords"}, modeAcords[0] ? 1 : 0, color, i -> {
                 modeAcords[0] = i == 1;
                 Ui.prefs(this).edit().putBoolean("acords_encesos", modeAcords[0]).apply();
                 aplicaMode.run();
@@ -2426,10 +2540,10 @@ public class ProjecteActivity extends Activity {
                 textBase.run();
             });
             barra.addView(llapis);
-            pads.posaColor(Ui.MIDI);
+            pads.posaColor(color);
             pads.posaOient(pad -> {
                 Acords a = pads.acords();
-                Full.editaAcord(this, "Pad " + (pad + 1), a.pads[pad], Ui.MIDI,
+                Full.editaAcord(this, "Pad " + (pad + 1), a.pads[pad], color,
                         ac -> provaAcord(ac.notes(pads.base()), pads),
                         ac -> {
                             a.pads[pad] = ac;
@@ -2462,18 +2576,18 @@ public class ProjecteActivity extends Activity {
             TeclatView.OientPoli op = new TeclatView.OientPoli() {
                 @Override
                 public void encen(int nota, long nanos) {
-                    if (!(gravantSinte || assaig) || midiViu == null) return;
-                    midiViu.encen(nota, MidiSo.velocitat(2));
+                    if (!(gravantSinte || assaig) || (midiViu == null && sinteViu == null)) return;
+                    encenViu(nota);
                     if (gravantSinte) notesGravades.encen(nota, 2, msDeNano(nanos));
                     if (textTeclat == null) return;
-                    textTeclat.setTextColor(Ui.MIDI);
+                    textTeclat.setTextColor(color);
                     textTeclat.setText(Melodia.nomNota(nota));
                 }
 
                 @Override
                 public void apaga(int nota, long nanos) {
-                    if (!(gravantSinte || assaig) || midiViu == null) return;
-                    midiViu.apaga(nota);
+                    if (!(gravantSinte || assaig) || (midiViu == null && sinteViu == null)) return;
+                    apagaViu(nota);
                     if (!gravantSinte || textTeclat == null) return;
                     notesGravades.apaga(nota, msDeNano(nanos));
                     textTeclat.setTextColor(Ui.APAGAT);
@@ -2682,7 +2796,7 @@ public class ProjecteActivity extends Activity {
         }
         int ppc = Patro.passosDe(projecte.compas);
         List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS,
-                t != null && t.esMidi());
+                t != null && (t.esMidi() || t.esPoli()));
         if (t == null || !projecte.pistes.contains(t) || frases.isEmpty()) {
             textInfo.setText(motiu != null ? motiu : "No has tocat cap nota després del compte: no s'ha desat res");
             refresca();
