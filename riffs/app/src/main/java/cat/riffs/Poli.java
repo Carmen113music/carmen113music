@@ -160,6 +160,30 @@ public final class Poli {
         return f < FAMILIES_ANALOGIQUES ? Sinte.ANALOGIC : f - FAMILIES_ANALOGIQUES + 1;
     }
 
+    /** Les famílies d'un motor: les sis analògiques, o la del motor nou (2.38.1). */
+    public static int[] familiesDeMotor(int motor) {
+        if (motor == Sinte.ANALOGIC) {
+            int[] r = new int[FAMILIES_ANALOGIQUES];
+            for (int i = 0; i < r.length; i++) r[i] = i;
+            return r;
+        }
+        return new int[]{familiaDeMotor(motor)};
+    }
+
+    /** Tots els sons de fàbrica d'un motor (per anar endavant i enrere a l'editor de so). */
+    public static List<Sinte.Preset> deMotor(int motor) {
+        List<Sinte.Preset> r = new ArrayList<>();
+        for (Preset p : PRESETS) if (motorDeFamilia(p.familia) == motor) r.add(p.preset);
+        return r;
+    }
+
+    /** Només els sons (propis) d'un motor. */
+    public static List<Sinte.Preset> delMotor(List<Sinte.Preset> sons, int motor) {
+        List<Sinte.Preset> r = new ArrayList<>();
+        for (Sinte.Preset p : sons) if (p.so.motor == motor) r.add(p);
+        return r;
+    }
+
     /** La família d'un motor nou (per a l'analògic, −1: en té sis). */
     public static int familiaDeMotor(int motor) {
         return motor == Sinte.ANALOGIC ? -1 : FAMILIES_ANALOGIQUES + motor - 1;

@@ -1235,13 +1235,16 @@ public class ProjecteActivity extends Activity {
     private void triaPresetPoli(Runnable despres, boolean analogic) {
         List<Full.Accio> ops = new ArrayList<>();
         int nf0 = analogic ? Poli.FAMILIES_ANALOGIQUES : Poli.FAMILIES.length;
-        int families = nf0 + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
+        List<Sinte.Preset> meus = SonsPropis.llista(Ui.dirSons(this), true);
+        if (analogic) meus = Poli.delMotor(meus, Sinte.ANALOGIC);
+        List<Sinte.Preset> meusF = meus;
+        int families = nf0 + (meus.isEmpty() ? 0 : 1);
         for (int f = 0; f < families; f++) {
             int ff = f < nf0 ? f : -1;
             String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
             ops.add(new Full.Accio(Icona.POLI, nf, false, () -> {
                 List<Full.Accio> sons = new ArrayList<>();
-                for (Sinte.Preset p : ff < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(ff)) {
+                for (Sinte.Preset p : ff < 0 ? meusF : Poli.deFamilia(ff)) {
                     sons.add(new Full.Accio(Icona.POLI, p.nom, false, () -> {
                         creaSinte(p, true);
                         if (despres != null) despres.run();
@@ -2484,39 +2487,52 @@ public class ProjecteActivity extends Activity {
                 null, null);
     }
 
-    /** Sinte polifònic: família i després el so (sona en tocar-lo; s'aplica a tota la pista). */
+    /**
+     * Sinte polifònic: família i després el so (sona en tocar-lo; s'aplica a tota la pista).
+     * 2.38.1: només els sons del mateix motor; si només hi ha una família, hi va directe.
+     */
     private void triaFamiliaPoliPanell(Projecte.Pista t, TextView nom) {
-        List<Full.Accio> ops = new ArrayList<>();
         Melodia base = soDeLaPista(t);
-        int actual = Poli.familiaDe(SonsPropis.base(base.preset));
-        int families = Poli.FAMILIES.length + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
-        for (int f = 0; f < families; f++) {
-            int ff = f < Poli.FAMILIES.length ? f : -1;
-            String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
-            ops.add(new Full.Accio(Ui.iconaMotor(ff < 0 ? Sinte.ANALOGIC : Poli.motorDeFamilia(ff)), nf + (ff >= 0 && ff == actual ? "  (ara)" : ""), false, () -> {
-                List<Sinte.Preset> ps = ff < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(ff);
-                String[] noms = new String[ps.size()];
-                Melodia ara = soDeLaPista(t);
-                int triat = -1;
-                for (int i = 0; i < noms.length; i++) {
-                    noms[i] = ps.get(i).nom;
-                    if (noms[i].equals(ara.preset)) triat = i;
-                }
-                Sinte.Preset original = new Sinte.Preset(ara.preset, false, ara.so.copia());   // també si era modificat
-                Full.triaAmbProva(this, nf, "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
-                                + "Totes les finestres d'aquesta pista l'agafaran.",
-                        noms, triat, Ui.POLI,
-                        i -> {
-                            canviaSoPista(t, ps.get(i), -1, nom);
-                            demoSo(t, false);
-                        },
-                        i -> canviaSoPista(t, ps.get(i), -1, nom),
-                        () -> canviaSoPista(t, original, -1, nom),   // «<»: torna al so d'abans
-                        () -> triaFamiliaPoliPanell(t, nom));
-            }));
+        int motor = base.so.motor;
+        int[] fs = Poli.familiesDeMotor(motor);
+        boolean propis = !Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor).isEmpty();
+        if (fs.length == 1 && !propis) {
+            triaPoliDeFamiliaPanell(t, nom, fs[0], motor, false);
+            return;
         }
-        Full.llista(this, "So del sinte polifònic", "Ara: " + base.preset + ". Tria una família.", ops);
+        List<Full.Accio> ops = new ArrayList<>();
+        int actual = Poli.familiaDe(SonsPropis.base(base.preset));
+        for (int f : fs) {
+            ops.add(new Full.Accio(Ui.iconaMotor(motor), Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false,
+                    () -> triaPoliDeFamiliaPanell(t, nom, f, motor, true)));
+        }
+        if (propis) ops.add(new Full.Accio(Ui.iconaMotor(motor), "Els meus sons", false, () -> triaPoliDeFamiliaPanell(t, nom, -1, motor, true)));
+        Full.llista(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + base.preset + ". Tria una família.", ops);
     }
+
+    private void triaPoliDeFamiliaPanell(Projecte.Pista t, TextView nom, int ff, int motor, boolean ambEnrere) {
+        String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
+        List<Sinte.Preset> ps = ff < 0 ? Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor) : Poli.deFamilia(ff);
+        String[] noms = new String[ps.size()];
+        Melodia ara = soDeLaPista(t);
+        int triat = -1;
+        for (int i = 0; i < noms.length; i++) {
+            noms[i] = ps.get(i).nom;
+            if (noms[i].equals(ara.preset)) triat = i;
+        }
+        Sinte.Preset original = new Sinte.Preset(ara.preset, false, ara.so.copia());   // també si era modificat
+        Full.triaAmbProva(this, nf, "Toca un so per escoltar-lo; queda triat. «Fet» per tancar. "
+                        + "Totes les finestres d'aquesta pista l'agafaran.",
+                noms, triat, Ui.POLI,
+                i -> {
+                    canviaSoPista(t, ps.get(i), -1, nom);
+                    demoSo(t, false);
+                },
+                i -> canviaSoPista(t, ps.get(i), -1, nom),
+                () -> canviaSoPista(t, original, -1, nom),   // «<»: torna al so d'abans
+                ambEnrere ? () -> triaFamiliaPoliPanell(t, nom) : null);
+    }
+
 
     private void triaFamiliaPanell(Projecte.Pista t, TextView nom, Melodia base) {
         if (Banc.actual() == null) {

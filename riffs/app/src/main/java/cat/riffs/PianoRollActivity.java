@@ -359,24 +359,34 @@ public class PianoRollActivity extends Activity {
                 null);
     }
 
-    /** Sinte polifònic: primer la família (pads, tecles…) i després el so (cada un sona en tocar-lo). */
+    /**
+     * Sinte polifònic: primer la família (pads, tecles…) i després el so (cada un sona en tocar-lo).
+     * 2.38.1: només els sons del mateix motor (un orgue només mostra orgues); si només hi ha una família, hi va directe.
+     */
     private void triaFamiliaPoli() {
+        int motor = melodia.so.motor;
+        int[] fs = Poli.familiesDeMotor(motor);
+        boolean propis = !Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor).isEmpty();
+        if (fs.length == 1 && !propis) {
+            triaPoliDeFamilia(fs[0], motor, false);
+            return;
+        }
         List<Full.Accio> ops = new ArrayList<>();
         int actual = Poli.familiaDe(SonsPropis.base(melodia.preset));
-        for (int f = 0; f < Poli.FAMILIES.length; f++) {
-            int ff = f;
-            ops.add(new Full.Accio(Ui.iconaMotor(Poli.motorDeFamilia(f)), Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(ff)));
+        for (int f : fs) {
+            ops.add(new Full.Accio(Ui.iconaMotor(motor), Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false,
+                    () -> triaPoliDeFamilia(f, motor, true)));
         }
-        if (!SonsPropis.llista(Ui.dirSons(this), true).isEmpty()) {
+        if (propis) {
             boolean meu = SonsPropis.troba(Ui.dirSons(this), true, SonsPropis.base(melodia.preset)) != null;
-            ops.add(new Full.Accio(Icona.POLI, "Els meus sons" + (meu ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(-1)));
+            ops.add(new Full.Accio(Ui.iconaMotor(motor), "Els meus sons" + (meu ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(-1, motor, true)));
         }
-        Full.llista(this, "So del sinte polifònic", "Ara: " + melodia.preset + ". Tria una família.", ops);
+        Full.llista(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + melodia.preset + ". Tria una família.", ops);
     }
 
-    /** {@code f} = −1: els sons desats. */
-    private void triaPoliDeFamilia(int f) {
-        List<Sinte.Preset> ps = f < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(f);
+    /** {@code f} = −1: els sons desats (del mateix motor). {@code ambEnrere}: la fletxa «<» torna a les famílies. */
+    private void triaPoliDeFamilia(int f, int motor, boolean ambEnrere) {
+        List<Sinte.Preset> ps = f < 0 ? Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor) : Poli.deFamilia(f);
         String[] noms = new String[ps.size()];
         int triat = -1;
         for (int i = 0; i < noms.length; i++) {
@@ -390,7 +400,7 @@ public class PianoRollActivity extends Activity {
                 i -> provaPoli(ps.get(i)),
                 i -> posaPresetPoli(ps.get(i)),
                 () -> posaPresetPoli(original),   // «<»: torna al so d'abans (també si era modificat)
-                this::triaFamiliaPoli);
+                ambEnrere ? this::triaFamiliaPoli : null);
     }
 
     private void posaPresetPoli(Sinte.Preset p) {
@@ -438,11 +448,14 @@ public class PianoRollActivity extends Activity {
     private List<Sinte.Preset> totsElsSons() {
         List<Sinte.Preset> r = new ArrayList<>();
         if (melodia.poliSinte) {
-            for (Sinte.Preset p : Poli.sons()) r.add(p);
-        } else {
-            for (Sinte.Preset p : Sinte.PRESETS) r.add(p);
+            // 2.38.1: només els del mateix motor (les fletxes < > d'un orgue passen per orgues)
+            int motor = melodia.so.motor;
+            r.addAll(Poli.deMotor(motor));
+            r.addAll(Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor));
+            return r;
         }
-        r.addAll(SonsPropis.llista(Ui.dirSons(this), melodia.poliSinte));
+        for (Sinte.Preset p : Sinte.PRESETS) r.add(p);
+        r.addAll(SonsPropis.llista(Ui.dirSons(this), false));
         return r;
     }
 
