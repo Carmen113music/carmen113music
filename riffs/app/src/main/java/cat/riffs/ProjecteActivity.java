@@ -3138,9 +3138,8 @@ public class ProjecteActivity extends Activity {
         ops.add(new Full.Accio(Icona.SINTE, "A notes (melodia) · sinte, Poli o MIDI", false, () -> analitzaPerConvertir(clip)));
         ops.add(new Full.Accio(Icona.POLI, "A acords · aviat", false,
                 () -> Ui.avis(this, "Convertir a acords arribarà a la propera versió")));
-        ops.add(new Full.Accio(Icona.BATERIA, "A bateria (ritme amb la veu) · aviat", false,
-                () -> Ui.avis(this, "Convertir a bateria arribarà més endavant")));
-        Full.llista(this, "Converteix «" + nom + "»", "Les notes que hi sonen van a una pista d'instrument. "
+        ops.add(new Full.Accio(Icona.BATERIA, "A bateria (ritme fet amb la veu)", false, () -> escoltaBateria(clip)));
+        Full.llista(this, "Converteix «" + nom + "»", "El que hi sona va a una pista d'instrument o de bateria. "
                 + "El clip d'àudio no es toca.", ops);
     }
 
@@ -3204,6 +3203,7 @@ public class ProjecteActivity extends Activity {
         o.graella = Math.max(0, Math.min(2, pr.getInt("conv_graella", 1)));
         o.tonalitat = pr.getBoolean("conv_tonalitat", true);
         o.octava = Math.max(-2, Math.min(2, pr.getInt("conv_octava", 0)));
+        o.corrector = Math.max(0, Math.min(3, pr.getInt("conv_corrector", 2)));
 
         LinearLayout cos = Ui.columna(this);
         cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
@@ -3211,6 +3211,11 @@ public class ProjecteActivity extends Activity {
         for (Analisi.Nota n : an.notes) if (n.fiMs > clip.iniciMs && n.iniciMs < clip.fiMs) nNotes++;
         cos.addView(Ui.text(this, nNotes + (nNotes == 1 ? " nota detectada" : " notes detectades") + " al clip · tonalitat: "
                 + an.textTo(), 13, Ui.TEXT));
+
+        cos.addView(Ui.etiqueta(this, "Corrector de la veu"), Ui.ample(this, 12));
+        cos.addView(Ui.segmentat(this, Conversio.CORRECTORS, o.corrector, Ui.TEXT, i -> o.corrector = i), Ui.ample(this, 6));
+        cos.addView(Ui.text(this, "Treu notes curtes, lliscaments i salts d'octava, i ajunta els trossos d'una mateixa nota. "
+                + "Fort: a més, treu les notes de pas i lliga la melodia.", 11, Ui.SUAU), Ui.ample(this, 4));
 
         cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 12));
         cos.addView(Ui.segmentat(this, Conversio.GRAELLES, o.graella, Ui.TEXT, i -> o.graella = i), Ui.ample(this, 6));
@@ -3232,7 +3237,7 @@ public class ProjecteActivity extends Activity {
                         + " van a la nota més propera de l'escala. Octava: −1 per a un baix.",
                 cos, "Tria la pista", Ui.TEXT, () -> {
                     pr.edit().putInt("conv_graella", o.graella).putBoolean("conv_tonalitat", o.tonalitat)
-                            .putInt("conv_octava", o.octava).apply();
+                            .putInt("conv_octava", o.octava).putInt("conv_corrector", o.corrector).apply();
                     triaDestiConversio(clip, an, o);
                 });
     }
@@ -3298,6 +3303,8 @@ public class ProjecteActivity extends Activity {
         Ui.historial(this, "Convertit «" + nomClip + "» a notes a «" + t.nomVisible() + "»: " + notes
                 + (notes == 1 ? " nota" : " notes") + ", compàs " + r.compasEntrada
                 + (o.tonalitat ? ", " + r.corregides + " corregides a " + an.nomTo() : "")
+                + (o.corrector > 0 ? ", corrector " + Conversio.CORRECTORS[o.corrector].toLowerCase(Locale.ROOT)
+                + (r.netejades > 0 ? " (" + r.netejades + " trossos nets)" : "") : "")
                 + (o.octava != 0 ? ", octava " + (o.octava > 0 ? "+" : "") + o.octava : ""));
         ompleCapcaleres();
         posaEtiquetaPistes();
@@ -3308,6 +3315,182 @@ public class ProjecteActivity extends Activity {
         textInfo.setTextColor(Ui.colorPista(t));
         textInfo.setText(notes + (notes == 1 ? " nota" : " notes") + " a «" + t.nomVisible() + "»"
                 + (finestres > 1 ? " (" + finestres + " finestres)" : "") + " · doble toc per veure-les al piano roll");
+        vista.avisa();
+        refresca();
+    }
+
+    // ---------- Convertir un clip d'àudio a bateria: ritme fet amb la veu (2.35) ----------
+
+    /** Escolta els cops del clip (en un fil) i obre les opcions. */
+    private void escoltaBateria(Projecte.Clip clip) {
+        if (convertint) return;
+        if (Kits.llista(KitsActivity.arrel(this)).isEmpty()) {
+            Full.avis(this, "Encara no tens kits de bateria",
+                    "Primer cal baixar-los o importar-los: Gravar → botó d'ajustos → Bateria virtual.",
+                    "Obre els kits", () -> startActivity(new android.content.Intent(this, KitsActivity.class)));
+            return;
+        }
+        File wav = new File(projecte.carpeta, clip.wav);
+        if (!wav.isFile()) {
+            Ui.avis(this, "No trobo el so d'aquest clip");
+            return;
+        }
+        convertint = true;
+        atura();
+        textInfo.setTextColor(Ui.SUAU);
+        textInfo.setText("Escoltant els cops del clip…");
+        int sens = Math.max(0, Math.min(2, Ui.prefs(this).getInt("bat_sensibilitat", 1)));
+        new Thread(() -> {
+            short[] m = null;
+            int sr = Sinte.MOSTREIG;
+            try {
+                Wav.Info info = Wav.llegeixInfo(wav);
+                m = info == null ? null : Wav.llegeixMostres(wav);
+                if (info != null && info.mostreig > 0) sr = info.mostreig;
+            } catch (OutOfMemoryError e) {
+                m = null;
+            }
+            short[] mostres = m;
+            int mostreig = sr;
+            List<Beatbox.Cop> cops = mostres == null ? null : Beatbox.detecta(mostres, mostreig, sens);
+            runOnUiThread(() -> {
+                convertint = false;
+                if (isFinishing()) return;
+                textInfo.setText("");
+                if (cops == null) Ui.avis(this, "No s'ha pogut escoltar aquest clip");
+                else opcionsBateria(clip, mostres, mostreig, cops, sens);
+            });
+        }, "beatbox").start();
+    }
+
+    private static String resumCops(List<Beatbox.Cop> cops, long ini, long fi) {
+        int[] n = new int[4];
+        int tot = 0;
+        for (Beatbox.Cop c : cops) {
+            if (c.ms < ini - 20 || c.ms >= fi) continue;
+            n[c.tipus]++;
+            tot++;
+        }
+        if (tot == 0) return "No s'ha trobat cap cop";
+        return tot + (tot == 1 ? " cop: " : " cops: ") + n[0] + " bombo · " + n[1] + " caixa · " + (n[2] + n[3]) + " hihat"
+                + (n[3] > 0 ? " (" + n[3] + " oberts)" : "");
+    }
+
+    /** Panell: graella i sensibilitat (si canvia, es torna a escoltar). Després, a quina pista. */
+    private void opcionsBateria(Projecte.Clip clip, short[] mostres, int sr, List<Beatbox.Cop> cops0, int sens0) {
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        int[] graella = {Math.max(0, Math.min(2, pr.getInt("bat_graella", 1)))};
+        int[] sens = {sens0};
+        List<List<Beatbox.Cop>> cops = new ArrayList<>();
+        cops.add(cops0);
+
+        LinearLayout cos = Ui.columna(this);
+        cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
+        TextView resum = Ui.text(this, resumCops(cops0, clip.iniciMs, clip.fiMs), 13, Ui.TEXT);
+        cos.addView(resum);
+        cos.addView(Ui.text(this, "Sense calibratge: els cops greus («bum») són bombo, els del mig («pf», «ka») caixa i els aguts "
+                + "(«ts») hihat; un «tsss» llarg és un hihat obert. Després ho retoques al drumpad.", 11, Ui.SUAU), Ui.ample(this, 4));
+
+        cos.addView(Ui.etiqueta(this, "Sensibilitat (cops fluixos)"), Ui.ample(this, 12));
+        cos.addView(Ui.segmentat(this, Beatbox.SENSIBILITATS, sens[0], Ui.TEXT, i -> {
+            sens[0] = i;
+            List<Beatbox.Cop> nous = Beatbox.detecta(mostres, sr, i);
+            cops.set(0, nous);
+            resum.setText(resumCops(nous, clip.iniciMs, clip.fiMs));
+        }), Ui.ample(this, 6));
+
+        cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 12));
+        cos.addView(Ui.segmentat(this, Conversio.GRAELLES, graella[0], Ui.TEXT, i -> graella[0] = i), Ui.ample(this, 6));
+
+        Full.panell(this, "Converteix a bateria", "Cada cop que fas amb la veu va a la fila del drumpad que li toca.",
+                cos, "Tria la pista", Ui.TEXT, () -> {
+                    pr.edit().putInt("bat_graella", graella[0]).putInt("bat_sensibilitat", sens[0]).apply();
+                    triaDestiBateria(clip, cops.get(0), graella[0]);
+                });
+    }
+
+    private void triaDestiBateria(Projecte.Clip clip, List<Beatbox.Cop> cops, int graella) {
+        List<Full.Accio> ops = new ArrayList<>();
+        for (Projecte.Pista t : projecte.pistes) {
+            if (!t.esBateria()) continue;
+            int num = projecte.pistes.indexOf(t) + 1;
+            ops.add(new Full.Accio(Icona.BATERIA, num + ". " + t.nomVisible(), false, () -> converteixBateria(t, clip, cops, graella)));
+        }
+        ops.add(new Full.Accio(Icona.BATERIA, "Pista nova · Bateria", false, () -> {
+            int abans = projecte.pistes.size();
+            creaBateria();
+            if (projecte.pistes.size() > abans) {
+                Projecte.Pista nova = projecte.pistes.get(projecte.pistes.size() - 1);
+                if (nova.esBateria()) converteixBateria(nova, clip, cops, graella);
+            }
+        }));
+        Full.llista(this, "On va la bateria?", "Una pista de bateria que ja tens (amb el seu kit) o una de nova.", ops);
+    }
+
+    /** Un ritme amb el kit i les files de la pista (el primer que tingui), o un de nou amb el primer kit. */
+    private Patro plantillaBateria(Projecte.Pista t) {
+        Patro p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, t.wav));
+        if (p == null) {
+            for (Projecte.Clip k : t.clips) {
+                p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, k.wav));
+                if (p != null) break;
+            }
+        }
+        List<Kits.Kit> kits = Kits.llista(KitsActivity.arrel(this));
+        if (p == null || p.files.isEmpty()) p = Patro.nou(kits.isEmpty() ? null : kits.get(0), projecte.compas);
+        // que hi hagi les files de bombo, caixa i hihats si el kit en té
+        Kits.Kit kit = null;
+        for (Kits.Kit k : kits) if (k.dir.getName().equals(p.kit)) kit = k;
+        if (kit != null) p.canviaKit(kit);
+        p.assegura(projecte.compas);
+        return p;
+    }
+
+    private void converteixBateria(Projecte.Pista t, Projecte.Clip clip, List<Beatbox.Cop> cops, int graella) {
+        if (t == null || !projecte.pistes.contains(t) || !t.esBateria()) return;
+        atura();
+        Patro plantilla = plantillaBateria(t);
+        Beatbox.Resultat r = Beatbox.ritmes(cops, clip.posMs, clip.iniciMs, clip.fiMs, projecte.msPerCompas(), projecte.compas,
+                graella, plantilla);
+        if (r.finestres.isEmpty()) {
+            Ui.avis(this, "No hi ha cap cop per convertir en aquest clip");
+            return;
+        }
+        Projecte.Clip primer = null;
+        int finestres = 0;
+        for (Beatbox.Finestra f : r.finestres) {
+            try {
+                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
+                        ? t.wav : projecte.wavBateriaLliure();
+                f.patro.desa(Patro.fitxerDe(projecte.carpeta, wav));
+                long durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+                if (durada < 0) throw new IOException("sense ritme");
+                Projecte.Clip c;
+                synchronized (projecte) {
+                    c = projecte.afegeixFinestraBateria(t, wav, durada, r.compasEntrada + f.compasDes);
+                }
+                carregaSo(wav);
+                finestres++;
+                if (primer == null) primer = c;
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar una part del ritme");
+            }
+        }
+        desa();
+        Projecte.Presa pr = projecte.presa(clip);
+        String nomClip = pr != null && !pr.nom.isEmpty() ? pr.nom : "un clip";
+        Ui.historial(this, "Convertit «" + nomClip + "» a bateria a «" + t.nomVisible() + "»: " + r.cops + " cops ("
+                + r.perTipus[0] + " bombo, " + r.perTipus[1] + " caixa, " + (r.perTipus[2] + r.perTipus[3]) + " hihat), compàs "
+                + r.compasEntrada + ", graella " + Conversio.GRAELLES[graella].toLowerCase(Locale.ROOT));
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        int ip = projecte.pistes.indexOf(t);
+        if (primer != null) vista.tria(ip, primer);
+        actualitzaAccions();
+        if (taulaVisible) ompleTaula();
+        textInfo.setTextColor(Ui.BATERIA);
+        textInfo.setText(r.cops + " cops a «" + t.nomVisible() + "»" + (finestres > 1 ? " (" + finestres + " finestres)" : "")
+                + " · doble toc per veure'ls al drumpad");
         vista.avisa();
         refresca();
     }
