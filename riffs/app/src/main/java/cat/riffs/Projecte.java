@@ -240,6 +240,25 @@ public final class Projecte {
     public final File carpeta;
     public double bpm = 120;
     public int compas = 4;
+    /** Bucle de la reproducció (2.36): del compàs {@code bucleDe} (des de 0) fins abans de {@code bucleA}. -1 = cap. */
+    public int bucleDe = -1, bucleA = -1;
+    public boolean bucleActivat = false;
+
+    public boolean teBucle() {
+        return bucleDe >= 0 && bucleA > bucleDe;
+    }
+
+    public boolean bucleActiu() {
+        return teBucle() && bucleActivat;
+    }
+
+    public long bucleIniciMs() {
+        return Math.round(bucleDe * msPerCompas());
+    }
+
+    public long bucleFiMs() {
+        return Math.round(bucleA * msPerCompas());
+    }
     public final List<Pista> pistes = new ArrayList<>();
     /** Totes les preses que coneix el projecte (també les que ja no tenen cap clip). */
     public final Map<String, Presa> preses = new LinkedHashMap<>();
@@ -835,6 +854,9 @@ public final class Projecte {
         Map<String, Presa> ara = new LinkedHashMap<>(preses);
         bpm = vell.bpm;
         compas = vell.compas;
+        bucleDe = vell.bucleDe;
+        bucleA = vell.bucleA;
+        bucleActivat = vell.bucleActivat;
         pistes.clear();
         pistes.addAll(vell.pistes);
         preses.clear();
@@ -846,6 +868,16 @@ public final class Projecte {
         Projecte pr = new Projecte(carpeta);
         pr.bpm = Ritme.limita(dec(p.getProperty("tempo"), 120));
         pr.compas = (int) Math.max(1, Math.min(12, dec(p.getProperty("compas"), 4)));
+        String[] bc = p.getProperty("bucle", "").split(",");
+        if (bc.length == 3) {
+            try {
+                pr.bucleDe = Integer.parseInt(bc[0].trim());
+                pr.bucleA = Integer.parseInt(bc[1].trim());
+                pr.bucleActivat = "1".equals(bc[2].trim());
+                if (!pr.teBucle()) pr.bucleDe = pr.bucleA = -1;
+            } catch (NumberFormatException ignored) {
+            }
+        }
         // preses (des de la 2.5)
         int np = (int) dec(p.getProperty("preses"), 0);
         for (int i = 0; i < np; i++) {
@@ -932,6 +964,7 @@ public final class Projecte {
         Properties p = new Properties();
         p.setProperty("tempo", String.format(Locale.ROOT, "%.2f", bpm));
         p.setProperty("compas", Integer.toString(compas));
+        if (teBucle()) p.setProperty("bucle", bucleDe + "," + bucleA + "," + (bucleActivat ? 1 : 0));
         p.setProperty("preses", Integer.toString(preses.size()));
         int gi = 0;
         for (Presa g : preses.values()) {

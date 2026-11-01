@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.35.1:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou **convertir un clip d'àudio a notes** a l'Estudi (2.34), amb **corrector de la veu** i **conversió a bateria** del ritme fet amb la veu (2.35). Pròximes fases: convertir a acords, notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.36:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou el **bucle a l'Estudi** (2.36). Pròximes fases: notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -47,7 +47,7 @@ El primer cop l'app demana permís de micròfon.
 - **Tonalitat** a l'esquerra (p. ex. «La menor (Am)»). Si no és clara, també diu la segona opció («· o Do major»): passa sovint entre una tonalitat i la seva relativa.
 - Si la gravació té **tempo** (BPM i primer temps), els canvis d'acord s'enganxen als temps.
 - Per tornar-la a analitzar (per exemple, després de posar-hi el tempo): tres punts → **Torna a analitzar**. Amb el teclat obert (escrivint la lletra) la fila de la tonalitat s'amaga i la franja es queda.
-- 2.34: les notes es detecten millor (el vibrato i els lliscaments de la veu ja no parteixen les notes llargues ni fan notes curtes de més). Les anàlisis fetes amb la 2.33 s'han de tornar a fer (torna a sortir el botó «Analitza»).
+- Des de la 2.34 les notes es detecten millor (el vibrato i els lliscaments de la veu ja no parteixen les notes llargues ni fan notes curtes de més). Les anàlisis fetes amb la 2.33 s'han de tornar a fer (torna a sortir el botó «Analitza»).
 - Què detecta: acords majors, menors, de setena (7) i menors de setena (m7). Les notes funcionen amb **una sola nota alhora** (veu, riff, solo); amb acords, la fila de notes no té sentit. Gravacions de 10 minuts com a màxim.
 - Es desa al costat de la gravació (fitxer `.analisi`) i es mou o s'esborra amb ella.
 
@@ -56,6 +56,10 @@ El primer cop l'app demana permís de micròfon.
 - L'Estudi sempre es veu **en horitzontal**; la resta de l'app, en vertical.
 - **Cada gravació és una pista.** Les que tenen la bandera del primer temps s'encaixen soles a l'inici d'un compàs (a partir del 2, perquè hi càpiguen les anacrusis). El tempo del projecte surt del primer take amb tempo; es canvia amb el botó de tempo de dalt. Cada pista pot tenir **diversos clips** del mateix fitxer (per exemple, per fer un loop): cada clip té la seva posició, retall, fades i volum, independents dels altres. La bandera és de la gravació i es veu a tots els seus clips.
 - **Regla** de compassos i temps: tocar-la o arrossegar-hi el dit mou el capçal. **Posició** a dalt a la dreta en format compàs.temps.semicorxera.
+- **Bucle** (2.36): **mantén premuda la regla** (la línia dels compassos de dalt) fins que el mòbil vibri i **arrossega** a dreta o esquerra: es marquen els compassos sencers que toques (a dalt diu «Bucle: compassos 3 a 6»). En deixar anar, el bucle queda **encès**: es veu en ambre a la regla i amb una franja suau sobre les pistes, i el **play** el repeteix sense parar. Si el capçal és fora del bucle, el play comença a l'inici del bucle. Es pot marcar mentre sona.
+  - **Mantén premut sense moure't dins el bucle** per **apagar-lo** (queda gris, marcat però sense repetir) o tornar-lo a encendre. Mantén premut fora per marcar-ne un de nou (sense arrossegar = un sol compàs).
+  - Tocar la regla continua posant el capçal, com sempre.
+  - Mentre **gravas** no hi ha bucle. El bucle es desa amb el projecte, va per compassos (si canvies el tempo, continua als mateixos compassos) i el **Desfés** també el desfà.
 - **Graella (snap)**: la icona de la graella, a dalt, obre un desplegable amb *Compàs*, *Temps* o *Lliure* (al costat de la icona es veu quin està triat). En moure un clip, el que s'enganxa a la graella és la seva bandera (o l'inici, si no en té).
 - **Afinar la bandera (mode Lliure)**: en mode *Lliure*, quan mous un clip que té la bandera visible, **la bandera es queda quieta** i l'àudio llisca per sota. Posa el cop de l'ona just sota la bandera i deixa anar: la bandera queda marcant aquell punt de l'àudio, també a la fitxa de la gravació. A dalt es veu quant has mogut l'àudio. Si la bandera quedés fora de la part que sona, es mou amb el clip com abans.
 - **Gestos**: **un dit edita** (arrossegar un clip el mou; tocar un espai buit hi posa el capçal). **Dos dits mouen la pantalla**: arrossegar en horitzontal recorre la cançó, en vertical passa per les pistes, i obrir o tancar els dits **de costat** fa zoom en el temps, i **de dalt a baix** fa les pistes més altes o més baixes. El zoom només comença quan els dits s'obren o es tanquen clarament, i en un mateix gest només se'n fa un (temps o alçada); si no, només es desplaça. Si poses un segon dit mentre mous un clip, el clip torna on era.
@@ -102,36 +106,6 @@ El primer cop l'app demana permís de micròfon.
 - **Gravar tocant en directe** (com amb l'àudio): les pistes de sinte tenen el **botó de gravar**. Encén-lo i **mantén premut el play**: sona el projecte des d'un compàs abans (amb el compte i el clic, si el tens encès; aquí sí que pot sonar per l'altaveu, perquè no es grava cap micròfon) i als **dos terços de baix** surt un **teclat de dues octaves**. Amb **−** i **+** el pujes o el baixes d'octava (s'obre a Do1–Do3 per als baixos i Do3–Do5 per als leads). El que toques sona al moment amb el so de la pista. Pots fer servir més d'un dit, però sona només l'última tecla premuda (si la deixes i n'hi ha una altra de premuda, torna a aquella; arrossegar el dit canvia de nota, i amb glide, llisca).
   - Toca el **quadrat de dalt** per aturar: el que has tocat es posa a la pista en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos cadascuna), **ajustat a semicorxeres**, i ho pots retocar al **piano roll** (doble toc). El que toques durant el compte no es desa (si una nota comença just abans de l'entrada, comença a l'entrada).
   - Si a la pista ja hi havia finestres en aquell tros, no es treuen: sonarien juntes (com els clips d'àudio que es trepitgen).
-
-### Convertir un clip d'àudio a notes (2.34)
-- **Mantén premut un clip d'àudio** (una gravació de veu o un riff) fins que vibri i **deixa'l anar sense moure'l**. Surt el panell **Converteix**: *A notes (melodia)*, *A bateria* (2.35, vegeu més avall). *A acords* arribarà més endavant.
-- La primera vegada l'app escolta la gravació (a dalt surt el percentatge). Si ja l'havies analitzada a la fitxa, va de seguida.
-- **Opcions**: **Corrector de la veu** (2.35, vegeu més avall), **Ajusta a la graella** (corxeres, semicorxeres o fuses), **Corregeix a la tonalitat** (les notes desafinades que cauen fora de la tonalitat detectada van a la nota més propera de l'escala) i **Octava** (−2 a +2; per exemple, −1 per convertir una melodia cantada en un baix). Es recorden per a la propera vegada.
-- **On van les notes?**: una pista de sinte, Poli o MIDI que ja tinguis, o **Pista nova · Sinte / Poli / MIDI** (tries el so com sempre).
-- Les notes queden en **finestres noves** de la pista d'instrument, al mateix lloc de la cançó on sonaven (de fins a 8 compassos cadascuna). Doble toc a la finestra per retocar-les al **piano roll**. El clip d'àudio no es toca: pots silenciar-lo (M) o treure'l.
-- Només converteix el tros que es veu del clip (si l'has retallat, només aquest tros). Funciona amb **una sola nota alhora** (veu, riff, solo).
-- Exemple: amb la base sonant, grava't cantant una melodia a l'Estudi, mantén premut el clip i converteix-lo a una pista nova de Poli o de sinte.
-- **Desfés** ho treu tot d'un cop.
-- Si mantens premut i arrossegues, funciona com sempre (de costat tria més clips; amunt o avall canvia de pista).
-
-### Corrector de la veu (2.35)
-- Al panell **Converteix a notes** hi ha **Corrector de la veu**: *No*, *Suau*, *Mig* (per defecte) o *Fort*. Neteja el que fa la veu sense voler abans de posar les notes a la graella:
-  - **Salts d'octava** (la veu que es trenca o el detector que s'equivoca d'octava): la nota torna a l'octava de les del costat.
-  - **Lliscaments i entrades des de sota**: el tros curt abans d'arribar a la nota s'ajunta amb la nota.
-  - **Notes molt curtes** (cops de glota, síl·labes ràpides): s'ajunten amb la nota del costat.
-  - **Trossos d'una mateixa nota** separats per una consonant o una respiració curta: queden com una sola nota.
-  - Amb **Corregeix a la tonalitat**, cada tros va primer a la nota de l'escala més propera i després s'ajunta: una nota cantada entre La i La# queda com un sol La.
-  - **Fort**, a més, treu les notes de pas curtes fora de la tonalitat i lliga la melodia (sense forats curts).
-- Corregeix les **notes** que van al sinte, no l'àudio de la teva veu.
-
-### Ritme fet amb la veu → bateria (2.35)
-- **Mantén premut un clip d'àudio** amb un ritme fet amb la boca (beatbox) i deixa'l anar → **A bateria (ritme fet amb la veu)**. Cal tenir algun kit de bateria.
-- Sense calibratge: l'app troba cada cop i el classifica pel so. Els **greus** («bum», «b») són **bombo**, els **del mig** («pf», «ka», «psh») **caixa**, els **aguts** («ts», «t») **hihat**, i un «tsss» llarg (més de 0,2 s) **hihat obert**. S'adapta als teus sons: ordena els cops de la gravació del més greu al més agut i hi busca tres grups. Si només en fas de dues menes (per exemple, bombo i hihat), mira quines són. La **força** de cada cop surt del volum.
-- 2.35.1: **el grup més greu és sempre el bombo** (el micròfon del mòbil agafa pocs greus i un bombo fet amb la boca pot sonar força agut). Si només hi ha dos grups, el de dalt és caixa, llevat que sigui gairebé només aguts («ts»): llavors és hihat.
-- 2.35.1: al panell surten **els grups de so que ha trobat**, del més greu al més agut («Grup 1 · 12 cops · el més greu»). Cada grup té un **triangle per escoltar-ne un cop** i un selector **Bombo / Caixa / Hihat / Res** («Res» = no el facis servir: respiracions, sorolls). En canviar-lo, el resum de dalt s'actualitza. **La tria es recorda**: la propera vegada que hi hagi el mateix nombre de grups, es farà servir la mateixa. A l'historial queda com sonava cada grup (per exemple «2,8 kHz → bombo (18)»).
-- Al panell surt quants cops ha trobat de cada mena. **Sensibilitat**: *Baixa* (només els cops clars), *Mitjana* o *Alta* (també els fluixos); en canviar-la es torna a escoltar. **Ajusta a la graella**: corxeres, semicorxeres o fuses.
-- **On va la bateria?**: una pista de bateria que ja tens (amb el seu kit) o **Pista nova · Bateria**. El ritme queda en finestres de fins a 4 compassos (el màxim del drumpad), al mateix lloc de la cançó, i es retoca al drumpad amb doble toc. El clip d'àudio no es toca.
-- Consell: fes els sons ben diferents entre ells i una mica separats, i grava a l'Estudi amb la base sonant pels auriculars (així queden a lloc).
 
 ### Tocar sense gravar (assajar)
 - Les pistes de **sinte**, **MIDI** i **teremin** tenen un **botó petit amb l'instrument** a la capçalera, al costat del nom. En tocar-lo s'obre el teclat (o la quadrícula del teremin) als dos terços de baix: sona en directe amb el so de la pista, però **no es grava res**.
@@ -218,6 +192,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.36** (01/11/2026) — **Bucle a l'Estudi**: mantenir premuda la regla i arrossegar marca els compassos del bucle; el play els repeteix; mantenir premut a dins l'apaga o l'encén. **Es treu la conversió de clips a notes i a bateria a l'Estudi** (2.34–2.35.1: no acabava de funcionar); la detecció de notes, acords i tonalitat a la fitxa de les gravacions es queda (amb la detecció de notes millorada de la 2.34).
 - **2.35.1** (01/11/2026) — Bateria amb la veu: el grup de sons més greu és sempre el bombo, i una caixa brillant ja no es confon amb el hihat (en Roger: els bombos sortien com a caixa i les caixes com a hihat). Al panell, els grups de so trobats amb un botó per escoltar-ne un cop i un selector Bombo / Caixa / Hihat / Res que es recorda.
 - **2.35** (01/11/2026) — **Corrector de la veu** en convertir a notes (No / Suau / Mig / Fort): salts d'octava, lliscaments, notes curtes i trossos d'una mateixa nota. **Ritme fet amb la veu → bateria**: mantenir premut un clip → A bateria; troba els cops i els classifica en bombo, caixa, hihat i hihat obert sense calibratge, amb sensibilitat i graella, a una pista de bateria nova o que ja hi és.
 - **2.34** (01/11/2026) — **Convertir un clip d'àudio a notes** a l'Estudi: mantenir premut el clip i deixar-lo anar → A notes → graella, correcció a la tonalitat i octava → a una pista de sinte, Poli o MIDI (que ja hi és o nova). Detecció de notes millorada (el vibrato i els lliscaments de la veu ja no parteixen notes ni n'afegeixen).

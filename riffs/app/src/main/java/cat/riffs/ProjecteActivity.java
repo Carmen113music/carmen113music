@@ -360,6 +360,27 @@ public class ProjecteActivity extends Activity {
             refresca();
             if (acabat && motor != null && motor.sona()) play();
         });
+        regle.setOientBucle(new RegleView.OientBucle() {
+            @Override
+            public void marca(int de, int a) {
+                projecte.bucleDe = de;
+                projecte.bucleA = a;
+                projecte.bucleActivat = true;
+                canviaBucle();
+            }
+
+            @Override
+            public void alterna() {
+                projecte.bucleActivat = !projecte.bucleActivat;
+                canviaBucle();
+            }
+
+            @Override
+            public void marcant(int de, int a) {
+                textInfo.setTextColor(RegleView.COLOR_BUCLE);
+                textInfo.setText("Bucle: " + textCompassos(de, a));
+            }
+        });
         filaRegle.addView(regle, new LinearLayout.LayoutParams(0, Ui.dp(this, 30), 1f));
         vistaPistes.addView(filaRegle);
 
@@ -436,11 +457,6 @@ public class ProjecteActivity extends Activity {
                 if (Projecte.esNotes(clip.wav)) obrePianoRoll(clip);
                 else if (Projecte.esTeremin(clip.wav)) obreTeremin(clip);
                 else obreDrumpad(clip);
-            }
-
-            @Override
-            public void opcionsClip(int i, Projecte.Clip clip) {
-                menuConverteix(clip);
             }
         });
         fila.addView(pistes, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -1781,6 +1797,7 @@ public class ProjecteActivity extends Activity {
         gravant = false;
         motor.posaSilenci(!Metronom.auriculars(this));
         if (!Metronom.auriculars(this)) Ui.avis(this, "Sense auriculars: no sonarà res, el compte és visual");
+        motor.posaBucle(-1, -1);   // gravant no hi ha bucle
         if (!motor.comenca(iniciMs)) {
             gravadora.atura();
             b.esborra(wavGravant);
@@ -1983,6 +2000,7 @@ public class ProjecteActivity extends Activity {
         gravantSinte = true;
         aplicaClic();
         motor.posaSilenci(false);
+        motor.posaBucle(-1, -1);   // gravant no hi ha bucle
         if (!motor.comenca(iniciMs)) {
             gravant = false;
             gravantSinte = false;
@@ -3125,488 +3143,6 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
-    // ---------- Convertir un clip d'àudio a notes (2.34) ----------
-
-    private boolean convertint = false;
-
-    /** Mantenir premut un clip d'àudio i deixar-lo anar: a què el vols convertir. */
-    private void menuConverteix(Projecte.Clip clip) {
-        if (gravant || convertint) return;
-        Projecte.Presa pr = projecte.presa(clip);
-        String nom = pr != null && !pr.nom.isEmpty() ? pr.nom : "el clip";
-        List<Full.Accio> ops = new ArrayList<>();
-        ops.add(new Full.Accio(Icona.SINTE, "A notes (melodia) · sinte, Poli o MIDI", false, () -> analitzaPerConvertir(clip)));
-        ops.add(new Full.Accio(Icona.POLI, "A acords · aviat", false,
-                () -> Ui.avis(this, "Convertir a acords arribarà a la propera versió")));
-        ops.add(new Full.Accio(Icona.BATERIA, "A bateria (ritme fet amb la veu)", false, () -> escoltaBateria(clip)));
-        Full.llista(this, "Converteix «" + nom + "»", "El que hi sona va a una pista d'instrument o de bateria. "
-                + "El clip d'àudio no es toca.", ops);
-    }
-
-    /** Fa (o llegeix) l'anàlisi de la presa i obre les opcions. */
-    private void analitzaPerConvertir(Projecte.Clip clip) {
-        Projecte.Presa pr = projecte.presa(clip);
-        File wav = new File(projecte.carpeta, clip.wav);
-        if (!wav.isFile()) {
-            Ui.avis(this, "No trobo el so d'aquest clip");
-            return;
-        }
-        Analisi.Resultat desat = Analisi.llegeix(wav);
-        if (desat != null) {
-            opcionsConversio(clip, desat);
-            return;
-        }
-        convertint = true;
-        atura();
-        textInfo.setTextColor(Ui.SUAU);
-        textInfo.setText("Escoltant les notes del clip…");
-        boolean veu = pr != null && pr.veu;
-        new Thread(() -> {
-            Analisi.Resultat r = null;
-            try {
-                Wav.Info info = Wav.llegeixInfo(wav);
-                short[] m = info == null ? null : Wav.llegeixMostres(wav);
-                if (m != null) {
-                    r = Analisi.analitza(m, info.mostreig > 0 ? info.mostreig : Sinte.MOSTREIG, veu, 0, -1, f -> {
-                        int p = (int) Math.round(f * 100);
-                        runOnUiThread(() -> {
-                            if (convertint) textInfo.setText("Escoltant les notes del clip… " + p + " %");
-                        });
-                        return !isFinishing();
-                    });
-                    if (r != null) {
-                        r.vistaAcords = !veu;
-                        try {
-                            Analisi.desa(wav, r);
-                        } catch (IOException ignored) {
-                        }
-                    }
-                }
-            } catch (OutOfMemoryError e) {
-                r = null;
-            }
-            Analisi.Resultat fet = r;
-            runOnUiThread(() -> {
-                convertint = false;
-                if (isFinishing()) return;
-                textInfo.setText("");
-                if (fet == null) Ui.avis(this, "No s'ha pogut escoltar aquest clip");
-                else opcionsConversio(clip, fet);
-            });
-        }, "analisi").start();
-    }
-
-    /** Panell: graella, corregir a la tonalitat i octava. Després, a quina pista. */
-    private void opcionsConversio(Projecte.Clip clip, Analisi.Resultat an) {
-        Conversio.Opcions o = new Conversio.Opcions();
-        android.content.SharedPreferences pr = Ui.prefs(this);
-        o.graella = Math.max(0, Math.min(2, pr.getInt("conv_graella", 1)));
-        o.tonalitat = pr.getBoolean("conv_tonalitat", true);
-        o.octava = Math.max(-2, Math.min(2, pr.getInt("conv_octava", 0)));
-        o.corrector = Math.max(0, Math.min(3, pr.getInt("conv_corrector", 2)));
-
-        LinearLayout cos = Ui.columna(this);
-        cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
-        int nNotes = 0;
-        for (Analisi.Nota n : an.notes) if (n.fiMs > clip.iniciMs && n.iniciMs < clip.fiMs) nNotes++;
-        cos.addView(Ui.text(this, nNotes + (nNotes == 1 ? " nota detectada" : " notes detectades") + " al clip · tonalitat: "
-                + an.textTo(), 13, Ui.TEXT));
-
-        cos.addView(Ui.etiqueta(this, "Corrector de la veu"), Ui.ample(this, 12));
-        cos.addView(Ui.segmentat(this, Conversio.CORRECTORS, o.corrector, Ui.TEXT, i -> o.corrector = i), Ui.ample(this, 6));
-        cos.addView(Ui.text(this, "Treu notes curtes, lliscaments i salts d'octava, i ajunta els trossos d'una mateixa nota. "
-                + "Fort: a més, treu les notes de pas i lliga la melodia.", 11, Ui.SUAU), Ui.ample(this, 4));
-
-        cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 12));
-        cos.addView(Ui.segmentat(this, Conversio.GRAELLES, o.graella, Ui.TEXT, i -> o.graella = i), Ui.ample(this, 6));
-
-        LinearLayout fila = Ui.fila(this);
-        LinearLayout c1 = Ui.columna(this);
-        c1.addView(Ui.etiqueta(this, "Corregeix a la tonalitat"));
-        c1.addView(Ui.segmentat(this, new String[]{"No", "Sí"}, o.tonalitat ? 1 : 0, Ui.TEXT, i -> o.tonalitat = i == 1), Ui.ample(this, 6));
-        fila.addView(c1, Ui.pes(1));
-        fila.addView(Ui.espai(this, 12));
-        LinearLayout c2 = Ui.columna(this);
-        c2.addView(Ui.etiqueta(this, "Octava"));
-        c2.addView(Ui.segmentat(this, new String[]{"−2", "−1", "0", "+1", "+2"}, o.octava + 2, Ui.TEXT, i -> o.octava = i - 2),
-                Ui.ample(this, 6));
-        fila.addView(c2, Ui.pes(1.4f));
-        cos.addView(fila, Ui.ample(this, 12));
-
-        Full.panell(this, "Converteix a notes", "Les notes desafinades fora de " + an.nomTo()
-                        + " van a la nota més propera de l'escala. Octava: −1 per a un baix.",
-                cos, "Tria la pista", Ui.TEXT, () -> {
-                    pr.edit().putInt("conv_graella", o.graella).putBoolean("conv_tonalitat", o.tonalitat)
-                            .putInt("conv_octava", o.octava).putInt("conv_corrector", o.corrector).apply();
-                    triaDestiConversio(clip, an, o);
-                });
-    }
-
-    /** A quina pista van les notes: una que ja hi és (sinte, Poli o MIDI) o una de nova. */
-    private void triaDestiConversio(Projecte.Clip clip, Analisi.Resultat an, Conversio.Opcions o) {
-        List<Full.Accio> ops = new ArrayList<>();
-        for (Projecte.Pista t : projecte.pistes) {
-            if (!t.esNotes()) continue;
-            int num = projecte.pistes.indexOf(t) + 1;
-            ops.add(new Full.Accio(Ui.iconaPista(t), num + ". " + t.nomVisible(), false, () -> converteix(t, clip, an, o)));
-        }
-        Runnable alFinal = () -> {
-            Projecte.Pista nova = projecte.pistes.isEmpty() ? null : projecte.pistes.get(projecte.pistes.size() - 1);
-            if (nova != null && nova.esNotes()) converteix(nova, clip, an, o);
-        };
-        ops.add(new Full.Accio(Icona.SINTE, "Pista nova · Sinte", false, () -> triaPresetNou(alFinal)));
-        ops.add(new Full.Accio(Icona.POLI, "Pista nova · Poli", false, () -> triaPresetPoli(alFinal)));
-        ops.add(new Full.Accio(Icona.MIDI, "Pista nova · MIDI", false, () -> triaInstrumentNou(alFinal)));
-        Full.llista(this, "On van les notes?", "Una pista d'instrument que ja tens, o una de nova. "
-                + "Després les pots retocar al piano roll.", ops, () -> opcionsConversio(clip, an));
-    }
-
-    /** Posa les notes del clip a la pista {@code t}, en finestres noves (com quan es grava amb el teclat). */
-    private void converteix(Projecte.Pista t, Projecte.Clip clip, Analisi.Resultat an, Conversio.Opcions o) {
-        if (t == null || !projecte.pistes.contains(t) || !t.esNotes()) return;
-        atura();
-        o.poli = t.esMidi() || t.esPoli();
-        Conversio.Resultat r = Conversio.notes(an, clip.posMs, clip.iniciMs, clip.fiMs, projecte.msPerCompas(), projecte.compas, o);
-        if (r.frases.isEmpty()) {
-            Ui.avis(this, "No hi ha cap nota per convertir en aquest clip");
-            return;
-        }
-        Melodia base = soDeLaPista(t);
-        Projecte.Clip primer = null;
-        int notes = 0, finestres = 0;
-        for (GravacioNotes.Frase f : r.frases) {
-            Melodia m = base.buidaAmbElMateixSo();
-            m.compas = projecte.compas;
-            m.passosPerCompas = r.ppc;
-            m.compassos = f.compassos;
-            for (Melodia.Nota n : f.notes) m.posa(new Melodia.Nota(n.pas, n.llarg, n.nota, n.forca));
-            notes += m.notes.size();
-            try {
-                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
-                        ? t.wav : projecte.wavNotesLliure(t.wav);
-                m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
-                long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
-                Projecte.Clip c;
-                synchronized (projecte) {
-                    c = projecte.afegeixFinestraBateria(t, wav, durada, r.compasEntrada + f.compasDes);
-                }
-                carregaSo(wav);
-                finestres++;
-                if (primer == null) primer = c;
-            } catch (IOException e) {
-                Ui.avis(this, "No s'ha pogut desar una part de les notes");
-            }
-        }
-        desa();
-        Projecte.Presa pr = projecte.presa(clip);
-        String nomClip = pr != null && !pr.nom.isEmpty() ? pr.nom : "un clip";
-        Ui.historial(this, "Convertit «" + nomClip + "» a notes a «" + t.nomVisible() + "»: " + notes
-                + (notes == 1 ? " nota" : " notes") + ", compàs " + r.compasEntrada
-                + (o.tonalitat ? ", " + r.corregides + " corregides a " + an.nomTo() : "")
-                + (o.corrector > 0 ? ", corrector " + Conversio.CORRECTORS[o.corrector].toLowerCase(Locale.ROOT)
-                + (r.netejades > 0 ? " (" + r.netejades + " trossos nets)" : "") : "")
-                + (o.octava != 0 ? ", octava " + (o.octava > 0 ? "+" : "") + o.octava : ""));
-        ompleCapcaleres();
-        posaEtiquetaPistes();
-        int ip = projecte.pistes.indexOf(t);
-        if (primer != null) vista.tria(ip, primer);
-        actualitzaAccions();
-        if (taulaVisible) ompleTaula();
-        textInfo.setTextColor(Ui.colorPista(t));
-        textInfo.setText(notes + (notes == 1 ? " nota" : " notes") + " a «" + t.nomVisible() + "»"
-                + (finestres > 1 ? " (" + finestres + " finestres)" : "") + " · doble toc per veure-les al piano roll");
-        vista.avisa();
-        refresca();
-    }
-
-    // ---------- Convertir un clip d'àudio a bateria: ritme fet amb la veu (2.35) ----------
-
-    /** Escolta els cops del clip (en un fil) i obre les opcions. */
-    private void escoltaBateria(Projecte.Clip clip) {
-        if (convertint) return;
-        if (Kits.llista(KitsActivity.arrel(this)).isEmpty()) {
-            Full.avis(this, "Encara no tens kits de bateria",
-                    "Primer cal baixar-los o importar-los: Gravar → botó d'ajustos → Bateria virtual.",
-                    "Obre els kits", () -> startActivity(new android.content.Intent(this, KitsActivity.class)));
-            return;
-        }
-        File wav = new File(projecte.carpeta, clip.wav);
-        if (!wav.isFile()) {
-            Ui.avis(this, "No trobo el so d'aquest clip");
-            return;
-        }
-        convertint = true;
-        atura();
-        textInfo.setTextColor(Ui.SUAU);
-        textInfo.setText("Escoltant els cops del clip…");
-        int sens = Math.max(0, Math.min(2, Ui.prefs(this).getInt("bat_sensibilitat", 1)));
-        new Thread(() -> {
-            short[] m = null;
-            int sr = Sinte.MOSTREIG;
-            try {
-                Wav.Info info = Wav.llegeixInfo(wav);
-                m = info == null ? null : Wav.llegeixMostres(wav);
-                if (info != null && info.mostreig > 0) sr = info.mostreig;
-            } catch (OutOfMemoryError e) {
-                m = null;
-            }
-            short[] mostres = m;
-            int mostreig = sr;
-            Beatbox.Escolta esc = mostres == null ? null : Beatbox.detectaTot(mostres, mostreig, sens);
-            runOnUiThread(() -> {
-                convertint = false;
-                if (isFinishing()) return;
-                textInfo.setText("");
-                if (esc == null) {
-                    Ui.avis(this, "No s'ha pogut escoltar aquest clip");
-                    return;
-                }
-                recordaMapa(esc);
-                opcionsBateria(clip, mostres, mostreig, esc, sens);
-            });
-        }, "beatbox").start();
-    }
-
-    /** Si l'última vegada amb el mateix nombre de grups en Roger va triar una altra cosa, la fa servir. */
-    private void recordaMapa(Beatbox.Escolta esc) {
-        String m = Ui.prefs(this).getString("bat_mapa_" + esc.grups.size(), null);
-        if (m == null) return;
-        String[] p = m.split(",");
-        if (p.length != esc.grups.size()) return;
-        int[] t = new int[p.length];
-        try {
-            for (int i = 0; i < p.length; i++) t[i] = Math.max(-1, Math.min(2, Integer.parseInt(p[i].trim())));
-        } catch (NumberFormatException e) {
-            return;
-        }
-        esc.aplica(t);
-    }
-
-    private static String resumCops(List<Beatbox.Cop> cops, long ini, long fi) {
-        int[] n = new int[4];
-        int tot = 0, res = 0;
-        for (Beatbox.Cop c : cops) {
-            if (c.ms < ini - 20 || c.ms >= fi) continue;
-            if (c.tipus < 0) {
-                res++;
-                continue;
-            }
-            n[c.tipus]++;
-            tot++;
-        }
-        if (tot == 0 && res == 0) return "No s'ha trobat cap cop";
-        return tot + (tot == 1 ? " cop: " : " cops: ") + n[0] + " bombo · " + n[1] + " caixa · " + (n[2] + n[3]) + " hihat"
-                + (n[3] > 0 ? " (" + n[3] + " oberts)" : "") + (res > 0 ? " · " + res + " sense fer servir" : "");
-    }
-
-    private android.media.AudioTrack provaCop;
-
-    /** Fa sonar un tros curt de la gravació (un cop d'un grup). */
-    private void escoltaCop(short[] mostres, int sr, long ms) {
-        if (provaCop != null) {
-            try {
-                provaCop.stop();
-            } catch (RuntimeException ignorat) {
-            }
-            provaCop.release();
-            provaCop = null;
-        }
-        if (mostres == null || ms < 0) return;
-        int a = (int) Math.max(0, (ms - 15) * sr / 1000), n = Math.min(mostres.length - a, (int) (0.4 * sr));
-        if (n <= 0) return;
-        short[] tros = new short[n];
-        System.arraycopy(mostres, a, tros, 0, n);
-        for (int i = 0; i < Math.min(n, sr / 50); i++) tros[n - 1 - i] = (short) (tros[n - 1 - i] * i / (sr / 50.0));
-        try {
-            android.media.AudioTrack t = new android.media.AudioTrack.Builder()
-                    .setAudioAttributes(new android.media.AudioAttributes.Builder()
-                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                    .setAudioFormat(new android.media.AudioFormat.Builder().setSampleRate(sr)
-                            .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
-                    .setBufferSizeInBytes(n * 2)
-                    .setTransferMode(android.media.AudioTrack.MODE_STATIC)
-                    .build();
-            t.write(tros, 0, n);
-            t.play();
-            provaCop = t;
-        } catch (RuntimeException e) {
-            Ui.avis(this, "No s'ha pogut fer sonar");
-        }
-    }
-
-    /** Una fila per grup de so: «Grup 1 · 12 cops · el més greu», escolta, i Bombo / Caixa / Hihat / Res. */
-    private void ompleGrups(LinearLayout caixa, Beatbox.Escolta esc, short[] mostres, int sr, Runnable canvi) {
-        caixa.removeAllViews();
-        int n = esc.grups.size();
-        if (n == 0) return;
-        caixa.addView(Ui.etiqueta(this, n == 1 ? "El so que fas" : "Els " + n + " sons que fas (del més greu al més agut)"));
-        for (int k = 0; k < n; k++) {
-            Beatbox.Grup g = esc.grups.get(k);
-            int idx = k;
-            LinearLayout fila = Ui.fila(this);
-            fila.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            FrameLayout escolta = Ui.botoIcona(this, Icona.PLAY, Ui.TEXT, Ui.SUPERFICIE2, 34, 14, "Escolta un cop d'aquest grup");
-            escolta.setOnClickListener(v -> escoltaCop(mostres, sr, g.exempleMs));
-            fila.addView(escolta);
-            fila.addView(Ui.espai(this, 8));
-            LinearLayout tx = Ui.columna(this);
-            String on = n > 1 && k == 0 ? " · el més greu" : n > 1 && k == n - 1 ? " · el més agut" : "";
-            tx.addView(Ui.unaLinia(Ui.negreta(this, "Grup " + (k + 1) + on, 12, Ui.TEXT)));
-            tx.addView(Ui.unaLinia(Ui.text(this, g.cops + (g.cops == 1 ? " cop" : " cops") + " · "
-                    + String.format(Locale.ROOT, "%.1f kHz", g.centreHz / 1000).replace('.', ','), 11, Ui.SUAU)));
-            fila.addView(tx, new LinearLayout.LayoutParams(Ui.dp(this, 112), LinearLayout.LayoutParams.WRAP_CONTENT));
-            fila.addView(Ui.espai(this, 6));
-            int triat = g.tipus < 0 ? 3 : Math.min(2, g.tipus);
-            fila.addView(Ui.segmentat(this, Beatbox.TRIES, triat, Ui.BATERIA, i -> {
-                int[] t = new int[n];
-                for (int q = 0; q < n; q++) t[q] = esc.grups.get(q).tipus < 0 ? -1 : Math.min(2, esc.grups.get(q).tipus);
-                t[idx] = i == 3 ? Beatbox.RES : i;
-                esc.aplica(t);
-                canvi.run();
-            }), Ui.pes(1));
-            caixa.addView(fila, Ui.ample(this, 6));
-        }
-    }
-
-    /** Panell: els grups de so (es poden canviar), sensibilitat (torna a escoltar) i graella. Després, a quina pista. */
-    private void opcionsBateria(Projecte.Clip clip, short[] mostres, int sr, Beatbox.Escolta esc0, int sens0) {
-        android.content.SharedPreferences pr = Ui.prefs(this);
-        int[] graella = {Math.max(0, Math.min(2, pr.getInt("bat_graella", 1)))};
-        int[] sens = {sens0};
-        Beatbox.Escolta[] esc = {esc0};
-
-        LinearLayout cos = Ui.columna(this);
-        cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
-        TextView resum = Ui.text(this, resumCops(esc0.cops, clip.iniciMs, clip.fiMs), 13, Ui.TEXT);
-        cos.addView(resum);
-        cos.addView(Ui.text(this, "Si un grup no és el que toca, canvia'l: toca el triangle per escoltar-ne un cop. "
-                + "«Res» = no el facis servir (respiracions, sorolls). Es recorda per a la propera vegada.", 11, Ui.SUAU), Ui.ample(this, 4));
-        LinearLayout grups = Ui.columna(this);
-        cos.addView(grups, Ui.ample(this, 10));
-        Runnable[] refresca = new Runnable[1];
-        refresca[0] = () -> resum.setText(resumCops(esc[0].cops, clip.iniciMs, clip.fiMs));
-        ompleGrups(grups, esc[0], mostres, sr, refresca[0]);
-
-        cos.addView(Ui.etiqueta(this, "Sensibilitat (cops fluixos)"), Ui.ample(this, 12));
-        cos.addView(Ui.segmentat(this, Beatbox.SENSIBILITATS, sens[0], Ui.TEXT, i -> {
-            sens[0] = i;
-            esc[0] = Beatbox.detectaTot(mostres, sr, i);
-            recordaMapa(esc[0]);
-            refresca[0].run();
-            ompleGrups(grups, esc[0], mostres, sr, refresca[0]);
-        }), Ui.ample(this, 6));
-
-        cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 12));
-        cos.addView(Ui.segmentat(this, Conversio.GRAELLES, graella[0], Ui.TEXT, i -> graella[0] = i), Ui.ample(this, 6));
-
-        Full.panell(this, "Converteix a bateria", "Cada cop que fas amb la veu va a la fila del drumpad que li toca.",
-                cos, "Tria la pista", Ui.TEXT, () -> {
-                    escoltaCop(null, sr, -1);
-                    pr.edit().putInt("bat_graella", graella[0]).putInt("bat_sensibilitat", sens[0])
-                            .putString("bat_mapa_" + esc[0].grups.size(), esc[0].mapa()).apply();
-                    triaDestiBateria(clip, esc[0], graella[0]);
-                });
-    }
-
-    private void triaDestiBateria(Projecte.Clip clip, Beatbox.Escolta cops, int graella) {
-        List<Full.Accio> ops = new ArrayList<>();
-        for (Projecte.Pista t : projecte.pistes) {
-            if (!t.esBateria()) continue;
-            int num = projecte.pistes.indexOf(t) + 1;
-            ops.add(new Full.Accio(Icona.BATERIA, num + ". " + t.nomVisible(), false, () -> converteixBateria(t, clip, cops, graella)));
-        }
-        ops.add(new Full.Accio(Icona.BATERIA, "Pista nova · Bateria", false, () -> {
-            int abans = projecte.pistes.size();
-            creaBateria();
-            if (projecte.pistes.size() > abans) {
-                Projecte.Pista nova = projecte.pistes.get(projecte.pistes.size() - 1);
-                if (nova.esBateria()) converteixBateria(nova, clip, cops, graella);
-            }
-        }));
-        Full.llista(this, "On va la bateria?", "Una pista de bateria que ja tens (amb el seu kit) o una de nova.", ops);
-    }
-
-    /** Un ritme amb el kit i les files de la pista (el primer que tingui), o un de nou amb el primer kit. */
-    private Patro plantillaBateria(Projecte.Pista t) {
-        Patro p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, t.wav));
-        if (p == null) {
-            for (Projecte.Clip k : t.clips) {
-                p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, k.wav));
-                if (p != null) break;
-            }
-        }
-        List<Kits.Kit> kits = Kits.llista(KitsActivity.arrel(this));
-        if (p == null || p.files.isEmpty()) p = Patro.nou(kits.isEmpty() ? null : kits.get(0), projecte.compas);
-        // que hi hagi les files de bombo, caixa i hihats si el kit en té
-        Kits.Kit kit = null;
-        for (Kits.Kit k : kits) if (k.dir.getName().equals(p.kit)) kit = k;
-        if (kit != null) p.canviaKit(kit);
-        p.assegura(projecte.compas);
-        return p;
-    }
-
-    /** «2,8 kHz → bombo (18) · 4,9 kHz → caixa (12)»: per a l'historial (i el diagnòstic). */
-    private static String textGrups(Beatbox.Escolta esc) {
-        StringBuilder sb = new StringBuilder();
-        for (Beatbox.Grup g : esc.grups) {
-            if (sb.length() > 0) sb.append(" · ");
-            sb.append(String.format(Locale.ROOT, "%.1f kHz", g.centreHz / 1000).replace('.', ',')).append(" → ")
-                    .append(g.tipus < 0 ? "res" : Beatbox.NOMS[g.tipus].toLowerCase(Locale.ROOT)).append(" (").append(g.cops).append(")");
-        }
-        return sb.toString();
-    }
-
-    private void converteixBateria(Projecte.Pista t, Projecte.Clip clip, Beatbox.Escolta esc, int graella) {
-        if (t == null || !projecte.pistes.contains(t) || !t.esBateria()) return;
-        atura();
-        Patro plantilla = plantillaBateria(t);
-        Beatbox.Resultat r = Beatbox.ritmes(esc.cops, clip.posMs, clip.iniciMs, clip.fiMs, projecte.msPerCompas(), projecte.compas,
-                graella, plantilla);
-        if (r.finestres.isEmpty()) {
-            Ui.avis(this, "No hi ha cap cop per convertir en aquest clip");
-            return;
-        }
-        Projecte.Clip primer = null;
-        int finestres = 0;
-        for (Beatbox.Finestra f : r.finestres) {
-            try {
-                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
-                        ? t.wav : projecte.wavBateriaLliure();
-                f.patro.desa(Patro.fitxerDe(projecte.carpeta, wav));
-                long durada = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
-                if (durada < 0) throw new IOException("sense ritme");
-                Projecte.Clip c;
-                synchronized (projecte) {
-                    c = projecte.afegeixFinestraBateria(t, wav, durada, r.compasEntrada + f.compasDes);
-                }
-                carregaSo(wav);
-                finestres++;
-                if (primer == null) primer = c;
-            } catch (IOException e) {
-                Ui.avis(this, "No s'ha pogut desar una part del ritme");
-            }
-        }
-        desa();
-        Projecte.Presa pr = projecte.presa(clip);
-        String nomClip = pr != null && !pr.nom.isEmpty() ? pr.nom : "un clip";
-        Ui.historial(this, "Convertit «" + nomClip + "» a bateria a «" + t.nomVisible() + "»: " + r.cops + " cops ("
-                + r.perTipus[0] + " bombo, " + r.perTipus[1] + " caixa, " + (r.perTipus[2] + r.perTipus[3]) + " hihat), compàs "
-                + r.compasEntrada + ", graella " + Conversio.GRAELLES[graella].toLowerCase(Locale.ROOT) + " · grups: " + textGrups(esc));
-        ompleCapcaleres();
-        posaEtiquetaPistes();
-        int ip = projecte.pistes.indexOf(t);
-        if (primer != null) vista.tria(ip, primer);
-        actualitzaAccions();
-        if (taulaVisible) ompleTaula();
-        textInfo.setTextColor(Ui.BATERIA);
-        textInfo.setText(r.cops + " cops a «" + t.nomVisible() + "»" + (finestres > 1 ? " (" + finestres + " finestres)" : "")
-                + " · doble toc per veure'ls al drumpad");
-        vista.avisa();
-        refresca();
-    }
-
     private void posaEtiquetaPistes() {
         int n = projecte.pistes.size();
         etPistes.setText(n == 1 ? "1 pista" : n + " pistes");
@@ -3679,11 +3215,44 @@ public class ProjecteActivity extends Activity {
         }).start();
     }
 
+    // ---------- Bucle (2.36) ----------
+
+    /** «compassos 3 a 6» o «compàs 3». */
+    private static String textCompassos(int de, int a) {
+        return a - de <= 1 ? "compàs " + (de + 1) : "compassos " + (de + 1) + " a " + a;
+    }
+
+    /** El bucle ha canviat: es desa, el motor l'agafa (també mentre sona) i s'avisa a dalt. */
+    private void canviaBucle() {
+        if (motor != null && motor.sona() && !gravant) {
+            if (projecte.bucleActiu()) motor.posaBucle(projecte.bucleIniciMs(), projecte.bucleFiMs());
+            else motor.posaBucle(-1, -1);
+        }
+        desa();
+        textInfo.setTextColor(projecte.bucleActivat ? RegleView.COLOR_BUCLE : Ui.SUAU);
+        textInfo.setText(projecte.bucleActivat
+                ? "Bucle encès: " + textCompassos(projecte.bucleDe, projecte.bucleA) + " · mantén premut a dins per apagar-lo"
+                : "Bucle apagat · mantén premut a dins per tornar-lo a encendre");
+        Ui.historial(this, "Bucle " + (projecte.bucleActivat ? "encès" : "apagat") + " a «" + projecte.carpeta.getName() + "»: "
+                + textCompassos(projecte.bucleDe, projecte.bucleA));
+        regle.invalidate();
+        pistes.invalidate();
+    }
+
     private void play() {
         if (!carregat || motor == null || gravant) return;
         motor.posaSilenci(false);
         aplicaClic();
-        if (!motor.comenca(vista.capcalMs)) {
+        long des = vista.capcalMs;
+        if (projecte.bucleActiu()) {
+            long ini = projecte.bucleIniciMs(), fi = projecte.bucleFiMs();
+            motor.posaBucle(ini, fi);
+            // si el capçal és fora del bucle, comença al principi del bucle
+            if (des < ini || des >= fi - 50) des = ini;
+        } else {
+            motor.posaBucle(-1, -1);
+        }
+        if (!motor.comenca(des)) {
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
         }
@@ -3814,6 +3383,5 @@ public class ProjecteActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         if (motor != null) motor.atura();
-        escoltaCop(null, Sinte.MOSTREIG, -1);
     }
 }

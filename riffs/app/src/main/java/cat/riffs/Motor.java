@@ -37,6 +37,12 @@ public final class Motor {
     private volatile float[] nivells = new float[0];
     private short[] clicFort, clicFluix;
 
+    // Bucle (2.36): quan arriba a bucleFi torna a bucleIni (en mostres de la línia de temps; -1 = sense bucle)
+    private volatile long bucleIni = -1, bucleFi = -1;
+    private long linia;                       // la mostra de la línia de temps que s'escriurà ara
+    /** Salts: {mostres escrites, mostra de la línia de temps} cada cop que la reproducció torna a l'inici del bucle. */
+    private final java.util.ArrayList<long[]> salts = new java.util.ArrayList<>();
+
     public Motor(Projecte projecte, Map<String, short[]> audio) {
         this.projecte = projecte;
         this.audio = audio;
@@ -69,6 +75,20 @@ public final class Motor {
             clicFluix = Ritme.clic(1175, 0.38, MOSTREIG);
         }
         clic = actiu;
+    }
+
+    /**
+     * Bucle de la reproducció, en ms de la línia de temps ({@code iniMs} &lt; 0 = sense bucle). Es pot canviar
+     * mentre sona: el canvi es nota en arribar al final del bucle nou.
+     */
+    public void posaBucle(long iniMs, long fiMs) {
+        if (iniMs < 0 || fiMs <= iniMs) {
+            bucleIni = -1;
+            bucleFi = -1;
+        } else {
+            bucleIni = Mesclador.msAMostra(iniMs);
+            bucleFi = Mesclador.msAMostra(fiMs);
+        }
     }
 
     /** Comença a sonar des de {@code ms} de la línia de temps. */
@@ -104,6 +124,11 @@ public final class Motor {
         }
         mostresEscrites = 0;
         teMarca = false;
+        linia = mostraInici;
+        synchronized (salts) {
+            salts.clear();
+            salts.add(new long[]{0, mostraInici});
+        }
         nanoInici = System.nanoTime();
         sona = true;
         track.play();
@@ -115,21 +140,47 @@ public final class Motor {
 
     private void bucle() {
         float[] mescla = new float[TROS];
+        float[] resta = new float[TROS];
         short[] tros = new short[TROS];
         short[] clics = new short[TROS];
         while (sona) {
             double mostresPerTemps;
             int compas;
+            // fins on es pot escriure abans de tornar a l'inici del bucle
+            long ini = bucleIni, fi = bucleFi;
+            if (ini >= 0 && fi > ini + TROS && linia >= fi) {
+                // el bucle s'ha marcat per darrere del que sona: hi salta de seguida
+                synchronized (salts) {
+                    salts.add(new long[]{mostresEscrites, ini});
+                    while (salts.size() > 16) salts.remove(0);
+                }
+                linia = ini;
+            }
+            boolean ambBucle = ini >= 0 && fi > ini + TROS && linia < fi;
+            int n1 = ambBucle ? (int) Math.min(TROS, fi - linia) : TROS;
+            int n2 = TROS - n1;
             synchronized (projecte) {
                 float[] nv = nivells.length == projecte.pistes.size() ? nivells : new float[projecte.pistes.size()];
-                Mesclador.mescla(projecte, audio, mostraInici + mostresEscrites, mescla, TROS, nv);
+                Mesclador.mescla(projecte, audio, linia, mescla, n1, nv);
+                if (n2 > 0) {
+                    Mesclador.mescla(projecte, audio, ini, resta, n2, nv);
+                    System.arraycopy(resta, 0, mescla, n1, n2);
+                }
                 nivells = nv;
                 mostresPerTemps = MOSTREIG * 60.0 / projecte.bpm;
                 compas = projecte.compas;
             }
             if (clic) {
-                java.util.Arrays.fill(clics, (short) 0);
-                Ritme.ompleClics(clics, mostraInici + mostresEscrites, mostresPerTemps, compas, clicFort, clicFluix);
+                if (n2 == 0) {
+                    java.util.Arrays.fill(clics, (short) 0);
+                    Ritme.ompleClics(clics, linia, mostresPerTemps, compas, clicFort, clicFluix);
+                } else {
+                    short[] a = new short[n1], b = new short[n2];
+                    Ritme.ompleClics(a, linia, mostresPerTemps, compas, clicFort, clicFluix);
+                    Ritme.ompleClics(b, ini, mostresPerTemps, compas, clicFort, clicFluix);
+                    System.arraycopy(a, 0, clics, 0, n1);
+                    System.arraycopy(b, 0, clics, n1, n2);
+                }
                 float vc = volumClic / 32768f;
                 for (int i = 0; i < TROS; i++) mescla[i] += clics[i] * vc;
             }
@@ -137,9 +188,29 @@ public final class Motor {
             if (silenci) java.util.Arrays.fill(tros, (short) 0);
             int w = track.write(tros, 0, TROS);
             if (w <= 0) break;
+            if (n2 > 0) {
+                synchronized (salts) {
+                    salts.add(new long[]{mostresEscrites + n1, ini});
+                    while (salts.size() > 16) salts.remove(0);
+                }
+                linia = ini + n2;
+            } else {
+                linia += w;
+            }
             mostresEscrites += w;
             if (!teMarca || mostresEscrites % (MOSTREIG / 2) < TROS) actualitzaMarca();
         }
+    }
+
+    /** La mostra de la línia de temps que correspon a {@code escrites} mostres des que ha començat a sonar. */
+    private long liniaDe(long escrites) {
+        synchronized (salts) {
+            for (int i = salts.size() - 1; i >= 0; i--) {
+                long[] s = salts.get(i);
+                if (escrites >= s[0]) return s[1] + (escrites - s[0]);
+            }
+        }
+        return mostraInici + escrites;
     }
 
     private synchronized void actualitzaMarca() {
@@ -159,7 +230,7 @@ public final class Motor {
             mostra = (ara - nanoInici) * MOSTREIG / 1e9 - MOSTREIG * 0.08;
         }
         mostra = Math.max(0, Math.min(mostra, mostresEscrites));
-        return Mesclador.mostraAMs(mostraInici + (long) mostra);
+        return Mesclador.mostraAMs(liniaDe((long) mostra));
     }
 
     /**

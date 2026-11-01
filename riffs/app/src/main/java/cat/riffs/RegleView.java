@@ -7,12 +7,30 @@ import android.graphics.Path;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** Regla de compassos i temps a dalt de les pistes. Tocar-la posa el capçal. */
+/**
+ * Regla de compassos i temps a dalt de les pistes. Tocar-la posa el capçal.
+ * 2.36: mantenir-la premuda (vibra) i arrossegar marca els compassos del bucle; mantenir premut sense moure
+ * dins el bucle l'encén o l'apaga.
+ */
 public class RegleView extends View {
 
     public interface OientCapcal {
         void capcal(long ms, boolean acabat);
     }
+
+    public interface OientBucle {
+        /** S'han marcat els compassos de {@code de} (des de 0) fins abans de {@code a}. */
+        void marca(int de, int a);
+
+        /** Mantenir premut sense moure dins el bucle que ja hi ha: encendre'l o apagar-lo. */
+        void alterna();
+
+        /** Mentre s'arrossega (per escriure a dalt quins compassos). */
+        default void marcant(int de, int a) {}
+    }
+
+    static final long TEMPS_PREMUT = 400;
+    static final int COLOR_BUCLE = Ui.GUITARRA;
 
     private final Projecte projecte;
     private final Vista vista;
@@ -21,6 +39,14 @@ public class RegleView extends View {
     private final Paint capcal = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path triangle = new Path();
     private OientCapcal oient;
+    private OientBucle oientBucle;
+    private final Paint bucle = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // gest
+    private float x0, y0;
+    private boolean marcant = false, mogut = false;
+    private long capcalAbans;
+    private int c0 = -1, selDe = -1, selA = -1;
+    private final Runnable premut = this::comencaBucle;
 
     public RegleView(Context c, Projecte p, Vista v) {
         super(c);
@@ -35,6 +61,14 @@ public class RegleView extends View {
 
     public void setOientCapcal(OientCapcal o) {
         oient = o;
+    }
+
+    public void setOientBucle(OientBucle o) {
+        oientBucle = o;
+    }
+
+    private int compasA(float x) {
+        return (int) Math.max(0, Math.floor(vista.ms(x) / projecte.msPerCompas()));
     }
 
     @Override
@@ -65,6 +99,22 @@ public class RegleView extends View {
                 c.drawLine(x, h * 0.72f, x, h, linia);
             }
         }
+        // bucle (o el que s'està marcant)
+        int de = marcant ? selDe : projecte.bucleDe, a = marcant ? selA : projecte.bucleA;
+        if (de >= 0 && a > de) {
+            boolean actiu = marcant || projecte.bucleActivat;
+            float xa = vista.x(de * projecte.msPerCompas()), xb = vista.x(a * projecte.msPerCompas());
+            int col = actiu ? COLOR_BUCLE : Ui.SUAU;
+            bucle.setStyle(Paint.Style.FILL);
+            bucle.setColor((col & 0x00FFFFFF) | (actiu ? 0x40000000 : 0x26000000));
+            c.drawRect(xa, 0, xb, h, bucle);
+            bucle.setColor(col);
+            float g = Ui.dp(getContext(), 3);
+            c.drawRect(xa, 0, xb, g, bucle);                       // franja de dalt
+            c.drawRect(xa, 0, xa + Ui.dp(getContext(), 2), h, bucle);   // vores
+            c.drawRect(xb - Ui.dp(getContext(), 2), 0, xb, h, bucle);
+        }
+
         // línia de baix
         linia.setColor(Ui.LINIA);
         c.drawLine(0, h - 0.5f, w, h - 0.5f, linia);
@@ -86,12 +136,75 @@ public class RegleView extends View {
     public boolean onTouchEvent(MotionEvent e) {
         if (oient == null) return super.onTouchEvent(e);
         int a = e.getActionMasked();
-        if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_MOVE || a == MotionEvent.ACTION_UP) {
-            long ms = Math.max(0, Math.round(vista.ms(e.getX())));
-            oient.capcal(ms, a == MotionEvent.ACTION_UP);
-            if (a == MotionEvent.ACTION_UP) performClick();
+        float x = e.getX();
+        switch (a) {
+            case MotionEvent.ACTION_DOWN:
+                x0 = x;
+                y0 = e.getY();
+                mogut = false;
+                marcant = false;
+                capcalAbans = vista.capcalMs;
+                getParent().requestDisallowInterceptTouchEvent(true);
+                if (oientBucle != null) postDelayed(premut, TEMPS_PREMUT);
+                oient.capcal(Math.max(0, Math.round(vista.ms(x))), false);
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (!mogut && (Math.abs(x - x0) > Ui.dp(getContext(), 8) || Math.abs(e.getY() - y0) > Ui.dp(getContext(), 8))) {
+                    mogut = true;
+                    if (!marcant) removeCallbacks(premut);
+                }
+                if (marcant) {
+                    int c = compasA(x);
+                    selDe = Math.min(c0, c);
+                    selA = Math.max(c0, c) + 1;
+                    if (oientBucle != null) oientBucle.marcant(selDe, selA);
+                    invalidate();
+                } else {
+                    oient.capcal(Math.max(0, Math.round(vista.ms(x))), false);
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+                removeCallbacks(premut);
+                if (marcant) {
+                    marcant = false;
+                    boolean nomesUn = selA - selDe == 1 && selDe == c0;
+                    boolean dins = projecte.teBucle() && c0 >= projecte.bucleDe && c0 < projecte.bucleA;
+                    if (oientBucle != null) {
+                        if (nomesUn && dins && compasA(x) == c0) oientBucle.alterna();
+                        else oientBucle.marca(selDe, selA);
+                    }
+                    invalidate();
+                    performClick();
+                    return true;
+                }
+                oient.capcal(Math.max(0, Math.round(vista.ms(x))), true);
+                performClick();
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                removeCallbacks(premut);
+                if (marcant) {
+                    marcant = false;
+                    vista.capcalMs = capcalAbans;
+                    invalidate();
+                }
+                return true;
+            default:
+                return true;
         }
-        return true;
+    }
+
+    /** Mantenir premut sense moure: comença a marcar el bucle (el capçal torna on era). */
+    private void comencaBucle() {
+        if (mogut || oientBucle == null) return;
+        marcant = true;
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        vista.capcalMs = capcalAbans;
+        oient.capcal(capcalAbans, false);
+        c0 = compasA(x0);
+        selDe = c0;
+        selA = c0 + 1;
+        oientBucle.marcant(selDe, selA);
+        invalidate();
     }
 
     @Override
