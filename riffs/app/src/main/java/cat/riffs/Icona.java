@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37, POLI = 38;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37, POLI = 38, FM = 39, ONA = 40, ORGUE = 41, CORDA = 42;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -444,6 +444,49 @@ public class Icona extends Drawable {
                 c.drawCircle(7, 8, 1.7f, ple);
                 c.drawCircle(12, 5.5f, 1.7f, ple);
                 c.drawCircle(17, 3, 1.7f, ple);
+                break;
+            case FM:
+                // dos operadors: el de dalt modula el de baix, amb la realimentació
+                r.set(7, 3.5f, 15, 9.5f);
+                c.drawRoundRect(r, 1.5f, 1.5f, traz);
+                r.set(7, 14.5f, 15, 20.5f);
+                c.drawRoundRect(r, 1.5f, 1.5f, ple);
+                linia(c, 11, 9.5f, 11, 14.5f);
+                linia(c, 15, 6.5f, 18.5f, 6.5f);
+                linia(c, 18.5f, 6.5f, 18.5f, 2);
+                linia(c, 18.5f, 2, 11, 2);
+                linia(c, 11, 2, 11, 3.5f);
+                break;
+            case ONA:
+                // taula d'ones: tres ones una darrere l'altra
+                for (int k = 0; k < 3; k++) {
+                    float ox = 3 + k * 2.5f, oy = 16 - k * 4.5f;
+                    android.graphics.Path pa = new android.graphics.Path();
+                    pa.moveTo(ox, oy);
+                    pa.cubicTo(ox + 3, oy - 6, ox + 5, oy - 6, ox + 6.5f, oy);
+                    pa.cubicTo(ox + 8, oy + 6, ox + 10, oy + 6, ox + 13, oy);
+                    c.drawPath(pa, traz);
+                }
+                break;
+            case ORGUE:
+                // tirants d'orgue: quatre barres estirades
+                float[] ll = {14, 10, 16, 7};
+                for (int k = 0; k < 4; k++) {
+                    float x = 5 + k * 4.7f;
+                    linia(c, x, 3, x, 3 + ll[k]);
+                    r.set(x - 1.8f, 3 + ll[k], x + 1.8f, 6.5f + ll[k]);
+                    c.drawRoundRect(r, 1, 1, ple);
+                }
+                break;
+            case CORDA:
+                // corda pinçada entre dos ponts
+                r.set(2.5f, 9, 4.5f, 17);
+                c.drawRect(r, ple);
+                r.set(19.5f, 9, 21.5f, 17);
+                c.drawRect(r, ple);
+                linia(c, 4.5f, 13, 9, 7.5f);
+                linia(c, 9, 7.5f, 19.5f, 13);
+                c.drawCircle(9, 7.5f, 1.6f, ple);
                 break;
             case SINTE:
                 // teclat: tres tecles blanques i dues de negres

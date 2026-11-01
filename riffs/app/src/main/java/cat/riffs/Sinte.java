@@ -18,6 +18,14 @@ public final class Sinte {
     public static final int SERRA = 0, QUADRADA = 1, TRIANGLE = 2, SINUS = 3;
     public static final String[] NOMS_ONA = {"Serra", "Quadrada", "Triangle", "Sinus"};
 
+    /** Motors de so (2.38): cadascun imita una família de sintes. */
+    public static final int ANALOGIC = 0, FM = 1, WAVETABLE = 2, ORGUE = 3, CORDA = 4;
+    public static final String[] NOMS_MOTOR = {"Analògic", "FM", "Wavetable", "Orgue", "Corda pinçada"};
+    /** Proporcions de freqüència dels 9 tirants de l'orgue (16', 5 1/3', 8', 4', 2 2/3', 2', 1 3/5', 1 1/3', 1'). */
+    static final double[] TIRANTS_RATIO = {0.5, 1.5, 1, 2, 3, 4, 5, 6, 8};
+    /** Filtre passa-alts del motor analògic (posicions 0 a 3), en Hz (0 = apagat). */
+    static final double[] HPF_HZ = {0, 180, 360, 720};
+
     /** Tots els botons del sinte. Els temps en ms; els nivells de 0 a 1. */
     public static final class So {
         public int ona1 = SERRA, ona2 = SERRA;
@@ -51,10 +59,45 @@ public final class Sinte {
         public double delayRepeticio = 0.35;   // realimentació (0 a 0,9)
         public double reverb = 0;         // 0 a 1
         public double reverbMida = 0.6;   // 0 a 1 (sala petita → catedral)
+        // 2.38: motors nous (amb els valors per defecte, el so és exactament el d'abans)
+        public int motor = ANALOGIC;
+        public int hpf = 0;               // analògic: passa-alts en 4 posicions (0 = apagat)
+        public int chorusMode = 0;        // 0 = chorus normal; 1, 2, 3 = chorus tipus Juno I, II, I+II
+        public int leslie = 0;            // altaveu rotatori: 0 apagat, 1 lent, 2 ràpid
+        // FM (4 operadors; l'1 és el de baix)
+        public int fmAlg = 1;             // algorisme 1 a 8
+        public double fmRealim = 0;       // realimentació de l'operador 4 (0 a 1)
+        public double fmForca = 0.5;      // com la força de la nota obre el so (0 a 1)
+        public final double[] fmRatio = {1, 1, 1, 1};
+        public final double[] fmFi = new double[4];          // 0 a 0,99 (s'afegeix a la proporció)
+        public final double[] fmDesafina = new double[4];    // cents (−10 a +10)
+        public final double[] fmNivell = {1, 0.5, 0, 0};
+        public final double[] fmA = {2, 2, 2, 2};
+        public final double[] fmD = {1500, 800, 800, 800};
+        public final double[] fmS = {0.6, 0.4, 0.4, 0.4};
+        public final double[] fmR = {300, 300, 300, 300};
+        // wavetable
+        public int wtTaula = 0;
+        public double wtPos = 0;          // 0 a 1
+        public double wtEnv = 0;          // l'envolupant 2 (la del filtre) mou la posició (−1 a 1)
+        public double wtLfo = 0;          // el LFO mou la posició (0 a 1)
+        // orgue
+        public final int[] tirants = {8, 8, 8, 0, 0, 0, 0, 0, 0};   // 0 a 8
+        public int orgPerc = 0;           // percussió: 0 apagada, 1 segon harmònic (4'), 2 tercer (2 2/3')
+        public double orgPercNivell = 0.6;
+        public double orgPercMs = 300;    // què triga a apagar-se la percussió
+        public double orgClic = 0.3;      // clic de les tecles
+        // corda pinçada (Karplus-Strong)
+        public int ksTipus = 0;           // 0 púa, 1 dit, 2 martell, 3 arc
+        public double ksBrillant = 0.6;
+        public double ksPosicio = 0.2;    // on es pinça (0,05 = a tocar del pont)
+        public double ksDurada = 3;       // segons fins a −60 dB
+        public double ksAmortit = 0.5;    // com s'apaguen els aguts
+        public double ksCos = 0;          // ressonància de la caixa
 
-        /** Si té algun efecte (chorus, delay o reverb). */
+        /** Si té algun efecte (chorus, delay, reverb o Leslie). */
         public boolean ambEfectes() {
-            return chorus > 0 || delay > 0 || reverb > 0;
+            return chorus > 0 || delay > 0 || reverb > 0 || chorusMode > 0 || leslie > 0;
         }
 
         public So copia() {
@@ -101,6 +144,46 @@ public final class Sinte {
             posa(p, k + "delayRep", delayRepeticio);
             posa(p, k + "reverb", reverb);
             posa(p, k + "reverbMida", reverbMida);
+            if (motor != ANALOGIC) p.setProperty(k + "motor", Integer.toString(motor));
+            if (hpf != 0) p.setProperty(k + "hpf", Integer.toString(hpf));
+            if (chorusMode != 0) p.setProperty(k + "chorusMode", Integer.toString(chorusMode));
+            if (leslie != 0) p.setProperty(k + "leslie", Integer.toString(leslie));
+            if (motor == FM) {
+                p.setProperty(k + "fmAlg", Integer.toString(fmAlg));
+                posa(p, k + "fmRealim", fmRealim);
+                posa(p, k + "fmForca", fmForca);
+                for (int i = 0; i < 4; i++) {
+                    String q = k + "fm" + (i + 1) + ".";
+                    posa(p, q + "ratio", fmRatio[i]);
+                    posa(p, q + "fi", fmFi[i]);
+                    posa(p, q + "desafina", fmDesafina[i]);
+                    posa(p, q + "nivell", fmNivell[i]);
+                    posa(p, q + "a", fmA[i]);
+                    posa(p, q + "d", fmD[i]);
+                    posa(p, q + "s", fmS[i]);
+                    posa(p, q + "r", fmR[i]);
+                }
+            } else if (motor == WAVETABLE) {
+                p.setProperty(k + "wtTaula", Integer.toString(wtTaula));
+                posa(p, k + "wtPos", wtPos);
+                posa(p, k + "wtEnv", wtEnv);
+                posa(p, k + "wtLfo", wtLfo);
+            } else if (motor == ORGUE) {
+                StringBuilder b = new StringBuilder();
+                for (int t : tirants) b.append(t);
+                p.setProperty(k + "tirants", b.toString());
+                p.setProperty(k + "orgPerc", Integer.toString(orgPerc));
+                posa(p, k + "orgPercNivell", orgPercNivell);
+                posa(p, k + "orgPercMs", orgPercMs);
+                posa(p, k + "orgClic", orgClic);
+            } else if (motor == CORDA) {
+                p.setProperty(k + "ksTipus", Integer.toString(ksTipus));
+                posa(p, k + "ksBrillant", ksBrillant);
+                posa(p, k + "ksPosicio", ksPosicio);
+                posa(p, k + "ksDurada", ksDurada);
+                posa(p, k + "ksAmortit", ksAmortit);
+                posa(p, k + "ksCos", ksCos);
+            }
         }
 
         public static So llegeix(Properties p, String k) {
@@ -142,12 +225,58 @@ public final class Sinte {
             o.delayRepeticio = entre(nombre(p, k + "delayRep", o.delayRepeticio), 0, 0.9);
             o.reverb = entre(nombre(p, k + "reverb", o.reverb), 0, 1);
             o.reverbMida = entre(nombre(p, k + "reverbMida", o.reverbMida), 0, 1);
+            o.motor = (int) entre(nombre(p, k + "motor", o.motor), 0, 4);
+            o.hpf = (int) entre(nombre(p, k + "hpf", o.hpf), 0, 3);
+            o.chorusMode = (int) entre(nombre(p, k + "chorusMode", o.chorusMode), 0, 3);
+            o.leslie = (int) entre(nombre(p, k + "leslie", o.leslie), 0, 2);
+            o.fmAlg = (int) entre(nombre(p, k + "fmAlg", o.fmAlg), 1, 8);
+            o.fmRealim = entre(nombre(p, k + "fmRealim", o.fmRealim), 0, 1);
+            o.fmForca = entre(nombre(p, k + "fmForca", o.fmForca), 0, 1);
+            for (int i = 0; i < 4; i++) {
+                String q = k + "fm" + (i + 1) + ".";
+                o.fmRatio[i] = entre(nombre(p, q + "ratio", o.fmRatio[i]), 0.5, 16);
+                o.fmFi[i] = entre(nombre(p, q + "fi", o.fmFi[i]), 0, 0.99);
+                o.fmDesafina[i] = entre(nombre(p, q + "desafina", o.fmDesafina[i]), -10, 10);
+                o.fmNivell[i] = entre(nombre(p, q + "nivell", o.fmNivell[i]), 0, 1);
+                o.fmA[i] = entre(nombre(p, q + "a", o.fmA[i]), 0, 5000);
+                o.fmD[i] = entre(nombre(p, q + "d", o.fmD[i]), 1, 10000);
+                o.fmS[i] = entre(nombre(p, q + "s", o.fmS[i]), 0, 1);
+                o.fmR[i] = entre(nombre(p, q + "r", o.fmR[i]), 1, 5000);
+            }
+            o.wtTaula = (int) entre(nombre(p, k + "wtTaula", o.wtTaula), 0, Taules.NOMS.length - 1);
+            o.wtPos = entre(nombre(p, k + "wtPos", o.wtPos), 0, 1);
+            o.wtEnv = entre(nombre(p, k + "wtEnv", o.wtEnv), -1, 1);
+            o.wtLfo = entre(nombre(p, k + "wtLfo", o.wtLfo), 0, 1);
+            String ts = p.getProperty(k + "tirants");
+            if (ts != null && ts.trim().length() == 9) {
+                for (int i = 0; i < 9; i++) {
+                    char c = ts.trim().charAt(i);
+                    if (c >= '0' && c <= '8') o.tirants[i] = c - '0';
+                }
+            }
+            o.orgPerc = (int) entre(nombre(p, k + "orgPerc", o.orgPerc), 0, 2);
+            o.orgPercNivell = entre(nombre(p, k + "orgPercNivell", o.orgPercNivell), 0, 1);
+            o.orgPercMs = entre(nombre(p, k + "orgPercMs", o.orgPercMs), 50, 2000);
+            o.orgClic = entre(nombre(p, k + "orgClic", o.orgClic), 0, 1);
+            o.ksTipus = (int) entre(nombre(p, k + "ksTipus", o.ksTipus), 0, 3);
+            o.ksBrillant = entre(nombre(p, k + "ksBrillant", o.ksBrillant), 0, 1);
+            o.ksPosicio = entre(nombre(p, k + "ksPosicio", o.ksPosicio), 0.03, 0.5);
+            o.ksDurada = entre(nombre(p, k + "ksDurada", o.ksDurada), 0.1, 30);
+            o.ksAmortit = entre(nombre(p, k + "ksAmortit", o.ksAmortit), 0, 1);
+            o.ksCos = entre(nombre(p, k + "ksCos", o.ksCos), 0, 1);
             return o;
         }
 
         /** Temps que pot sonar després de deixar la nota. */
         long cuaMostres() {
-            return Math.round(Math.max(r, fr) * 1.2 * MOSTREIG / 1000.0) + MOSTREIG / 50;
+            double rr = Math.max(r, fr);
+            if (motor == FM) for (int i = 0; i < 4; i++) rr = Math.max(rr, fmR[i]);
+            return Math.round(rr * 1.2 * MOSTREIG / 1000.0) + MOSTREIG / 50;
+        }
+
+        /** Si és un operador de sortida (portador) a l'algorisme FM actual. */
+        public boolean fmPortador(int op) {
+            return (FM_PORTADORS[Math.max(1, Math.min(8, fmAlg)) - 1] & (1 << op)) != 0;
         }
 
         /** El que poden allargar els efectes (delay i reverb), en mostres, al tempo {@code bpm}. */
@@ -534,9 +663,44 @@ public final class Sinte {
         return r;
     }
 
+    // ---------- FM: algorismes de 4 operadors (com els sintes FM petits de 4 operadors) ----------
+
+    /** Per a cada algorisme (1 a 8) i cada operador (0 = op 1 … 3 = op 4): quins operadors el modulen (bits). */
+    static final int[][] FM_MODS = {
+            {1 << 1, 1 << 2, 1 << 3, 0},            // 1: 4→3→2→1
+            {1 << 1, (1 << 2) | (1 << 3), 0, 0},    // 2: (3+4)→2→1
+            {(1 << 1) | (1 << 3), 1 << 2, 0, 0},    // 3: 3→2→1 i 4→1
+            {(1 << 1) | (1 << 2), 0, 1 << 3, 0},    // 4: 4→3→1 i 2→1
+            {1 << 1, 0, 1 << 3, 0},                 // 5: dues parelles: 2→1 i 4→3
+            {1 << 3, 1 << 3, 1 << 3, 0},            // 6: 4 modula 1, 2 i 3
+            {0, 0, 1 << 3, 0},                      // 7: 4→3, i 1 i 2 sols
+            {0, 0, 0, 0},                           // 8: els quatre sonen (orgue)
+    };
+    /** Operadors que sonen (portadors) a cada algorisme (bits). */
+    static final int[] FM_PORTADORS = {1, 1, 1, 1, 1 | 4, 1 | 2 | 4, 1 | 2 | 4, 15};
+
+    // ---------- Sinus en taula (més ràpid que Math.sin, per a FM i orgue) ----------
+
+    private static final int NSIN = 4096;
+    private static final float[] SIN = new float[NSIN + 1];
+
+    static {
+        for (int i = 0; i <= NSIN; i++) SIN[i] = (float) Math.sin(2 * Math.PI * i / NSIN);
+    }
+
+    /** sin(2π·fase), amb la fase en cicles (qualsevol valor). */
+    static double sinT(double fase) {
+        fase -= Math.floor(fase);
+        double x = fase * NSIN;
+        int i = (int) x;
+        if (i >= NSIN) i = NSIN - 1;
+        return SIN[i] + (SIN[i + 1] - SIN[i]) * (x - i);
+    }
+
     /**
      * Una veu del sinte, mostra a mostra: la fan servir tant el piano roll (per fer el so de la frase)
-     * com el teclat per tocar en directe, perquè sonin exactament igual.
+     * com el teclat per tocar en directe, perquè sonin exactament igual. Segons {@link So#motor}, el so neix
+     * d'oscil·ladors analògics, d'operadors FM, d'una taula d'ones, de tirants d'orgue o d'una corda pinçada.
      */
     public static final class Veu {
         private final So o;
@@ -549,11 +713,34 @@ public final class Sinte {
         private double ic1 = 0, ic2 = 0;
         private double vel = 1;
         private long desDeNota = 0;
-        private double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw;
+        private double atac, atacF, cD, cR, cFD, cFR, cGlide, kRes, guany1, drive, normDrive, pw, sAra;
         // unison (2.31): fases i desafinació (proporció de freqüència) de cada veu
         private int uni;
         private double[] fu1, fu2, du;
         private double guanyUni;
+        // 2.38
+        private int motor;
+        private boolean filtre;
+        private double hpfA, hpfX, hpfY;
+        private int quiet;
+        // FM
+        private final double[] fmFase = new double[4], fmEnv = new double[4], fmOut = new double[4];
+        private final int[] fmEtapa = new int[4];
+        private final double[] fmAtac = new double[4], fmCD = new double[4], fmCR = new double[4], fmMul = new double[4], fmNiv = new double[4];
+        private int[] fmMods;
+        private int fmCar;
+        private double fmGuanyCar, fmFb1, fmFb2;
+        // wavetable
+        private float[][][] taula;
+        // orgue
+        private final double[] orgFase = new double[9], orgAmp = new double[9];
+        private double orgPerc, orgPercC, orgClicAmp, orgNorm;
+        // corda
+        private float[] ks;
+        private int ksW;
+        private double ksAnt, ksG, ksS, ksArc;
+        private final double[] cos = new double[12];     // estat dels 3 filtres de la caixa
+        private static final double[][] COS = cosCoef();
 
         public Veu(So o) {
             this.o = o;
@@ -562,6 +749,7 @@ public final class Sinte {
 
         /** Torna a llegir els botons del so (2.32: l'editor de so els mou mentre sona). Les fases es conserven. */
         public void refresca() {
+            motor = o.motor;
             atac = Math.max(1, o.a * sr / 1000);
             atacF = Math.max(1, o.fa * sr / 1000);
             cD = coef(o.d);
@@ -574,6 +762,10 @@ public final class Sinte {
             drive = 1 + 9 * o.distorsio;
             normDrive = Math.tanh(drive * 0.6);
             pw = o.pols;
+            sAra = o.s;
+            filtre = motor != FM && motor != ORGUE;
+            double fh = motor == ANALOGIC || motor == WAVETABLE ? HPF_HZ[Math.max(0, Math.min(3, o.hpf))] : 0;
+            hpfA = fh > 0 ? 1 / (1 + 2 * Math.PI * fh / sr) : 0;
             int u = Math.max(1, Math.min(7, o.unison));
             if (fu1 == null || u != uni) {
                 uni = u;
@@ -588,6 +780,46 @@ public final class Sinte {
             }
             for (int i = 0; i < uni; i++) du[i] = uni == 1 ? 1 : Math.pow(2, (i / (double) (uni - 1) - 0.5) * o.desafina / 1200.0);
             guanyUni = 1 / Math.sqrt(uni);
+            if (motor == FM) {
+                int al = Math.max(1, Math.min(8, o.fmAlg)) - 1;
+                fmMods = FM_MODS[al];
+                fmCar = FM_PORTADORS[al];
+                double rMax = 1;
+                int n = 0;
+                for (int i = 0; i < 4; i++) {
+                    fmAtac[i] = Math.max(1, o.fmA[i] * sr / 1000);
+                    fmCD[i] = coef(o.fmD[i]);
+                    fmCR[i] = coef(o.fmR[i]);
+                    fmMul[i] = o.fmRatio[i] * (1 + o.fmFi[i]) * Math.pow(2, o.fmDesafina[i] / 1200.0);
+                    boolean car = (fmCar & (1 << i)) != 0;
+                    fmNiv[i] = car ? o.fmNivell[i] : 2.0 * o.fmNivell[i] * o.fmNivell[i];   // moduladors: índex en cicles
+                    if (car) {
+                        n++;
+                        rMax = Math.max(rMax, o.fmR[i]);
+                    }
+                }
+                fmGuanyCar = 1 / Math.sqrt(Math.max(1, n));
+                // l'envolupant general només fa de porta: el so el fan les envolupants dels operadors
+                atac = 1;
+                sAra = 1;
+                cR = coef(rMax * 1.2);
+            } else if (motor == WAVETABLE) {
+                taula = Taules.taula(o.wtTaula);
+            } else if (motor == ORGUE) {
+                double s2 = 0;
+                for (int i = 0; i < 9; i++) {
+                    int t = Math.max(0, Math.min(8, o.tirants[i]));
+                    orgAmp[i] = t == 0 ? 0 : Math.pow(10, -(8 - t) * 3 / 20.0);
+                    s2 += orgAmp[i];
+                }
+                orgNorm = 0.9 / Math.max(1.2, 0.6 * s2 + 0.8);
+                orgPercC = Math.exp(-6.9 / Math.max(1, o.orgPercMs * sr / 1000));
+                sAra = 1;
+            } else if (motor == CORDA) {
+                if (ks == null) ks = new float[4096];
+                ksS = 0.03 + 0.47 * o.ksAmortit;
+                sAra = 1;
+            }
         }
 
         /**
@@ -603,6 +835,15 @@ public final class Sinte {
                 etapa = 1;
                 etapaF = 1;
                 desDeNota = 0;
+                quiet = 0;
+                if (motor == FM) {
+                    for (int i = 0; i < 4; i++) fmEtapa[i] = 1;
+                } else if (motor == ORGUE) {
+                    orgPerc = 1;
+                    orgClicAmp = 1;
+                } else if (motor == CORDA) {
+                    pinca(nota);
+                }
             }
         }
 
@@ -616,6 +857,7 @@ public final class Sinte {
             if (etapa == 1 || etapa == 2) {
                 etapa = 3;
                 etapaF = 3;
+                for (int i = 0; i < 4; i++) fmEtapa[i] = 3;
             }
         }
 
@@ -635,7 +877,7 @@ public final class Sinte {
                     }
                     break;
                 case 2:
-                    env += (o.s - env) * cD;
+                    env += (sAra - env) * cD;
                     break;
                 case 3:
                     env -= env * cR;
@@ -674,53 +916,251 @@ public final class Sinte {
             desDeNota++;
             double nota = notaAra + lfo * entrada * o.lfoTo / 100.0;
             double f1 = hz(nota);
-            double f2 = hz(nota + o.semitons2 + o.cents2 / 100.0);
-            double dt1 = f1 / sr, dt2 = f2 / sr, dtSub = dt1 / 2;
 
-            double pwAra = pw;
-            if (o.lfoPols > 0) pwAra = Math.max(0.05, Math.min(0.95, pw + o.lfoPols * 0.45 * lfo));
             double x;
-            if (uni == 1) {
-                x = ona(o.ona1, fase1, dt1, pwAra) * (1 - o.mescla2) + ona(o.ona2, fase2, dt2, pwAra) * o.mescla2;
+            if (motor == FM) {
+                x = fm(f1);
+            } else if (motor == ORGUE) {
+                x = orgue(f1);
+            } else if (motor == CORDA) {
+                x = corda(f1);
             } else {
-                double s1 = 0, s2 = 0;
-                for (int u = 0; u < uni; u++) {
-                    double k = du[u];
-                    double e1 = dt1 * k, e2 = dt2 * k;
-                    s1 += ona(o.ona1, fu1[u], e1, pwAra);
-                    if (o.mescla2 > 0) s2 += ona(o.ona2, fu2[u], e2, pwAra);
-                    fu1[u] += e1;
-                    if (fu1[u] >= 1) fu1[u] -= 1;
-                    fu2[u] += e2;
-                    if (fu2[u] >= 1) fu2[u] -= 1;
+                double f2 = hz(nota + o.semitons2 + o.cents2 / 100.0);
+                double dt1 = f1 / sr, dt2 = f2 / sr, dtSub = dt1 / 2;
+                boolean wt = motor == WAVETABLE;
+                double pos = 0;
+                int niv = 0;
+                if (wt) {
+                    pos = Math.max(0, Math.min(1, o.wtPos + o.wtEnv * envF + o.wtLfo * 0.5 * lfo));
+                    niv = Taules.nivell(dt1);
                 }
-                x = (s1 * (1 - o.mescla2) + s2 * o.mescla2) * guanyUni;
-            }
-            if (o.sub > 0) x += o.sub * 0.8 * quadrada(faseSub, dtSub, 0.5);
-            if (o.soroll > 0) x += o.soroll * (rnd.nextFloat() * 2 - 1);
-            x *= guany1;
-            fase1 += dt1;
-            if (fase1 >= 1) fase1 -= 1;
-            fase2 += dt2;
-            if (fase2 >= 1) fase2 -= 1;
-            faseSub += dtSub;
-            if (faseSub >= 1) faseSub -= 1;
 
-            // filtre passa-baixos (variable d'estat, estable amb ressonància alta)
-            double oct = o.envFiltre * envF * (0.7 + 0.3 * vel) + o.lfoFiltre * lfo + o.seguiment * (nota - 60) / 12.0;
-            double fc = o.tallHz * Math.pow(2, oct);
-            fc = Math.max(20, Math.min(sr * 0.45, fc));
-            double g = Math.tan(Math.PI * fc / sr);
-            double a1 = 1 / (1 + g * (g + kRes)), a2 = g * a1, a3 = g * a2;
-            double v3 = x - ic2;
-            double v1 = a1 * ic1 + a2 * v3;
-            double v2 = ic2 + a2 * ic1 + a3 * v3;
-            ic1 = 2 * v1 - ic1;
-            ic2 = 2 * v2 - ic2;
-            double y = v2;
+                double pwAra = pw;
+                if (o.lfoPols > 0) pwAra = Math.max(0.05, Math.min(0.95, pw + o.lfoPols * 0.45 * lfo));
+                if (uni == 1) {
+                    double a1 = wt ? Taules.llegeix(taula, pos, niv, fase1) : ona(o.ona1, fase1, dt1, pwAra);
+                    x = a1 * (1 - o.mescla2) + ona(o.ona2, fase2, dt2, pwAra) * o.mescla2;
+                } else {
+                    double s1 = 0, s2 = 0;
+                    for (int u = 0; u < uni; u++) {
+                        double k = du[u];
+                        double e1 = dt1 * k, e2 = dt2 * k;
+                        s1 += wt ? Taules.llegeix(taula, pos, niv, fu1[u]) : ona(o.ona1, fu1[u], e1, pwAra);
+                        if (o.mescla2 > 0) s2 += ona(o.ona2, fu2[u], e2, pwAra);
+                        fu1[u] += e1;
+                        if (fu1[u] >= 1) fu1[u] -= 1;
+                        fu2[u] += e2;
+                        if (fu2[u] >= 1) fu2[u] -= 1;
+                    }
+                    x = (s1 * (1 - o.mescla2) + s2 * o.mescla2) * guanyUni;
+                }
+                if (o.sub > 0) x += o.sub * 0.8 * quadrada(faseSub, dtSub, 0.5);
+                if (o.soroll > 0) x += o.soroll * (rnd.nextFloat() * 2 - 1);
+                x *= guany1;
+                fase1 += dt1;
+                if (fase1 >= 1) fase1 -= 1;
+                fase2 += dt2;
+                if (fase2 >= 1) fase2 -= 1;
+                faseSub += dtSub;
+                if (faseSub >= 1) faseSub -= 1;
+            }
+
+            double y;
+            if (filtre) {
+                // filtre passa-baixos (variable d'estat, estable amb ressonància alta)
+                double oct = o.envFiltre * envF * (0.7 + 0.3 * vel) + o.lfoFiltre * lfo + o.seguiment * (nota - 60) / 12.0;
+                double fc = o.tallHz * Math.pow(2, oct);
+                fc = Math.max(20, Math.min(sr * 0.45, fc));
+                double g = Math.tan(Math.PI * fc / sr);
+                double a1 = 1 / (1 + g * (g + kRes)), a2 = g * a1, a3 = g * a2;
+                double v3 = x - ic2;
+                double v1 = a1 * ic1 + a2 * v3;
+                double v2 = ic2 + a2 * ic1 + a3 * v3;
+                ic1 = 2 * v1 - ic1;
+                ic2 = 2 * v2 - ic2;
+                y = v2;
+            } else {
+                y = x;
+            }
+            if (hpfA > 0) {
+                // passa-alts d'un pol (el del Juno)
+                double h = hpfA * (hpfY + y - hpfX);
+                hpfX = y;
+                hpfY = h;
+                y = h;
+            }
 
             if (o.distorsio > 0) y = Math.tanh(y * drive * 0.6) / normDrive;
-            return (float) (y * env * vel);
+            float out = (float) (y * env * vel);
+            if (motor == FM || motor == CORDA) {
+                // el so ja s'ha apagat sol (campana, corda): la veu queda lliure
+                if (Math.abs(out) < 1e-5) {
+                    if (++quiet > 4410 && desDeNota > 4410) {
+                        etapa = 0;
+                        env = 0;
+                    }
+                } else {
+                    quiet = 0;
+                }
+            }
+            return out;
+        }
+
+        // ----- FM -----
+
+        private double fm(double f) {
+            double s = 0;
+            double modVel = 1 - o.fmForca * (1 - vel);
+            for (int i = 3; i >= 0; i--) {
+                // envolupant de l'operador
+                switch (fmEtapa[i]) {
+                    case 1:
+                        fmEnv[i] += 1.0 / fmAtac[i];
+                        if (fmEnv[i] >= 1) {
+                            fmEnv[i] = 1;
+                            fmEtapa[i] = 2;
+                        }
+                        break;
+                    case 2:
+                        fmEnv[i] += (o.fmS[i] - fmEnv[i]) * fmCD[i];
+                        break;
+                    case 3:
+                        fmEnv[i] -= fmEnv[i] * fmCR[i];
+                        break;
+                    default:
+                        break;
+                }
+                double mod = 0;
+                int m = fmMods[i];
+                if (m != 0) for (int j = i + 1; j < 4; j++) if ((m & (1 << j)) != 0) mod += fmOut[j];
+                if (i == 3 && o.fmRealim > 0) mod += o.fmRealim * 0.35 * (fmFb1 + fmFb2);
+                double v = sinT(fmFase[i] + mod);
+                fmFase[i] += f * fmMul[i] / sr;
+                if (fmFase[i] >= 1) fmFase[i] -= Math.floor(fmFase[i]);
+                double amp = fmEnv[i];
+                if (i == 3) {
+                    fmFb2 = fmFb1;
+                    fmFb1 = v * amp;
+                }
+                if ((fmCar & (1 << i)) != 0) {
+                    s += v * amp * fmNiv[i];
+                    fmOut[i] = v * amp * fmNiv[i] * 2.0 * modVel;
+                } else {
+                    fmOut[i] = v * amp * fmNiv[i] * modVel;
+                }
+            }
+            return s * fmGuanyCar;
+        }
+
+        // ----- orgue de tirants -----
+
+        private double orgue(double f) {
+            double s = 0;
+            for (int i = 0; i < 9; i++) {
+                double fr = f * TIRANTS_RATIO[i];
+                if (orgAmp[i] > 0 && fr < 0.45 * sr) s += orgAmp[i] * sinT(orgFase[i]);
+                orgFase[i] += fr / sr;
+                if (orgFase[i] >= 1) orgFase[i] -= 1;
+            }
+            if (o.orgPerc > 0 && orgPerc > 1e-4) {
+                int h = o.orgPerc == 1 ? 3 : 4;
+                if (f * TIRANTS_RATIO[h] < 0.45 * sr) s += orgPerc * o.orgPercNivell * 1.6 * sinT(orgFase[h]);
+                orgPerc *= orgPercC;
+            }
+            s *= orgNorm;
+            if (o.orgClic > 0 && orgClicAmp > 1e-3) {
+                s += o.orgClic * 0.35 * orgClicAmp * (rnd.nextFloat() * 2 - 1);
+                orgClicAmp *= 0.996;   // uns 6 ms
+            }
+            return s;
+        }
+
+        // ----- corda pinçada (Karplus-Strong) -----
+
+        /** Omple la corda amb l'excitació (púa, dit, martell o arc). Se suma al que ja vibrava. */
+        private void pinca(int nota) {
+            if (ks == null) ks = new float[4096];
+            double L = sr / hz(nota);
+            int n = (int) Math.min(ks.length - 4, Math.ceil(L));
+            double br = Math.max(0, Math.min(1, o.ksBrillant * (0.55 + 0.45 * vel)));
+            double c;
+            float[] e = new float[n];
+            int tipus = o.ksTipus;
+            if (tipus == 2) {
+                // martell: un cop curt i rodó
+                int w = Math.max(2, (int) Math.round(n * (0.25 - 0.2 * br)));
+                for (int i = 0; i < w && i < n; i++) e[i] = (float) Math.sin(Math.PI * i / w);
+            } else {
+                c = 0.04 + 0.96 * br * br;
+                if (tipus == 1) c *= 0.3;     // dit: més rodó
+                double lp = 0;
+                for (int i = 0; i < n; i++) {
+                    lp += c * ((rnd.nextFloat() * 2 - 1) - lp);
+                    e[i] = (float) lp;
+                }
+            }
+            // on es pinça: es treu la part que es repetiria (filtre en pinta)
+            int pp = Math.max(1, (int) Math.round(o.ksPosicio * n));
+            float[] e2 = new float[n];
+            for (int i = 0; i < n; i++) e2[i] = e[i] - (i >= pp ? e[i - pp] : 0);
+            double mitjana = 0, pic = 1e-9;
+            for (float v : e2) mitjana += v;
+            mitjana /= n;
+            for (int i = 0; i < n; i++) pic = Math.max(pic, Math.abs(e2[i] - mitjana));
+            double g = (tipus == 3 ? 0.25 : 1) / pic;
+            int mask = ks.length - 1;
+            for (int i = 0; i < n; i++) ks[(ksW - n + i) & mask] += (float) ((e2[i] - mitjana) * g);
+            ksArc = 0;
+        }
+
+        private double corda(double f) {
+            if (ks == null) return 0;
+            double L = sr / f;
+            double d = Math.max(2, Math.min(ks.length - 4, L - ksS));
+            int mask = ks.length - 1;
+            double rp = ksW - d;
+            int i0 = (int) Math.floor(rp);
+            double fr = rp - i0;
+            double a = ks[i0 & mask], b = ks[(i0 + 1) & mask];
+            double v = a + (b - a) * fr;
+            double y = (1 - ksS) * v + ksS * ksAnt;
+            ksAnt = v;
+            ksG = Math.pow(10, -3 / (f * Math.max(0.1, o.ksDurada)));
+            double ent = 0;
+            if (o.ksTipus == 3 && (etapa == 1 || etapa == 2)) {
+                // arc: s'hi va afegint soroll mentre es manté la nota (fregar)
+                ksArc += 0.15 * ((rnd.nextFloat() * 2 - 1) - ksArc);
+                ent = ksArc * (1 - ksG) * 45 * (0.4 + 0.6 * o.ksBrillant);
+            }
+            ks[ksW] = (float) (ksG * y + ent);
+            ksW = (ksW + 1) & mask;
+            double out = y;
+            if (o.ksCos > 0) {
+                double cs = 0;
+                for (int k = 0; k < 3; k++) {
+                    double[] q = COS[k];
+                    int j = k * 4;
+                    double w = q[0] * y + q[1] * cos[j] + q[2] * cos[j + 1] - q[3] * cos[j + 2] - q[4] * cos[j + 3];
+                    cos[j + 1] = cos[j];
+                    cos[j] = y;
+                    cos[j + 3] = cos[j + 2];
+                    cos[j + 2] = w;
+                    cs += w * q[5];
+                }
+                out = y * (1 - 0.35 * o.ksCos) + cs * o.ksCos * 2.2;
+            }
+            return out * 0.8;
+        }
+
+        /** La caixa: tres ressonàncies (passa-banda) com les d'una guitarra. {b0, b1, b2, a1, a2, pes}. */
+        private static double[][] cosCoef() {
+            double[][] fq = {{110, 3, 1.0}, {220, 2.5, 0.8}, {480, 2, 0.5}};
+            double[][] r = new double[3][];
+            for (int k = 0; k < 3; k++) {
+                double w0 = 2 * Math.PI * fq[k][0] / MOSTREIG, al = Math.sin(w0) / (2 * fq[k][1]), a0 = 1 + al;
+                r[k] = new double[]{al / a0, 0, -al / a0, -2 * Math.cos(w0) / a0, (1 - al) / a0, fq[k][2]};
+            }
+            return r;
         }
     }
 

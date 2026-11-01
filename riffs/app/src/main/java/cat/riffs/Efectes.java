@@ -1,7 +1,7 @@
 package cat.riffs;
 
 /**
- * Els efectes del sinte, en aquest ordre: chorus, delay (a temps del projecte) i reverb.
+ * Els efectes del sinte, en aquest ordre: Leslie (orgue), chorus (normal o tipus Juno), delay (a temps del projecte) i reverb.
  * Mono, mostra a mostra: els fa servir tant el so de les finestres com el sinte en directe, perquè sonin igual.
  * Amb tots tres a zero no es crea (el so és exactament el de sense efectes). No depèn d'Android.
  */
@@ -33,6 +33,16 @@ public final class Efectes {
     private final float[][] ba;
     private final int[] ia;
     private float realim, amort;
+
+    // chorus tipus Juno (2.38): una lectura que es mou amb un triangle, i el filtre dels xips BBD
+    private double faseJ = 0;
+    private float lpJ = 0;
+
+    // Leslie (2.38): botzina (aguts) i tambor (greus) que giren; acceleren i frenen a poc a poc
+    private final float[] lh = new float[512], lg = new float[512];
+    private int il = 0;
+    private double velH = -1, velG = -1, faseH = 0, faseG = 0.3;
+    private float lpL = 0;
 
     public Efectes(Sinte.So o, double bpm) {
         this(o, bpm, false);
@@ -85,13 +95,15 @@ public final class Efectes {
             ms = Math.max(ms, msDelay(o, bpm) * n);
         }
         if (o.reverb > 0) ms = Math.max(ms, 600 + 3400 * o.reverbMida);
-        if (o.chorus > 0) ms = Math.max(ms, 40);
+        if (o.chorus > 0 || o.chorusMode > 0 || o.leslie > 0) ms = Math.max(ms, 40);
         return Math.round(Math.min(6000, ms) * SR / 1000.0);
     }
 
     public float processa(float x) {
         float y = x;
-        if (o.chorus > 0) y = chorus(y);
+        if (o.leslie > 0) y = leslie(y);
+        if (o.chorusMode > 0) y = juno(y);
+        else if (o.chorus > 0) y = chorus(y);
         if (o.delay > 0) y = delay(y);
         if (o.reverb > 0) y = reverb(y);
         return y;
@@ -107,6 +119,46 @@ public final class Efectes {
         ic = (ic + 1) % lc.length;
         double c = o.chorus;
         return (float) ((x + c * 0.8 * (a + b)) / (1 + c * 0.6));
+    }
+
+    /** Chorus tipus Juno: I (lent), II (més ràpid) o I+II (ràpid i poc fons, quasi un vibrato). Mono = sec + mullat. */
+    private float juno(float x) {
+        lc[ic] = x;
+        int m = o.chorusMode;
+        double hz = m == 1 ? 0.513 : m == 2 ? 0.863 : 9.75;
+        faseJ += hz / SR;
+        if (faseJ >= 1) faseJ -= 1;
+        double tri = 1 - 4 * Math.abs(faseJ - 0.5);
+        double ms = m == 3 ? 3.4 + 0.3 * tri : 3.5 + 1.85 * tri;
+        float w = llegeix(lc, ic, ms * SR / 1000.0);
+        lpJ += (w - lpJ) * 0.68f;
+        ic = (ic + 1) % lc.length;
+        return (x + lpJ) * 0.62f;
+    }
+
+    /** Altaveu rotatori: la botzina (aguts) i el tambor (greus) giren a velocitats diferents (efecte Doppler i volum). */
+    private float leslie(float x) {
+        boolean rapid = o.leslie == 2;
+        double objH = rapid ? 6.7 : 0.8, objG = rapid ? 5.9 : 0.66;
+        if (velH < 0) {
+            velH = objH;
+            velG = objG;
+        }
+        velH += (objH - velH) * (1 / (0.7 * SR));
+        velG += (objG - velG) * (1 / (2.8 * SR));
+        faseH += velH / SR;
+        if (faseH >= 1) faseH -= 1;
+        faseG += velG / SR;
+        if (faseG >= 1) faseG -= 1;
+        lpL += (x - lpL) * 0.107f;           // separació a uns 800 Hz
+        float greu = lpL, agut = x - lpL;
+        lh[il] = agut;
+        lg[il] = greu;
+        double sh = Math.sin(2 * Math.PI * faseH), sg = Math.sin(2 * Math.PI * faseG);
+        float h = llegeix(lh, il, (1.3 + 0.9 * sh) * SR / 1000.0);
+        float g = llegeix(lg, il, (1.2 + 0.35 * sg) * SR / 1000.0);
+        il = (il + 1) % lh.length;
+        return (float) (h * (0.72 + 0.28 * sh) + g * (0.88 + 0.12 * sg));
     }
 
     private static float llegeix(float[] l, int escrit, double enrere) {

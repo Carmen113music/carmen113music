@@ -139,6 +139,22 @@ public final class Ui {
         return t.esBateria() ? Icona.BATERIA : t.esSinte() ? Icona.SINTE : t.esPoli() ? Icona.POLI : t.esTeremin() ? Icona.TEREMIN : t.esMidi() ? Icona.MIDI : t.veu ? Icona.MIC : Icona.GUITARRA;
     }
 
+    /** La icona d'un motor de so (2.38). */
+    public static int iconaMotor(int motor) {
+        switch (motor) {
+            case Sinte.FM:
+                return Icona.FM;
+            case Sinte.WAVETABLE:
+                return Icona.ONA;
+            case Sinte.ORGUE:
+                return Icona.ORGUE;
+            case Sinte.CORDA:
+                return Icona.CORDA;
+            default:
+                return Icona.POLI;
+        }
+    }
+
     public static int alfa(int color, int alfa) {
         return (color & 0x00FFFFFF) | (alfa << 24);
     }

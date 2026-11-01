@@ -964,13 +964,46 @@ public class ProjecteActivity extends Activity {
             creaBateria();
             if (despres != null) despres.run();
         }));
-        ops.add(new Full.Accio(Icona.SINTE, "Sinte", false, () -> triaPresetNou(despres)));
-        ops.add(new Full.Accio(Icona.POLI, "Poli", false, () -> triaPresetPoli(despres)));
+        ops.add(new Full.Accio(Icona.POLI, "Sintes  \u25b8", false, () -> triaSintes(despres)));
         ops.add(new Full.Accio(Icona.MIDI, "MIDI", false, () -> triaInstrumentNou(despres)));
         ops.add(new Full.Accio(Icona.TEREMIN, "Teremin", false, () -> triaPresetTeremin(despres)));
         Full.llista(this, "Pista nova", "Àudio: per gravar-hi guitarra o veu. Bateria: un ritme fet amb el drumpad i els teus kits. "
-                + "Sinte: baixos i melodies amb el piano roll. Poli: sinte polifònic per a pads, tecles i acords (50 sons). MIDI: 128 instruments (piano, cordes…), amb acords. "
+                + "Sintes: analògics, FM, wavetable, orgue i corda pinçada. MIDI: 128 instruments (piano, cordes…), amb acords. "
                 + "Teremin: es toca en directe lliscant el dit.", ops);
+    }
+
+    /** «Pista nova → Sintes»: un motor de so per família de sintes (2.38). «<» torna als tipus de pista. */
+    private void triaSintes(Runnable despres) {
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.SINTE, "Analògic mono · baixos i melodies", false, () -> triaPresetNou(despres)));
+        ops.add(new Full.Accio(Icona.POLI, "Analògic poli · pads, tecles, acords", false, () -> triaPresetPoli(despres, true)));
+        ops.add(new Full.Accio(Icona.FM, "FM · pianos elèctrics, campanes, baixos", false, () -> triaPresetMotor(Sinte.FM, despres)));
+        ops.add(new Full.Accio(Icona.ONA, "Wavetable · moderns, dubstep, pads que es mouen", false, () -> triaPresetMotor(Sinte.WAVETABLE, despres)));
+        ops.add(new Full.Accio(Icona.ORGUE, "Orgue de tirants · jazz, rock, gospel", false, () -> triaPresetMotor(Sinte.ORGUE, despres)));
+        ops.add(new Full.Accio(Icona.CORDA, "Corda pinçada · guitarres, arpa, koto", false, () -> triaPresetMotor(Sinte.CORDA, despres)));
+        Full.llista(this, "Sintes", "Cada un té el seu motor i el seu editor de so. Tots són polifònics menys l'analògic mono, "
+                + "i es toquen igual: piano roll, teclat i acords.", ops, () -> afegeixPista(despres));
+    }
+
+    /** Els sons de fàbrica d'un motor nou (i els teus d'aquest motor). */
+    private void triaPresetMotor(int motor, Runnable despres) {
+        List<Full.Accio> ops = new ArrayList<>();
+        int ic = Ui.iconaMotor(motor);
+        for (Sinte.Preset p : Poli.deFamilia(Poli.familiaDeMotor(motor))) {
+            ops.add(new Full.Accio(ic, p.nom, false, () -> {
+                creaSinte(p, true);
+                if (despres != null) despres.run();
+            }));
+        }
+        for (Sinte.Preset p : SonsPropis.llista(Ui.dirSons(this), true)) {
+            if (p.so.motor != motor) continue;
+            ops.add(new Full.Accio(ic, p.nom + "  · meu", false, () -> {
+                creaSinte(p, true);
+                if (despres != null) despres.run();
+            }));
+        }
+        Full.llista(this, Sinte.NOMS_MOTOR[motor], "Al piano roll el pots canviar escoltant-lo, i retocar-lo a l'editor de so («So»).",
+                ops, () -> triaSintes(despres));
     }
 
     private void afegeixPistaAudio() {
@@ -1165,8 +1198,8 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, "So del sinte", "Els baixos s'obren a les notes greus i els leads a les agudes. "
-                + "Al piano roll el pots canviar escoltant-los.", ops);
+        Full.llista(this, "Analògic mono", "Els baixos s'obren a les notes greus i els leads a les agudes. "
+                + "Al piano roll el pots canviar escoltant-los.", ops, () -> triaSintes(despres));
     }
 
     /** Crea una pista de sinte buida (amb una primera frase buida a punt per a la primera finestra). */
@@ -1198,12 +1231,13 @@ public class ProjecteActivity extends Activity {
         textInfo.setText("Mantén premut a la fila del sinte per posar-hi una frase");
     }
 
-    /** «Pista nova → Poli»: primer la família (pads, tecles…) i després el so. */
-    private void triaPresetPoli(Runnable despres) {
+    /** «Pista nova → Poli»: primer la família (pads, tecles…) i després el so. {@code analogic}: només les famílies analògiques. */
+    private void triaPresetPoli(Runnable despres, boolean analogic) {
         List<Full.Accio> ops = new ArrayList<>();
-        int families = Poli.FAMILIES.length + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
+        int nf0 = analogic ? Poli.FAMILIES_ANALOGIQUES : Poli.FAMILIES.length;
+        int families = nf0 + (SonsPropis.llista(Ui.dirSons(this), true).isEmpty() ? 0 : 1);
         for (int f = 0; f < families; f++) {
-            int ff = f < Poli.FAMILIES.length ? f : -1;
+            int ff = f < nf0 ? f : -1;
             String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
             ops.add(new Full.Accio(Icona.POLI, nf, false, () -> {
                 List<Full.Accio> sons = new ArrayList<>();
@@ -1214,10 +1248,11 @@ public class ProjecteActivity extends Activity {
                     }));
                 }
                 Full.llista(this, nf, "Al piano roll el pots canviar escoltant-los.", sons,
-                        () -> triaPresetPoli(despres));   // «<»: torna a les famílies
+                        () -> triaPresetPoli(despres, analogic));   // «<»: torna a les famílies
             }));
         }
-        Full.llista(this, "Sinte polifònic", "Pots tocar acords. Tria una família.", ops);
+        Full.llista(this, analogic ? "Analògic poli" : "Sinte polifònic", "Pots tocar acords. Tria una família.", ops,
+                analogic ? () -> triaSintes(despres) : null);
     }
 
     /**
@@ -2458,7 +2493,7 @@ public class ProjecteActivity extends Activity {
         for (int f = 0; f < families; f++) {
             int ff = f < Poli.FAMILIES.length ? f : -1;
             String nf = ff < 0 ? "Els meus sons" : Poli.FAMILIES[ff];
-            ops.add(new Full.Accio(Icona.POLI, nf + (ff >= 0 && ff == actual ? "  (ara)" : ""), false, () -> {
+            ops.add(new Full.Accio(Ui.iconaMotor(ff < 0 ? Sinte.ANALOGIC : Poli.motorDeFamilia(ff)), nf + (ff >= 0 && ff == actual ? "  (ara)" : ""), false, () -> {
                 List<Sinte.Preset> ps = ff < 0 ? SonsPropis.llista(Ui.dirSons(this), true) : Poli.deFamilia(ff);
                 String[] noms = new String[ps.size()];
                 Melodia ara = soDeLaPista(t);

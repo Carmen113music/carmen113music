@@ -159,6 +159,16 @@ El primer cop l'app demana permís de micròfon.
 - **Canviar el so**: al piano roll (botó del so) o tocant el nom de la pista al panell del teclat: família → so (cada un sona en tocar-lo amb un arpegi i un acord). S'aplica a tota la pista.
 - **Editor de so**: igual que al sinte (vegeu «Editor de so» més avall).
 
+### Sintes per famílies (2.38)
+- **+ Pista nova → Sintes ▸**: **Analògic mono** (baixos i melodies), **Analògic poli** (els 50 sons de sempre), **FM**, **Wavetable**, **Orgue de tirants** i **Corda pinçada**. «<» torna enrere. Tots fan servir el mateix sistema: piano roll, teclat, acords, gravar, assajar, desfer i «Els meus sons».
+- Cada motor té el seu **editor de so** (botó **So** del piano roll o del panell del teclat), amb el seu aspecte i la seva peça pròpia:
+  - **Analògic (RIFFS A-80)**: faders en lloc de botons rodons. Nou: **chorus I / II / I+II** (com el del Juno) i **filtre passa-alts** de 4 posicions.
+  - **FM (RIFFS FM-4)**: 4 operadors i 8 **algorismes** (toca el diagrama per canviar-lo; a l'esquerra, l'anterior). Cada operador: ràtio, fi, desafinació, nivell i envolupant. Realimentació i «força» (com la força de la nota obre el so). 14 sons: pianos elèctrics, campanes, baixos, marimba, metalls, clavinet…
+  - **Wavetable (RIFFS ONA)**: 8 **taules d'ones** que es transformen (bàsica, pols, sync, harmònics, vocal, metall, plegada, escombrada). Arrossega el dibuix per moure la posició; toca'l per canviar de taula. La posició es pot moure amb l'envolupant 2 i el LFO. Unison, oscil·lador B, filtre. 12 sons: reese, growl, wobble, pads que evolucionen…
+  - **Orgue (RIFFS TIRANTS)**: **9 tirants** (estira'ls amunt o avall, de 0 a 8), percussió (2a o 3a), clic de les tecles, drive i **Leslie** (lent / ràpid, accelera i frena a poc a poc). 10 sons: jazz, rock, gospel, església, reggae…
+  - **Corda pinçada (RIFFS CORDA)**: una corda de debò calculada (Karplus-Strong). Arrossega el dibuix per triar on es pinça; toca'l per canviar com es toca (**púa, dit, martell, arc**). Brillantor, durada, com s'apaguen els aguts i ressonància de la caixa. 12 sons: guitarres, baix, arpa, koto, clavecí, banjo, corda fregada…
+- Totes aquestes pistes són polifòniques (fins a 10 notes) i de color taronja, com el Poli.
+
 ### Pistes de teremin
 - **+ Pista nova → Teremin** i tria un so: *clàssic*, *de pel·lícula*, *de vidre*, *veu*, *violoncel* o *sirena*. La pista és **rosa**, amb la icona d'una antena, i ja surt amb el **botó de gravar encès**.
 - El teremin **no es dibuixa**: es toca. **Mantén premut el play**: sona el projecte des d'un compàs abans (amb el compte i el clic) i als dos terços de baix surt una **quadrícula amb un punt al mig**:
@@ -209,6 +219,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.38** (01/11/2026) — **Sintes per famílies**: «+ Pista nova → Sintes ▸» amb motors nous **FM** (4 operadors, 8 algorismes), **Wavetable** (8 taules), **Orgue de tirants** (9 tirants, percussió, Leslie) i **Corda pinçada** (Karplus-Strong), amb 48 sons nous. L'analògic guanya el chorus I/II del Juno i el passa-alts. **Cada sinte té el seu editor de so**, amb aspecte propi i una peça pròpia (algorisme, taula d'ones, tirants, corda); l'analògic té faders. Els sons analògics d'abans sonen exactament igual.
 - **2.37** (01/11/2026) — **Taula de so estil Cubase**: fader amb tapa blava i escala de dB, vúmetre amb escala, M i S grocs, caselles del valor i del pic, nom a baix. **Efectes d'inserció per pista**: filtre de greus, EQ de 3 bandes, compressor, delay a tempo i reverb, en un panell des de baix (des de la franja «Insercions» de la taula o des de les opcions de la pista); se senten mentre sona.
 - **2.36** (01/11/2026) — **Bucle a l'Estudi**: mantenir premuda la regla i arrossegar marca els compassos del bucle; el play els repeteix; mantenir premut a dins l'apaga o l'encén. **Es treu la conversió de clips a notes i a bateria a l'Estudi** (2.34–2.35.1: no acabava de funcionar); la detecció de notes, acords i tonalitat a la fitxa de les gravacions es queda (amb la detecció de notes millorada de la 2.34).
 - **2.35.1** (01/11/2026) — Bateria amb la veu: el grup de sons més greu és sempre el bombo, i una caixa brillant ja no es confon amb el hihat (en Roger: els bombos sortien com a caixa i les caixes com a hihat). Al panell, els grups de so trobats amb un botó per escoltar-ne un cop i un selector Bombo / Caixa / Hihat / Res que es recorda.

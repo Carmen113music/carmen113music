@@ -150,7 +150,20 @@ public final class Poli {
 
     // ---------- Sons de fàbrica ----------
 
-    public static final String[] FAMILIES = {"Pads", "Cordes i cors", "Tecles", "Metalls i stabs", "Plucks i arpegis", "Moderns"};
+    public static final String[] FAMILIES = {"Pads", "Cordes i cors", "Tecles", "Metalls i stabs", "Plucks i arpegis", "Moderns",
+            "FM", "Wavetable", "Orgue", "Corda pinçada"};
+    /** Les primeres famílies són del motor analògic; les següents, una per motor nou (2.38). */
+    public static final int FAMILIES_ANALOGIQUES = 6;
+
+    /** El motor dels sons d'una família. */
+    public static int motorDeFamilia(int f) {
+        return f < FAMILIES_ANALOGIQUES ? Sinte.ANALOGIC : f - FAMILIES_ANALOGIQUES + 1;
+    }
+
+    /** La família d'un motor nou (per a l'analògic, −1: en té sis). */
+    public static int familiaDeMotor(int motor) {
+        return motor == Sinte.ANALOGIC ? -1 : FAMILIES_ANALOGIQUES + motor - 1;
+    }
 
     /** Un so de fàbrica amb la seva família (índex de {@link #FAMILIES}). */
     public static final class Preset {
@@ -209,6 +222,308 @@ public final class Poli {
         Sinte.So o = base();
         c.accept(o);
         LLISTA.add(new Preset(new Sinte.Preset(nom, false, o), familia));
+    }
+
+    /** Un so d'un motor nou (2.38); {@code greu} = per a baixos. */
+    private static void pm(int motor, String nom, boolean greu, Consumer<Sinte.So> c) {
+        Sinte.So o = base();
+        o.motor = motor;
+        switch (motor) {
+            case Sinte.FM:
+                o.fmForca = 0.6;
+                break;
+            case Sinte.ORGUE:
+                o.a = 4;
+                o.r = 40;
+                o.s = 1;
+                o.leslie = 1;
+                break;
+            case Sinte.CORDA:
+                o.a = 0;
+                o.s = 1;
+                o.r = 250;
+                o.tallHz = 18000;
+                o.resso = 0;
+                o.seguiment = 0;
+                break;
+            default:
+                break;
+        }
+        c.accept(o);
+        LLISTA.add(new Preset(new Sinte.Preset(nom, greu, o), familiaDeMotor(motor)));
+    }
+
+    /** Un operador FM ({@code i} = 1 a 4). */
+    private static void op(Sinte.So o, int i, double ratio, double fi, double desafina, double nivell,
+                           double a, double d, double s, double r) {
+        int k = i - 1;
+        o.fmRatio[k] = ratio;
+        o.fmFi[k] = fi;
+        o.fmDesafina[k] = desafina;
+        o.fmNivell[k] = nivell;
+        o.fmA[k] = a;
+        o.fmD[k] = d;
+        o.fmS[k] = s;
+        o.fmR[k] = r;
+    }
+
+    private static void tirants(Sinte.So o, String t) {
+        for (int i = 0; i < 9; i++) o.tirants[i] = t.charAt(i) - '0';
+    }
+
+    private static final int FM = Sinte.FM, WT = Sinte.WAVETABLE, ORG = Sinte.ORGUE, KS = Sinte.CORDA;
+
+    private static void motorsNous() {
+        // ----- FM (4 operadors) -----
+        pm(FM, "Piano elèctric FM", false, o -> {   // parella 2→1 (el cos) i 4→3 (el «ting» de la llengüeta)
+            o.fmAlg = 5; o.fmForca = 0.8;
+            op(o, 1, 1, 0, 0, 0.9, 2, 2600, 0.25, 500);
+            op(o, 2, 1, 0, 0, 0.5, 2, 1400, 0.12, 500);
+            op(o, 3, 1, 0, 4, 0.5, 2, 900, 0, 300);
+            op(o, 4, 14, 0, 0, 0.42, 1, 90, 0, 100);
+            o.chorus = 0.35; o.chorusHz = 1.0; o.reverb = 0.2; o.volumDb = 1;
+        });
+        pm(FM, "Piano elèctric dels 80", false, o -> {
+            o.fmAlg = 5; o.fmForca = 0.85;
+            op(o, 1, 1, 0, -3, 0.85, 1, 3000, 0.3, 600);
+            op(o, 2, 1, 0, 0, 0.66, 1, 1800, 0.2, 600);
+            op(o, 3, 1, 0, 3, 0.55, 1, 1200, 0.1, 400);
+            op(o, 4, 14, 0, 0, 0.55, 1, 120, 0, 120);
+            o.chorusMode = 1; o.reverb = 0.25; o.volumDb = 0;
+        });
+        pm(FM, "Baix FM", true, o -> {
+            o.fmAlg = 3; o.fmRealim = 0.55;
+            op(o, 1, 1, 0, 0, 0.95, 1, 1200, 0.7, 120);
+            op(o, 2, 1, 0, 0, 0.6, 1, 350, 0.25, 120);
+            op(o, 3, 1, 0, 0, 0, 1, 300, 0, 100);
+            op(o, 4, 1, 0, 0, 0.35, 1, 200, 0.1, 100);
+            o.volumDb = 0;
+        });
+        pm(FM, "Baix metàl·lic", true, o -> {
+            o.fmAlg = 5; o.fmRealim = 0.3;
+            op(o, 1, 0.5, 0, 0, 0.9, 1, 900, 0.6, 120);
+            op(o, 2, 1, 0, 0, 0.65, 1, 250, 0.2, 120);
+            op(o, 3, 1, 0, 0, 0.4, 1, 400, 0.3, 120);
+            op(o, 4, 3, 0, 0, 0.45, 1, 150, 0, 100);
+            o.volumDb = -1;
+        });
+        pm(FM, "Campanes tubulars", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 1, 0, 0, 0.8, 1, 6000, 0, 4000);
+            op(o, 2, 3, 0.5, 0, 0.55, 1, 4000, 0, 3000);
+            op(o, 3, 2, 0, 2, 0.45, 1, 3000, 0, 2500);
+            op(o, 4, 5, 0.41, 0, 0.4, 1, 1500, 0, 1500);
+            o.reverb = 0.45; o.reverbMida = 0.8; o.volumDb = -1.5;
+        });
+        pm(FM, "Campanetes FM", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 2, 0, 0, 0.8, 1, 2500, 0, 2000);
+            op(o, 2, 1, 0.41, 0, 0.5, 1, 1200, 0, 1200);
+            op(o, 3, 4, 0, 0, 0.3, 1, 1500, 0, 1500);
+            op(o, 4, 2, 0.82, 0, 0.35, 1, 800, 0, 800);
+            o.delay = 0.25; o.delayTemps = 0.75; o.reverb = 0.4; o.volumDb = 1;
+        });
+        pm(FM, "Marimba FM", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 1, 0, 0, 0.9, 1, 450, 0, 300);
+            op(o, 2, 4, 0, 0, 0.45, 1, 60, 0, 60);
+            op(o, 3, 4, 0, 0, 0.18, 1, 120, 0, 100);
+            op(o, 4, 10, 0, 0, 0.2, 1, 30, 0, 30);
+            o.reverb = 0.25; o.volumDb = 2;
+        });
+        pm(FM, "Orgue FM", false, o -> {
+            o.fmAlg = 8; o.fmRealim = 0.15; o.fmForca = 0;
+            op(o, 1, 0.5, 0, 0, 0.7, 3, 100, 1, 60);
+            op(o, 2, 1, 0, 0, 0.8, 3, 100, 1, 60);
+            op(o, 3, 2, 0, 0, 0.5, 3, 100, 1, 60);
+            op(o, 4, 3, 0, 0, 0.35, 3, 100, 1, 60);
+            o.chorus = 0.4; o.chorusHz = 5.5; o.reverb = 0.2; o.volumDb = -2;
+        });
+        pm(FM, "Metalls FM", false, o -> {
+            o.fmAlg = 3; o.fmRealim = 0.45;
+            op(o, 1, 1, 0, 0, 0.85, 40, 600, 0.85, 200);
+            op(o, 2, 1, 0, 0, 0.65, 90, 500, 0.5, 200);
+            op(o, 3, 1, 0, 0, 0, 1, 100, 0, 100);
+            op(o, 4, 1, 0, 0, 0.3, 60, 400, 0.3, 200);
+            o.lfoHz = 5; o.lfoTo = 6; o.lfoRetardMs = 400; o.reverb = 0.25; o.volumDb = -1;
+        });
+        pm(FM, "Clavinet FM", false, o -> {
+            o.fmAlg = 5; o.fmForca = 0.8;
+            op(o, 1, 1, 0, 0, 0.8, 1, 700, 0.3, 60);
+            op(o, 2, 3, 0, 0, 0.55, 1, 200, 0.2, 60);
+            op(o, 3, 1, 0, 5, 0.35, 1, 400, 0.2, 60);
+            op(o, 4, 5, 0, 0, 0.3, 1, 100, 0, 60);
+            o.volumDb = -1;
+        });
+        pm(FM, "Vidre FM", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 1, 0, 0, 0.6, 400, 3000, 0.8, 1500);
+            op(o, 2, 1, 0, 0, 0.3, 300, 2000, 0.5, 1500);
+            op(o, 3, 2, 0, 5, 0.4, 300, 3000, 0.7, 1500);
+            op(o, 4, 7, 0, 0, 0.22, 200, 2000, 0.3, 1200);
+            o.chorus = 0.5; o.reverb = 0.5; o.reverbMida = 0.8; o.volumDb = 2;
+        });
+        pm(FM, "Arpa FM", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 1, 0, 0, 0.85, 1, 2500, 0, 1200);
+            op(o, 2, 2, 0, 0, 0.35, 1, 300, 0, 300);
+            op(o, 3, 1, 0, 3, 0.4, 1, 1500, 0, 1000);
+            op(o, 4, 1, 0, 0, 0.25, 1, 200, 0, 200);
+            o.reverb = 0.35; o.reverbMida = 0.7; o.volumDb = 2;
+        });
+        pm(FM, "Kalimba FM", false, o -> {
+            o.fmAlg = 5;
+            op(o, 1, 1, 0, 0, 0.9, 1, 700, 0, 500);
+            op(o, 2, 5, 0, 0, 0.4, 1, 40, 0, 40);
+            op(o, 3, 6, 0, 0, 0.12, 1, 250, 0, 200);
+            op(o, 4, 1, 0, 0, 0, 1, 100, 0, 100);
+            o.reverb = 0.3; o.volumDb = 2;
+        });
+        pm(FM, "Pluck FM", false, o -> {
+            o.fmAlg = 1; o.fmRealim = 0.7;
+            op(o, 1, 1, 0, 0, 0.9, 1, 800, 0.1, 300);
+            op(o, 2, 2, 0, 0, 0.4, 1, 300, 0.1, 200);
+            op(o, 3, 1, 0, 0, 0.5, 1, 200, 0, 200);
+            op(o, 4, 1, 0, 0, 0.3, 1, 150, 0, 150);
+            o.delay = 0.3; o.delayTemps = 0.75; o.reverb = 0.25; o.volumDb = 0;
+        });
+
+        // ----- Wavetable -----
+        pm(WT, "Reese", true, o -> {
+            o.wtTaula = 0; o.wtPos = 0.667; o.unison = 4; o.desafina = 22;
+            o.tallHz = 700; o.resso = 0.15; o.envFiltre = 0.5; o.lfoHz = 0.25; o.lfoFiltre = 0.4;
+            o.a = 2; o.d = 500; o.s = 0.9; o.r = 150; o.distorsio = 0.2; o.volumDb = -2;
+        });
+        pm(WT, "Growl", true, o -> {
+            o.wtTaula = 7; o.wtPos = 0.3; o.wtLfo = 0.7; o.lfoHz = 2.5; o.unison = 2; o.desafina = 15;
+            o.tallHz = 3000; o.resso = 0.25; o.sub = 0.3; o.distorsio = 0.5;
+            o.a = 2; o.d = 400; o.s = 0.9; o.r = 120; o.volumDb = -3;
+        });
+        pm(WT, "Wobble", true, o -> {
+            o.wtTaula = 7; o.wtPos = 0.1; o.wtLfo = 1; o.lfoHz = 3; o.unison = 2; o.desafina = 10;
+            o.tallHz = 2000; o.resso = 0.3; o.lfoFiltre = 0.8; o.sub = 0.4; o.distorsio = 0.35;
+            o.a = 2; o.d = 400; o.s = 0.9; o.r = 120; o.volumDb = -3;
+        });
+        pm(WT, "Baix plegat", true, o -> {
+            o.wtTaula = 6; o.wtPos = 0.1; o.wtEnv = 0.6; o.fa = 1; o.fd = 250; o.fs = 0.1;
+            o.tallHz = 4000; o.sub = 0.35; o.a = 1; o.d = 400; o.s = 0.85; o.r = 100; o.volumDb = -2;
+        });
+        pm(WT, "Pad evolutiu", false, o -> {
+            o.wtTaula = 3; o.wtPos = 0.05; o.wtEnv = 0.7; o.fa = 3500; o.fd = 3000; o.fs = 0.6; o.fr = 2000;
+            o.unison = 3; o.desafina = 14; o.tallHz = 3500;
+            o.a = 900; o.d = 1500; o.s = 0.9; o.r = 2000; o.chorus = 0.4; o.reverb = 0.5; o.reverbMida = 0.8; o.volumDb = -1;
+        });
+        pm(WT, "Pad vocal", false, o -> {
+            o.wtTaula = 4; o.wtPos = 0.2; o.wtLfo = 0.8; o.lfoHz = 0.15; o.unison = 2; o.desafina = 10;
+            o.tallHz = 3000; o.a = 700; o.d = 1000; o.s = 0.9; o.r = 1500; o.chorus = 0.3; o.reverb = 0.45; o.volumDb = 0;
+        });
+        pm(WT, "Lead sync", false, o -> {
+            o.wtTaula = 2; o.wtPos = 0.2; o.wtEnv = 0.6; o.fa = 1; o.fd = 600; o.fs = 0.3; o.glideMs = 40;
+            o.unison = 2; o.desafina = 12; o.tallHz = 6000; o.resso = 0.1;
+            o.a = 2; o.d = 400; o.s = 0.85; o.r = 150; o.delay = 0.25; o.reverb = 0.2; o.volumDb = -2;
+        });
+        pm(WT, "Supersaw digital", false, o -> {
+            o.wtTaula = 0; o.wtPos = 0.667; o.unison = 7; o.desafina = 38; o.ona2 = SE; o.semitons2 = 12; o.mescla2 = 0.3;
+            o.tallHz = 6000; o.a = 5; o.d = 500; o.s = 0.85; o.r = 400; o.chorus = 0.2; o.reverb = 0.35; o.volumDb = -2;
+        });
+        pm(WT, "Pluck metàl·lic", false, o -> {
+            o.wtTaula = 5; o.wtPos = 0.05; o.wtEnv = 0.8; o.fa = 1; o.fd = 220; o.fs = 0;
+            o.tallHz = 8000; o.a = 1; o.d = 500; o.s = 0; o.r = 300; o.delay = 0.3; o.reverb = 0.3; o.volumDb = 0;
+        });
+        pm(WT, "Pols que canvia", false, o -> {
+            o.wtTaula = 1; o.wtPos = 0.3; o.wtLfo = 0.5; o.lfoHz = 0.6; o.unison = 2; o.desafina = 8;
+            o.tallHz = 2500; o.resso = 0.2; o.a = 5; o.d = 600; o.s = 0.8; o.r = 400; o.chorus = 0.5; o.volumDb = -3;
+        });
+        pm(WT, "Campanes digitals", false, o -> {
+            o.wtTaula = 5; o.wtPos = 0.25; o.wtEnv = 0.6; o.fa = 1; o.fd = 900; o.fs = 0;
+            o.tallHz = 12000; o.a = 1; o.d = 1800; o.s = 0; o.r = 1500; o.delay = 0.2; o.reverb = 0.5; o.volumDb = 0;
+        });
+        pm(WT, "Vocal robot", false, o -> {
+            o.wtTaula = 4; o.wtPos = 0; o.wtEnv = 1; o.fa = 300; o.fd = 800; o.fs = 0.5; o.glideMs = 30;
+            o.tallHz = 5000; o.a = 5; o.d = 300; o.s = 0.9; o.r = 150; o.volumDb = -1;
+        });
+
+        // ----- Orgue de tirants -----
+        pm(ORG, "Orgue jazz", false, o -> {
+            tirants(o, "888000000"); o.orgPerc = 2; o.orgPercNivell = 0.6; o.orgPercMs = 250; o.orgClic = 0.35;
+            o.distorsio = 0.05; o.reverb = 0.15;
+        });
+        pm(ORG, "Orgue rock", false, o -> {
+            tirants(o, "888000000"); o.orgClic = 0.4; o.distorsio = 0.45; o.leslie = 2; o.reverb = 0.15; o.volumDb = -2;
+        });
+        pm(ORG, "Orgue gospel", false, o -> {
+            tirants(o, "888888888"); o.orgClic = 0.3; o.leslie = 2; o.reverb = 0.25; o.volumDb = -1;
+        });
+        pm(ORG, "Orgue suau", false, o -> {
+            tirants(o, "008400000"); o.orgClic = 0.1; o.reverb = 0.2;
+        });
+        pm(ORG, "Orgue de balada", false, o -> {
+            tirants(o, "838000000"); o.orgClic = 0.2; o.reverb = 0.25;
+        });
+        pm(ORG, "Orgue amb percussió", false, o -> {
+            tirants(o, "886000000"); o.orgPerc = 1; o.orgPercNivell = 0.7; o.orgPercMs = 200; o.orgClic = 0.3; o.reverb = 0.15;
+        });
+        pm(ORG, "Orgue d'església", false, o -> {
+            tirants(o, "888888888"); o.leslie = 0; o.orgClic = 0.05; o.a = 30; o.r = 400;
+            o.reverb = 0.6; o.reverbMida = 0.95; o.volumDb = -3;
+        });
+        pm(ORG, "Orgue reggae", false, o -> {
+            tirants(o, "008800000"); o.leslie = 0; o.orgClic = 0.5; o.a = 3; o.r = 20;
+        });
+        pm(ORG, "Orgue progressiu", false, o -> {
+            tirants(o, "888600000"); o.orgClic = 0.35; o.distorsio = 0.55; o.reverb = 0.2; o.volumDb = -3;
+        });
+        pm(ORG, "Orgue de cinema", false, o -> {
+            tirants(o, "808808008"); o.leslie = 0; o.orgClic = 0.1; o.lfoHz = 6.5; o.lfoTo = 15;
+            o.chorus = 0.5; o.reverb = 0.4; o.volumDb = -1;
+        });
+
+        // ----- Corda pinçada (Karplus-Strong) -----
+        pm(KS, "Guitarra acústica", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 0.6; o.ksPosicio = 0.18; o.ksDurada = 4; o.ksAmortit = 0.45; o.ksCos = 0.6;
+            o.r = 300; o.reverb = 0.15; o.volumDb = 2;
+        });
+        pm(KS, "Guitarra de niló", false, o -> {
+            o.ksTipus = 1; o.ksBrillant = 0.4; o.ksPosicio = 0.24; o.ksDurada = 3.2; o.ksAmortit = 0.55; o.ksCos = 0.7;
+            o.r = 300; o.reverb = 0.2;
+        });
+        pm(KS, "Guitarra elèctrica neta", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 0.55; o.ksPosicio = 0.14; o.ksDurada = 5; o.ksAmortit = 0.5;
+            o.r = 250; o.chorus = 0.3; o.reverb = 0.2; o.volumDb = 2;
+        });
+        pm(KS, "Guitarra distorsionada", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 0.6; o.ksPosicio = 0.15; o.ksDurada = 6; o.ksAmortit = 0.55;
+            o.distorsio = 0.7; o.tallHz = 4500; o.r = 200; o.reverb = 0.15; o.volumDb = -4;
+        });
+        pm(KS, "Baix pinçat", true, o -> {
+            o.ksTipus = 1; o.ksBrillant = 0.35; o.ksPosicio = 0.2; o.ksDurada = 2.8; o.ksAmortit = 0.65; o.ksCos = 0.3; o.r = 150;
+        });
+        pm(KS, "Arpa", false, o -> {
+            o.ksTipus = 1; o.ksBrillant = 0.55; o.ksPosicio = 0.32; o.ksDurada = 6; o.ksAmortit = 0.35; o.ksCos = 0.3;
+            o.r = 1200; o.reverb = 0.4; o.reverbMida = 0.7;
+        });
+        pm(KS, "Koto", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 0.85; o.ksPosicio = 0.1; o.ksDurada = 2.5; o.ksAmortit = 0.3; o.ksCos = 0.2; o.reverb = 0.3; o.volumDb = 3;
+        });
+        pm(KS, "Clavecí de corda", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 1; o.ksPosicio = 0.07; o.ksDurada = 2.2; o.ksAmortit = 0.15; o.ksCos = 0.25;
+            o.r = 200; o.reverb = 0.25; o.volumDb = 4;
+        });
+        pm(KS, "Címbal", false, o -> {
+            o.ksTipus = 2; o.ksBrillant = 0.7; o.ksPosicio = 0.12; o.ksDurada = 5; o.ksAmortit = 0.25; o.ksCos = 0.2;
+            o.r = 1500; o.reverb = 0.3;
+        });
+        pm(KS, "Banjo", false, o -> {
+            o.ksTipus = 0; o.ksBrillant = 0.9; o.ksPosicio = 0.06; o.ksDurada = 1.5; o.ksAmortit = 0.3; o.ksCos = 0.45; o.r = 150; o.volumDb = 4;
+        });
+        pm(KS, "Pizzicato de corda", false, o -> {
+            o.ksTipus = 1; o.ksBrillant = 0.45; o.ksPosicio = 0.22; o.ksDurada = 0.8; o.ksAmortit = 0.6; o.ksCos = 0.6;
+            o.r = 120; o.reverb = 0.3;
+        });
+        pm(KS, "Corda fregada", false, o -> {
+            o.ksTipus = 3; o.ksBrillant = 0.5; o.ksPosicio = 0.12; o.ksDurada = 10; o.ksAmortit = 0.5; o.ksCos = 0.5;
+            o.a = 120; o.r = 300; o.lfoHz = 5.5; o.lfoTo = 12; o.lfoRetardMs = 300; o.reverb = 0.35; o.volumDb = 6;
+        });
     }
 
     private static final int SE = Sinte.SERRA, QU = Sinte.QUADRADA, TR = Sinte.TRIANGLE, SI = Sinte.SINUS;
@@ -479,6 +794,7 @@ public final class Poli {
             o.tallHz = 6000; o.a = 200; o.d = 1500; o.s = 0.7; o.r = 2000;
             o.delay = 0.35; o.delayTemps = 0.75; o.delayRepeticio = 0.55; o.reverb = 0.7; o.reverbMida = 1; o.volumDb = -1;
         });
+        motorsNous();
         return LLISTA.toArray(new Preset[0]);
     }
 }

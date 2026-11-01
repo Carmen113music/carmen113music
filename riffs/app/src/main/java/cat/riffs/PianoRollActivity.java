@@ -365,7 +365,7 @@ public class PianoRollActivity extends Activity {
         int actual = Poli.familiaDe(SonsPropis.base(melodia.preset));
         for (int f = 0; f < Poli.FAMILIES.length; f++) {
             int ff = f;
-            ops.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(ff)));
+            ops.add(new Full.Accio(Ui.iconaMotor(Poli.motorDeFamilia(f)), Poli.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(ff)));
         }
         if (!SonsPropis.llista(Ui.dirSons(this), true).isEmpty()) {
             boolean meu = SonsPropis.troba(Ui.dirSons(this), true, SonsPropis.base(melodia.preset)) != null;
