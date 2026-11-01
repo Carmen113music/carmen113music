@@ -243,11 +243,15 @@ public class PotView extends View {
             case MotionEvent.ACTION_MOVE: {
                 float dy = yInici - ev.getY(), dx = ev.getX() - xInici;
                 if (!mou) {
-                    if (Math.abs(dx) > 6 * d && Math.abs(dx) > Math.abs(dy)) {
+                    // 2.38.2: de costat = desplaçar el panell; amunt o avall (clarament) = girar el botó
+                    if (cedit) return false;
+                    float ax = Math.abs(dx), ay = Math.abs(dy);
+                    if (ax > 6 * d && ax > ay) {
                         cedit = true;   // és un desplaçament del panell
                         return false;
                     }
-                    if (Math.abs(dy) < 3 * d || param.tipus == SoParams.ONA) return true;
+                    if (param.tipus == SoParams.ONA) return true;
+                    if (ay < 6 * d || ay < ax * 1.5f) return true;   // encara no està clar cap on va
                     getParent().requestDisallowInterceptTouchEvent(true);   // amunt o avall: és el botó
                     yInici = ev.getY();
                     dy = 0;
@@ -283,11 +287,14 @@ public class PotView extends View {
                 if (oient != null) oient.canvi(valor, true);
                 return true;
             }
-            case MotionEvent.ACTION_CANCEL:
+            case MotionEvent.ACTION_CANCEL: {
+                // el panell s'ha endut el dit (desplaçament): només s'avisa si el botó s'havia mogut de debò
+                boolean moguda = mou;
                 mou = false;
                 invalidate();
-                if (oient != null) oient.canvi(valor, true);
+                if (moguda && oient != null) oient.canvi(valor, true);
                 return true;
+            }
             default:
                 return true;
         }

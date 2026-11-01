@@ -1742,7 +1742,7 @@ public class ProjecteActivity extends Activity {
         cap.addView(Ui.espai(this, 8));
         LinearLayout tx = Ui.columna(this);
         tx.addView(Ui.unaLinia(Ui.negreta(this, "Efectes · " + t.nomVisible(), 15, Ui.TEXT)));
-        tx.addView(Ui.cartell(Ui.text(this, "Arrossega els botons amunt o avall · doble toc: valor de partida · "
+        tx.addView(Ui.cartell(Ui.text(this, "Arrossega els botons amunt o avall · llisca de costat per veure els altres efectes · doble toc: valor de partida · "
                 + "es noten mentre sona", 11, Ui.SUAU)));
         cap.addView(tx, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         cap.addView(Ui.espai(this, 8));

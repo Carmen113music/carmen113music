@@ -205,7 +205,7 @@ final class VistesSinte {
 
     // ---------- Wavetable: la taula ----------
 
-    /** Les formes de la taula una darrere l'altra (en perspectiva) i la que sona ara, ressaltada. Arrossegar = posició; tocar = taula següent. */
+    /** Les formes de la taula una darrere l'altra (en perspectiva) i la que sona ara, ressaltada. Amunt/avall = posició; tocar = taula següent. */
     static final class Taula extends Base {
         private final Path cami = new Path();
         private int taulaFeta = -1;
@@ -214,7 +214,7 @@ final class VistesSinte {
 
         Taula(Context c, Supplier<Sinte.So> so, List<SoParams.Param> params, int color, EditorSo.Oient oient) {
             super(c, so, params, color, oient);
-            setContentDescription("Taula d'ones: arrossega per canviar la posició, toca per canviar de taula");
+            setContentDescription("Taula d'ones: arrossega amunt o avall per canviar la posició, toca per canviar de taula");
         }
 
         @Override
@@ -269,20 +269,35 @@ final class VistesSinte {
         public boolean onTouchEvent(MotionEvent ev) {
             switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    getParent().requestDisallowInterceptTouchEvent(true);
+                    // 2.38.2: de costat = desplaçar el panell; amunt o avall = canviar el valor
                     x0 = ev.getX();
+                    y0 = ev.getY();
                     posInici = (float) so.get().wtPos;
                     mou = false;
+                    cedit = false;
                     return true;
                 case MotionEvent.ACTION_MOVE: {
-                    float dx = ev.getX() - x0;
-                    if (!mou && Math.abs(dx) < 4 * d) return true;
-                    mou = true;
-                    posa(1, Math.max(0, Math.min(1, posInici + dx / (getWidth() * 0.9f))), false);
+                    if (cedit) return false;
+                    float dx = ev.getX() - x0, dy = y0 - ev.getY();
+                    if (!mou) {
+                        float ax = Math.abs(dx), ay = Math.abs(dy);
+                        if (ax > 6 * d && ax > ay) {
+                            cedit = true;
+                            return false;
+                        }
+                        if (ay < 6 * d || ay < ax * 1.5f) return true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                        y0 = ev.getY();
+                        dy = 0;
+                        mou = true;
+                    }
+                    posa(1, Math.max(0, Math.min(1, posInici + dy / (150 * d))), false);
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
-                    if (mou) {
+                    if (cedit) {
+                        cedit = false;
+                    } else if (mou) {
                         oient.canvi(true);
                     } else {
                         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
@@ -383,13 +398,15 @@ final class VistesSinte {
                 case MotionEvent.ACTION_MOVE: {
                     float dx = ev.getX() - x0, dy = ev.getY() - y0;
                     if (!decidit) {
-                        if (Math.abs(dx) > 6 * d && Math.abs(dx) > Math.abs(dy)) {
+                        if (cedit) return false;
+                        float ax = Math.abs(dx), ay = Math.abs(dy);
+                        if (ax > 6 * d && ax > ay) {
                             cedit = true;
                             col = -1;
                             invalidate();
                             return false;
                         }
-                        if (Math.abs(dy) < 3 * d) return true;
+                        if (ay < 6 * d || ay < ax * 1.5f) return true;
                         decidit = true;
                         getParent().requestDisallowInterceptTouchEvent(true);
                     }
@@ -407,7 +424,7 @@ final class VistesSinte {
                             // un toc: el tirant va fins on s'ha tocat
                             int v = Math.max(0, Math.min(8, Math.round((ev.getY() - dalt() - 6 * d) / pas())));
                             posa(col, v, true);
-                        } else {
+                        } else if (decidit) {
                             oient.canvi(true);
                         }
                     }
@@ -429,7 +446,7 @@ final class VistesSinte {
 
         Corda(Context c, Supplier<Sinte.So> so, List<SoParams.Param> params, int color, EditorSo.Oient oient) {
             super(c, so, params, color, oient);
-            setContentDescription("Corda: arrossega per triar on es pinça, toca per canviar com es toca");
+            setContentDescription("Corda: arrossega amunt o avall per triar on es pinça, toca per canviar com es toca");
         }
 
         @Override
@@ -473,7 +490,7 @@ final class VistesSinte {
             String tipus = SoParams.NOMS_EXCITACIO[Math.max(0, Math.min(3, o.ksTipus))];
             text(c, tipus.toUpperCase(java.util.Locale.ROOT), 4 * d, 11 * d, 11, color, false);
             text(c, "a " + Math.round(o.ksPosicio * 100) + " % del pont", w - 2 * d, 11 * d, 10, textFort, true);
-            String aj = "toca: com es toca · arrossega: on es pinça";
+            String aj = "toca: com es toca · amunt/avall: on es pinça";
             text(c, aj, w / 2 - measure(aj) / 2, h - 3 * d, 9, textSuau, false);
         }
 
@@ -486,20 +503,35 @@ final class VistesSinte {
         public boolean onTouchEvent(MotionEvent ev) {
             switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    getParent().requestDisallowInterceptTouchEvent(true);
+                    // 2.38.2: de costat = desplaçar el panell; amunt o avall = canviar el valor
                     x0 = ev.getX();
+                    y0 = ev.getY();
                     posInici = (float) so.get().ksPosicio;
                     mou = false;
+                    cedit = false;
                     return true;
                 case MotionEvent.ACTION_MOVE: {
-                    float dx = ev.getX() - x0;
-                    if (!mou && Math.abs(dx) < 4 * d) return true;
-                    mou = true;
-                    posa(0, Math.max(0.03, Math.min(0.5, posInici + dx / (getWidth() - 28 * d))), false);
+                    if (cedit) return false;
+                    float dx = ev.getX() - x0, dy = y0 - ev.getY();
+                    if (!mou) {
+                        float ax = Math.abs(dx), ay = Math.abs(dy);
+                        if (ax > 6 * d && ax > ay) {
+                            cedit = true;
+                            return false;
+                        }
+                        if (ay < 6 * d || ay < ax * 1.5f) return true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                        y0 = ev.getY();
+                        dy = 0;
+                        mou = true;
+                    }
+                    posa(0, Math.max(0.03, Math.min(0.5, posInici + dy / (300 * d))), false);
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
-                    if (mou) {
+                    if (cedit) {
+                        cedit = false;
+                    } else if (mou) {
                         oient.canvi(true);
                     } else {
                         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
