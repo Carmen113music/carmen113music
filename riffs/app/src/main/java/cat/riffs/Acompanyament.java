@@ -72,7 +72,7 @@ public final class Acompanyament {
     public synchronized float[] resta(int n) {
         if (resta == null || resta.length != n) {
             float[] r = new float[n];
-            Mesclador.mescla(projecte, audio, Mesclador.msAMostra(posMs), r, n, null, wav);
+            Mesclador.mescla(projecte, audio, Mesclador.msAMostra(posMs), r, n, null, wav, new java.util.HashMap<>());
             resta = r;
         }
         return resta;

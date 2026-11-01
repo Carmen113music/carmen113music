@@ -36,7 +36,18 @@ public final class Mesclador {
     /** Com l'altra, però sense els clips del so {@code excloure} (el que s'està editant al drumpad o al piano roll). */
     public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n, float[] nivells,
                               String excloure) {
+        mescla(p, audio, inici, sortida, n, nivells, excloure, null);
+    }
+
+    /**
+     * Com l'altra, amb els efectes d'inserció de cada pista (2.37). {@code fx} guarda l'estat dels efectes de cada
+     * pista entre trossos (filtres, cues de reverb i delay); null = sense efectes. Les pistes amb efectes es
+     * barregen a part, passen pels efectes (abans del fader) i després se sumen amb el fader.
+     */
+    public static void mescla(Projecte p, Map<String, short[]> audio, long inici, float[] sortida, int n, float[] nivells,
+                              String excloure, Map<Projecte.Pista, Insercions.Proces> fx) {
         java.util.Arrays.fill(sortida, 0, n, 0f);
+        float[] tmp = null;
         if (nivells != null) java.util.Arrays.fill(nivells, 0f);
         boolean solo = p.hiHaSolo();
         for (int ti = 0; ti < p.pistes.size(); ti++) {
@@ -45,11 +56,19 @@ public final class Mesclador {
             float pic = 0;
             double volum = lineal(t.volumDb);
             if (volum <= 0) continue;
+            boolean ambFx = fx != null && t.fx.actiu();
+            float[] desti = sortida;
+            if (ambFx) {
+                if (tmp == null) tmp = new float[n];
+                else java.util.Arrays.fill(tmp, 0, n, 0f);
+                desti = tmp;
+            }
+            double volClip = ambFx ? 1 : volum;   // amb efectes, el fader va després
             for (Projecte.Clip k : t.clips) {
                 if (excloure != null && excloure.equals(k.wav)) continue;
                 short[] so = audio.get(k.wav);
                 if (so == null) continue;
-                double guany = lineal(k.guanyDb) * volum;
+                double guany = lineal(k.guanyDb) * volClip;
                 if (guany <= 0) continue;
                 long pos = msAMostra(k.posMs);
                 long ini = msAMostra(k.iniciMs);
@@ -66,7 +85,23 @@ public final class Mesclador {
                     if (fIn > 0 && f < ini + fIn) env = (f - ini) / (double) fIn;
                     if (fOut > 0 && f > fi - fOut) env = Math.min(env, (fi - f) / (double) fOut);
                     float v = (float) (so[(int) f] / 32768.0 * guany * env);
-                    sortida[(int) i] += v;
+                    desti[(int) i] += v;
+                    if (v > pic) pic = v;
+                    else if (-v > pic) pic = -v;
+                }
+            }
+            if (ambFx) {
+                Insercions.Proces pr = fx.get(t);
+                if (pr == null) {
+                    pr = new Insercions.Proces(t.fx);
+                    fx.put(t, pr);
+                }
+                pr.processa(tmp, n, p.bpm);
+                pic = 0;
+                float vol = (float) volum;
+                for (int i = 0; i < n; i++) {
+                    float v = tmp[i] * vol;
+                    sortida[i] += v;
                     if (v > pic) pic = v;
                     else if (-v > pic) pic = -v;
                 }

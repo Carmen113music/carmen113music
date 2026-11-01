@@ -120,6 +120,8 @@ public final class SoParams {
                     return (v > 0 ? "+" : "") + fmt(v, 1) + " dB";
                 case "x":
                     return fmt(v, 0);
+                case "rat":
+                    return fmt(v, v < 10 ? 1 : 0) + ":1";
                 default:
                     return fmt(v, 2);
             }

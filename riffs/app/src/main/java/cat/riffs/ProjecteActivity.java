@@ -790,6 +790,8 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Ui.iconaPista(t), "Obre el piano roll", false, () -> obrePianoRoll(k)));
         }
+        ops.add(new Full.Accio(Icona.AJUSTOS, t.fx.actiu() ? "Efectes · " + t.fx.resum() : "Efectes (EQ, compressor, reverb…)", false,
+                () -> obreInsercions(t)));
         ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
                 Full.demanaText(this, "Nom de la pista", t.nomVisible(), "Desa", text -> {
                     String n = text == null ? "" : text.trim();
@@ -1506,6 +1508,8 @@ public class ProjecteActivity extends Activity {
 
     private void ompleTaula() {
         filaTaula.removeAllViews();
+        resumsFx.clear();
+        caixesFx.clear();
         faders.clear();
         textosPic.clear();
         for (int i = 0; i < projecte.pistes.size(); i++) filaTaula.addView(canal(i));
@@ -1518,63 +1522,76 @@ public class ProjecteActivity extends Activity {
         filaTaula.addView(mes, new LinearLayout.LayoutParams(Ui.dp(this, 64), LinearLayout.LayoutParams.MATCH_PARENT));
     }
 
+    /** Groc dels botons M i S encesos de la taula (com al Cubase). */
+    private static final int GROC_MS = 0xFFE2C33F;
+    /** Resum dels efectes de cada tira de la taula (per actualitzar-lo des del panell). */
+    private final java.util.Map<Projecte.Pista, TextView> resumsFx = new java.util.HashMap<>();
+    private final java.util.Map<Projecte.Pista, LinearLayout> caixesFx = new java.util.HashMap<>();
+
     /**
-     * Una tira de canal: a dalt, número i nom (una línia); al mig, el fader gros amb el vúmetre i,
-     * al costat, una columna fina amb M, S i gravar; a baix, el dB del fader i el pic.
+     * Una tira de canal (2.37: estil Cubase): a dalt la franja «Insercions» (toca-la per als efectes), M, S i gravar;
+     * al mig el fader amb la seva escala i el vúmetre; a baix el valor del fader i el pic, i el número i el nom.
      */
     private View canal(int i) {
         Projecte.Pista t = projecte.pistes.get(i);
         int color = Ui.colorPista(t);
         LinearLayout c = Ui.columna(this);
-        c.setPadding(Ui.dp(this, 3), 0, Ui.dp(this, 3), Ui.dp(this, 4));
-        c.setBackgroundColor(i % 2 == 0 ? Ui.SUPERFICIE : 0xFF141418);
+        c.setPadding(Ui.dp(this, 3), 0, Ui.dp(this, 3), Ui.dp(this, 3));
+        c.setBackgroundColor(i % 2 == 0 ? 0xFF1B1B20 : 0xFF17171B);
 
         View franja = new View(this);
         franja.setBackgroundColor(color);
-        c.addView(franja, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 2)));
-        LinearLayout cap = Ui.fila(this);
-        cap.setPadding(Ui.dp(this, 2), Ui.dp(this, 3), Ui.dp(this, 2), 0);
-        TextView num = Ui.negreta(this, String.valueOf(i + 1), 10, Ui.SUAU);
-        cap.addView(num);
-        cap.addView(Ui.espai(this, 4));
-        cap.addView(Ui.unaLinia(Ui.text(this, t.nomVisible(), 10, Ui.TEXT)), Ui.pes(1));
-        c.addView(cap);
+        c.addView(franja, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 3)));
 
-        LinearLayout mig = Ui.fila(this);
-        mig.setGravity(Gravity.TOP);
-        FaderView f = new FaderView(this, t.volumDb, color);
-        mig.addView(f, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
-        faders.add(f);
+        // Insercions
+        LinearLayout ins = Ui.columna(this);
+        ins.setClickable(true);
+        ins.setContentDescription("Efectes de la pista");
+        ins.setPadding(Ui.dp(this, 6), Ui.dp(this, 3), Ui.dp(this, 5), Ui.dp(this, 4));
+        LinearLayout capIns = Ui.fila(this);
+        capIns.setGravity(Gravity.CENTER_VERTICAL);
+        capIns.addView(Ui.unaLinia(Ui.negreta(this, "Insercions", 9, Ui.SUAU)), Ui.pes(1));
+        capIns.addView(Ui.imatge(this, Icona.AJUSTOS, Ui.SUAU, 10), new LinearLayout.LayoutParams(Ui.dp(this, 12), Ui.dp(this, 12)));
+        ins.addView(capIns);
+        TextView resum = Ui.unaLinia(Ui.text(this, "", 9, Ui.TEXT));
+        ins.addView(resum);
+        resumsFx.put(t, resum);
+        caixesFx.put(t, ins);
+        pintaResumFx(t);
+        ins.setOnClickListener(v -> obreInsercions(t));
+        LinearLayout.LayoutParams li = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        li.topMargin = Ui.dp(this, 4);
+        c.addView(ins, li);
 
-        // columna fina: M, S i gravar
-        LinearLayout col = Ui.columna(this);
-        col.setPadding(0, Ui.dp(this, 10), 0, 0);
-        TextView m = botoMS("M", t.mut, Ui.ACCENT);
-        TextView so = botoMS("S", t.solo, Ui.GUITARRA);
+        // M, S i gravar
+        LinearLayout ms = Ui.fila(this);
+        ms.setGravity(Gravity.CENTER);
+        TextView m = botoMS("M", t.mut, GROC_MS);
+        TextView so = botoMS("S", t.solo, GROC_MS);
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
             }
-            pintaMS(m, t.mut, Ui.ACCENT);
+            pintaMS(m, t.mut, GROC_MS);
             desa();
         });
         so.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.solo = !t.solo;
             }
-            pintaMS(so, t.solo, Ui.GUITARRA);
+            pintaMS(so, t.solo, GROC_MS);
             desa();
         });
-        col.addView(m);
-        col.addView(Ui.espai(this, 6));
-        col.addView(so);
-        col.addView(Ui.espai(this, 6));
+        ms.addView(m);
+        ms.addView(Ui.espai(this, 4));
+        ms.addView(so);
+        ms.addView(Ui.espai(this, 4));
         FrameLayout rec = new FrameLayout(this);
         rec.setClickable(true);
         rec.setContentDescription("Pista on es grava");
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
-        col.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
+        ms.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
         if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
@@ -1584,21 +1601,31 @@ public class ProjecteActivity extends Activity {
             desa();
             filaTaula.post(this::ompleTaula);
         });
-        mig.addView(col, new LinearLayout.LayoutParams(Ui.dp(this, 28), LinearLayout.LayoutParams.WRAP_CONTENT));
-        c.addView(mig, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        c.addView(ms, Ui.ample(this, 5));
 
-        // a baix: dB del fader i pic
+        // fader amb el vúmetre
+        FaderView f = new FaderView(this, t.volumDb, color);
+        LinearLayout.LayoutParams lf = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        lf.topMargin = Ui.dp(this, 4);
+        c.addView(f, lf);
+        faders.add(f);
+
+        // valor del fader i pic, en dues caselles fosques
         LinearLayout peu = Ui.fila(this);
-        peu.setGravity(Gravity.CENTER);
-        TextView db = Ui.negreta(this, Projecte.textDb(t.volumDb), 11, Ui.TEXT);
+        TextView db = Ui.negreta(this, Projecte.textDb(t.volumDb), 10, Ui.TEXT);
         db.setFontFeatureSettings("tnum");
+        db.setGravity(Gravity.CENTER);
+        db.setBackground(Ui.rodo(0xFF0C0C0F, Ui.dp(this, 3)));
         TextView pic = Ui.text(this, "—", 10, Ui.SUAU);
         pic.setFontFeatureSettings("tnum");
-        peu.addView(db);
-        peu.addView(Ui.espai(this, 6));
-        peu.addView(pic);
+        pic.setGravity(Gravity.CENTER);
+        pic.setBackground(Ui.rodo(0xFF0C0C0F, Ui.dp(this, 3)));
+        LinearLayout.LayoutParams lc = new LinearLayout.LayoutParams(0, Ui.dp(this, 20), 1f);
+        peu.addView(db, lc);
+        peu.addView(Ui.espai(this, 3));
+        peu.addView(pic, new LinearLayout.LayoutParams(0, Ui.dp(this, 20), 1f));
         textosPic.add(pic);
-        c.addView(peu);
+        c.addView(peu, Ui.ample(this, 4));
         f.setOient((valor, acabat) -> {
             synchronized (projecte) {
                 t.volumDb = valor;
@@ -1607,10 +1634,221 @@ public class ProjecteActivity extends Activity {
             if (acabat) desa();
         });
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 96), LinearLayout.LayoutParams.MATCH_PARENT);
+        // número i nom, a baix, amb el color de la pista
+        LinearLayout nom = Ui.fila(this);
+        nom.setGravity(Gravity.CENTER_VERTICAL);
+        nom.setPadding(Ui.dp(this, 5), 0, Ui.dp(this, 4), 0);
+        nom.setBackground(Ui.rodo(Ui.alfa(color, 60), Ui.dp(this, 3)));
+        nom.addView(Ui.negreta(this, String.valueOf(i + 1), 10, color));
+        nom.addView(Ui.espai(this, 5));
+        nom.addView(Ui.unaLinia(Ui.text(this, t.nomVisible(), 10, Ui.TEXT)), Ui.pes(1));
+        c.addView(nom, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 22)));
+        ((LinearLayout.LayoutParams) nom.getLayoutParams()).topMargin = Ui.dp(this, 4);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 104), LinearLayout.LayoutParams.MATCH_PARENT);
         lp.rightMargin = 1;
         c.setLayoutParams(lp);
         return c;
+    }
+
+    /** La franja «Insercions» d'una tira: els efectes encesos, i la vora del color de la pista si n'hi ha. */
+    private void pintaResumFx(Projecte.Pista t) {
+        TextView r = resumsFx.get(t);
+        LinearLayout caixa = caixesFx.get(t);
+        if (r == null || caixa == null) return;
+        boolean actiu = t.fx.actiu();
+        r.setText(actiu ? t.fx.resum() : "—");
+        r.setTextColor(actiu ? Ui.TEXT : Ui.APAGAT);
+        caixa.setBackground(Ui.rodoVora(0xFF101013, actiu ? Ui.colorPista(t) : Ui.LINIA_FORTA, Ui.dp(this, 4), Ui.dp(this, 1)));
+    }
+
+    // ---------- Efectes d'inserció (2.37) ----------
+
+    private android.app.Dialog panellFx;
+    private Projecte.Pista pistaFx;
+    private TextView textReduccio;
+
+    /** Un botó rodó d'un efecte: el paràmetre (per dibuixar-lo), com es llegeix i com es posa. */
+    private static final class PotFx {
+        final SoParams.Param param;
+        final java.util.function.ToDoubleFunction<Insercions> get;
+        final java.util.function.ObjDoubleConsumer<Insercions> set;
+        final double perDefecte;
+
+        PotFx(SoParams.Param param, java.util.function.ToDoubleFunction<Insercions> get,
+              java.util.function.ObjDoubleConsumer<Insercions> set, double perDefecte) {
+            this.param = param;
+            this.get = get;
+            this.set = set;
+            this.perDefecte = perDefecte;
+        }
+    }
+
+    private static PotFx pot(String nom, int tipus, double min, double max, String unitat, double perDefecte,
+                             java.util.function.ToDoubleFunction<Insercions> get, java.util.function.ObjDoubleConsumer<Insercions> set) {
+        return new PotFx(new SoParams.Param(nom, nom, tipus, min, max, unitat, null, null, null, null), get, set, perDefecte);
+    }
+
+    /** Obre el panell dels efectes d'una pista (des de la taula o des de les opcions de la pista). */
+    private void obreInsercions(Projecte.Pista t) {
+        if (panellFx != null) panellFx.dismiss();
+        pistaFx = t;
+        int color = Ui.colorPista(t);
+        LinearLayout cos = Ui.columna(this);
+        cos.setPadding(Ui.dp(this, 14), 0, Ui.dp(this, 14), 0);
+
+        // capçalera
+        LinearLayout cap = Ui.fila(this);
+        cap.setGravity(Gravity.CENTER_VERTICAL);
+        cap.addView(Ui.imatge(this, Ui.iconaPista(t), color, 16), new LinearLayout.LayoutParams(Ui.dp(this, 18), Ui.dp(this, 18)));
+        cap.addView(Ui.espai(this, 8));
+        LinearLayout tx = Ui.columna(this);
+        tx.addView(Ui.unaLinia(Ui.negreta(this, "Efectes · " + t.nomVisible(), 15, Ui.TEXT)));
+        tx.addView(Ui.cartell(Ui.text(this, "Arrossega els botons amunt o avall · doble toc: valor de partida · "
+                + "es noten mentre sona", 11, Ui.SUAU)));
+        cap.addView(tx, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        cap.addView(Ui.espai(this, 8));
+        textReduccio = Ui.negreta(this, "", 11, Ui.GUITARRA);
+        textReduccio.setFontFeatureSettings("tnum");
+        cap.addView(textReduccio);
+        cap.addView(Ui.espai(this, 8));
+        LinearLayout apaga = Ui.pastilla(this, 0, "Apaga'ls tots", Ui.SUPERFICIE2, Ui.TEXT);
+        cap.addView(apaga, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 34)));
+        cap.addView(Ui.espai(this, 8));
+        LinearLayout tanca = Ui.pastilla(this, 0, "Tanca", Ui.SUPERFICIE2, Ui.TEXT);
+        cap.addView(tanca, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 34)));
+        cos.addView(cap);
+
+        // targetes
+        LinearLayout fila = Ui.fila(this);
+        fila.setGravity(Gravity.TOP);
+        List<Runnable> repinta = new ArrayList<>();
+        afegeixTargetaFx(fila, t, color, "Filtre de greus", f -> f.hpf, (f, on) -> f.hpf = on, repinta,
+                pot("Freqüència", SoParams.LOG, 20, 500, "Hz", 80, f -> f.hpfHz, (f, v) -> f.hpfHz = v));
+        afegeixTargetaFx(fila, t, color, "EQ", f -> f.eq, (f, on) -> f.eq = on, repinta,
+                pot("Greus", SoParams.LIN, -15, 15, "dB", 0, f -> f.greusDb, (f, v) -> f.greusDb = v),
+                pot("Freq. greus", SoParams.LOG, 40, 400, "Hz", 120, f -> f.greusHz, (f, v) -> f.greusHz = v),
+                pot("Mitjos", SoParams.LIN, -15, 15, "dB", 0, f -> f.mitjosDb, (f, v) -> f.mitjosDb = v),
+                pot("Freq. mitjos", SoParams.LOG, 200, 6000, "Hz", 1000, f -> f.mitjosHz, (f, v) -> f.mitjosHz = v),
+                pot("Aguts", SoParams.LIN, -15, 15, "dB", 0, f -> f.agutsDb, (f, v) -> f.agutsDb = v),
+                pot("Freq. aguts", SoParams.LOG, 2000, 14000, "Hz", 8000, f -> f.agutsHz, (f, v) -> f.agutsHz = v));
+        afegeixTargetaFx(fila, t, color, "Compressor", f -> f.comp, (f, on) -> f.comp = on, repinta,
+                pot("Llindar", SoParams.LIN, -48, 0, "dB", -18, f -> f.llindarDb, (f, v) -> f.llindarDb = v),
+                pot("Ràtio", SoParams.LOG, 1, 20, "rat", 3, f -> f.ratio, (f, v) -> f.ratio = v),
+                pot("Atac", SoParams.LOG, 0.5, 100, "ms", 10, f -> f.atacMs, (f, v) -> f.atacMs = v),
+                pot("Deixa anar", SoParams.LOG, 20, 1000, "ms", 150, f -> f.deixaMs, (f, v) -> f.deixaMs = v),
+                pot("Guany", SoParams.LIN, 0, 24, "dB", 0, f -> f.guanyDb, (f, v) -> f.guanyDb = v));
+        afegeixTargetaFx(fila, t, color, "Delay", f -> f.delay, (f, on) -> f.delay = on, repinta,
+                pot("Quantitat", SoParams.LIN, 0, 1, "%", 0.25, f -> f.delayQuant, (f, v) -> f.delayQuant = v),
+                new PotFx(new SoParams.Param("dlT", "Temps", SoParams.LLISTA, 0.25, 2, "llista", null, null,
+                        SoParams.TEMPS_DELAY, SoParams.NOMS_DELAY), f -> f.delayTemps, (f, v) -> f.delayTemps = v, 0.75),
+                pot("Repeteix", SoParams.LIN, 0, 0.9, "%", 0.35, f -> f.delayRep, (f, v) -> f.delayRep = v));
+        afegeixTargetaFx(fila, t, color, "Reverb", f -> f.reverb, (f, on) -> f.reverb = on, repinta,
+                pot("Quantitat", SoParams.LIN, 0, 1, "%", 0.25, f -> f.reverbQuant, (f, v) -> f.reverbQuant = v),
+                pot("Sala", SoParams.LIN, 0, 1, "%", 0.5, f -> f.reverbSala, (f, v) -> f.reverbSala = v));
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(fila);
+        LinearLayout.LayoutParams lh = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lh.topMargin = Ui.dp(this, 10);
+        cos.addView(hs, lh);
+
+        apaga.setOnClickListener(v -> {
+            synchronized (projecte) {
+                t.fx.hpf = t.fx.eq = t.fx.comp = t.fx.delay = t.fx.reverb = false;
+                t.fx.canviat();
+            }
+            for (Runnable r : repinta) r.run();
+            pintaResumFx(t);
+            desa();
+            Ui.historial(this, "Efectes apagats a «" + t.nomVisible() + "»");
+        });
+        android.app.Dialog d = Full.panellLliure(this, cos);
+        panellFx = d;
+        tanca.setOnClickListener(v -> d.dismiss());
+        d.setOnDismissListener(x -> {
+            if (panellFx == d) {
+                panellFx = null;
+                pistaFx = null;
+            }
+            pistes.removeCallbacks(reduccio);
+        });
+        pistes.removeCallbacks(reduccio);
+        pistes.post(reduccio);
+    }
+
+    /** Quant comprimeix el compressor de la pista del panell, mentre sona. */
+    private final Runnable reduccio = new Runnable() {
+        @Override
+        public void run() {
+            if (panellFx == null || pistaFx == null || textReduccio == null) return;
+            Insercions.Proces pr = motor != null && motor.sona() && pistaFx.fx.comp ? motor.proces(pistaFx) : null;
+            float r = pr != null ? pr.reduccioDb : 0;
+            textReduccio.setText(pr == null ? "" : String.format(Locale.ROOT, "Comprimeix %.1f dB", r).replace('.', ','));
+            pistes.postDelayed(this, 120);
+        }
+    };
+
+    /** Una targeta d'efecte: títol, interruptor Encès/Apagat i els seus botons rodons. */
+    private void afegeixTargetaFx(LinearLayout fila, Projecte.Pista t, int color, String titol,
+                                  java.util.function.Predicate<Insercions> esOn,
+                                  java.util.function.BiConsumer<Insercions, Boolean> posaOn,
+                                  List<Runnable> repinta, PotFx... pots) {
+        LinearLayout tg = Ui.columna(this);
+        tg.setBackground(Ui.rodo(Ui.SUPERFICIE2, Ui.dp(this, 12)));
+        tg.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 4));
+        LinearLayout cap = Ui.fila(this);
+        cap.setGravity(Gravity.CENTER_VERTICAL);
+        cap.addView(Ui.unaLinia(Ui.negreta(this, titol, 12, color)), Ui.pes(1));
+        cap.addView(Ui.espai(this, 8));
+        TextView on = Ui.negreta(this, "", 11, Ui.TEXT);
+        on.setGravity(Gravity.CENTER);
+        on.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 10), 0);
+        on.setClickable(true);
+        cap.addView(on, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 26)));
+        tg.addView(cap);
+        Runnable pinta = () -> {
+            boolean e = esOn.test(t.fx);
+            on.setText(e ? "Encès" : "Apagat");
+            on.setTextColor(e ? Ui.SOBRE_COLOR : Ui.SUAU);
+            on.setBackground(Ui.tocable(e ? color : Ui.SUPERFICIE, Ui.dp(this, 13)));
+            tg.setAlpha(e ? 1f : 0.75f);
+        };
+        repinta.add(pinta);
+        pinta.run();
+        on.setOnClickListener(v -> {
+            synchronized (projecte) {
+                posaOn.accept(t.fx, !esOn.test(t.fx));
+                t.fx.canviat();
+            }
+            pinta.run();
+            pintaResumFx(t);
+            desa();
+        });
+        LinearLayout botons = Ui.fila(this);
+        for (PotFx pf : pots) {
+            PotView pv = new PotView(this, pf.param, color);
+            pv.posa(pf.get.applyAsDouble(t.fx));
+            pv.posaPerDefecte(pf.perDefecte);
+            pv.posaOient((valor, acabat) -> {
+                boolean encen = !esOn.test(t.fx);
+                synchronized (projecte) {
+                    pf.set.accept(t.fx, valor);
+                    if (encen) posaOn.accept(t.fx, true);   // moure un botó d'un efecte apagat l'encén
+                    t.fx.canviat();
+                }
+                if (encen) {
+                    pinta.run();
+                    pintaResumFx(t);
+                }
+                if (acabat) desa();
+            });
+            botons.addView(pv);
+        }
+        tg.addView(botons, Ui.ample(this, 2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = Ui.dp(this, 8);
+        fila.addView(tg, lp);
     }
 
     @Override
@@ -3314,6 +3552,7 @@ public class ProjecteActivity extends Activity {
     /** Desfà l'últim canvi del projecte (moure, retallar, esborrar, pistes, volums, tempo, gravacions…). */
     private void desfes() {
         if (gravant) return;
+        if (panellFx != null) panellFx.dismiss();   // el panell dels efectes és d'una pista que pot canviar
         String foto = desfes.desfes();
         if (foto == null) {
             Ui.avis(this, "No hi ha res per desfer");

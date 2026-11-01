@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.36:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou el **bucle a l'Estudi** (2.36). Pròximes fases: notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.37:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou el **bucle a l'Estudi** (2.36) i la **taula de so estil Cubase amb efectes per pista** (2.37). Pròximes fases: notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -75,6 +75,23 @@ El primer cop l'app demana permís de micròfon.
 - **Pestanyes (a l'esquerra)**: **Pistes** és el taulell de sempre; **Taula** és la taula de so: una tira per pista amb el número i el nom (una línia), un **fader gros** (0 dB a tres quarts; doble toc = 0 dB) amb el **vúmetre** al costat (verd, ambre a partir de -6 dB, vermell per sobre de 0), i una columna fina amb **M**, **S** i el botó de gravar. A baix, el valor del fader i el pic dels darrers segons. **Un dit mou els faders; dos dits desplacen la taula.** La taula **es pot girar**: en vertical els faders són més llargs (s'amaguen el nom del projecte i la posició de la barra de dalt). El taulell de pistes sempre és horitzontal. També hi ha un **+** al final. L'app recorda quina pestanya feies servir.
 - **Capçalera de cada pista**: **M** (silenci), **S** (solo), **cercle de gravar** (la pista on va la gravació) i el **fader** de volum (de -∞ a +6 dB; s'enganxa a 0 dB).
 - Tot es desa sol a la carpeta, al fitxer `_projecte.riffs`.
+
+### Taula de so i efectes (2.37)
+- La pestanya **Taula** té un aspecte nou, com el del Cubase. Cada tira, de dalt a baix:
+  - La franja **Insercions**: diu quins efectes té encesos la pista (per exemple «EQ · Comp · Rev», o «—» si cap) i té la vora del color de la pista quan n'hi ha. **Toca-la per obrir els efectes.**
+  - **M** i **S** (grocs quan estan encesos) i el botó de gravar.
+  - El **fader**, amb la tapa blava, l'escala com la del Cubase (6, 0, 5, 10… ∞, en dB per sota de 0) i el **vúmetre** al costat amb la seva escala. Es mou igual que abans (doble toc = 0 dB).
+  - Dues caselles amb el **valor del fader** i el **pic**, i a baix de tot el **número i el nom** amb el color de la pista.
+- **Efectes d'inserció** de cada pista (també des de les pistes: mantén premut el nom → **Efectes**). S'obre un panell des de baix amb cinc targetes, en aquest ordre (com passa el so):
+  - **Filtre de greus**: talla els greus per sota de la freqüència (20–500 Hz). Ideal per a la veu i les guitarres gravades amb el mòbil (treu retruny i cops).
+  - **EQ**: greus, mitjos i aguts (de −15 a +15 dB), cadascun amb la seva freqüència.
+  - **Compressor**: llindar, ràtio, atac, deixa anar i guany. A dalt del panell diu quant comprimeix mentre sona.
+  - **Delay**: quantitat, temps (a tempo del projecte: 1/16, 1/8, 1/8 amb punt, 1/4…) i repeticions.
+  - **Reverb**: quantitat i mida de la sala.
+- Cada targeta té el seu interruptor **Encès / Apagat**. **Moure un botó d'un efecte apagat l'encén.** Arrossega els botons amunt o avall; doble toc = el valor de partida. Els canvis **se senten mentre sona**. **Apaga'ls tots** deixa la pista sense efectes.
+- Els efectes van **abans del fader** (com les insercions del Cubase). La cua de la reverb i del delay continua sonant quan s'acaba el clip. Una pista sense cap efecte encès sona exactament igual que abans.
+- Es desen amb el projecte i el **Desfés** també els desfà. Al drumpad i al piano roll, la resta de pistes (amb el Solo apagat) sonen amb els seus efectes.
+- L'Estudi continua sonant en mono (sense panoràmica).
 
 ### Pistes de bateria (drumpad)
 - **+ Pista nova** pregunta de quin tipus: **Àudio** (per gravar guitarra o veu, com sempre), **Bateria** o **Sinte** (vegeu més avall).
@@ -192,6 +209,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.37** (01/11/2026) — **Taula de so estil Cubase**: fader amb tapa blava i escala de dB, vúmetre amb escala, M i S grocs, caselles del valor i del pic, nom a baix. **Efectes d'inserció per pista**: filtre de greus, EQ de 3 bandes, compressor, delay a tempo i reverb, en un panell des de baix (des de la franja «Insercions» de la taula o des de les opcions de la pista); se senten mentre sona.
 - **2.36** (01/11/2026) — **Bucle a l'Estudi**: mantenir premuda la regla i arrossegar marca els compassos del bucle; el play els repeteix; mantenir premut a dins l'apaga o l'encén. **Es treu la conversió de clips a notes i a bateria a l'Estudi** (2.34–2.35.1: no acabava de funcionar); la detecció de notes, acords i tonalitat a la fitxa de les gravacions es queda (amb la detecció de notes millorada de la 2.34).
 - **2.35.1** (01/11/2026) — Bateria amb la veu: el grup de sons més greu és sempre el bombo, i una caixa brillant ja no es confon amb el hihat (en Roger: els bombos sortien com a caixa i les caixes com a hihat). Al panell, els grups de so trobats amb un botó per escoltar-ne un cop i un selector Bombo / Caixa / Hihat / Res que es recorda.
 - **2.35** (01/11/2026) — **Corrector de la veu** en convertir a notes (No / Suau / Mig / Fort): salts d'octava, lliscaments, notes curtes i trossos d'una mateixa nota. **Ritme fet amb la veu → bateria**: mantenir premut un clip → A bateria; troba els cops i els classifica en bombo, caixa, hihat i hihat obert sense calibratge, amb sensibilitat i graella, a una pista de bateria nova o que ja hi és.

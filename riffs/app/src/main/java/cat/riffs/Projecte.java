@@ -160,6 +160,8 @@ public final class Projecte {
         public boolean veu = false;
         public double volumDb;      // fader de la pista: -60 (silenci) a +6
         public boolean mut, solo;
+        /** Efectes d'inserció de la pista (2.37): filtre de greus, EQ, compressor, delay i reverb. */
+        public Insercions fx = new Insercions();
         public boolean rec;         // pista on es grava en mantenir premut el play
         /** Els clips, ordenats per on comencen a sonar. */
         public final List<Clip> clips = new ArrayList<>();
@@ -238,6 +240,8 @@ public final class Projecte {
     }
 
     public final File carpeta;
+    /** Efectes per defecte (tot apagat): no cal desar-los. */
+    static final String FX_BUIT = new Insercions().text();
     public double bpm = 120;
     public int compas = 4;
     /** Bucle de la reproducció (2.36): del compàs {@code bucleDe} (des de 0) fins abans de {@code bucleA}. -1 = cap. */
@@ -906,6 +910,8 @@ public final class Projecte {
             t.mut = "si".equals(p.getProperty(k + "mut"));
             t.solo = "si".equals(p.getProperty(k + "solo"));
             t.rec = "si".equals(p.getProperty(k + "rec"));
+            String fx = p.getProperty(k + "fx");
+            if (fx != null) t.fx.deText(fx);
             if (!wav.isEmpty() && !pr.preses.containsKey(wav)) {
                 // projecte d'abans de la 2.5: les dades de la gravació eren a la pista
                 Presa g = new Presa();
@@ -987,6 +993,7 @@ public final class Projecte {
             p.setProperty(k + "mut", t.mut ? "si" : "no");
             p.setProperty(k + "solo", t.solo ? "si" : "no");
             p.setProperty(k + "rec", t.rec ? "si" : "no");
+            if (!t.fx.text().equals(FX_BUIT)) p.setProperty(k + "fx", t.fx.text());
             p.setProperty(k + "clips", Integer.toString(t.clips.size()));
             for (int j = 0; j < t.clips.size(); j++) {
                 Clip c = t.clips.get(j);

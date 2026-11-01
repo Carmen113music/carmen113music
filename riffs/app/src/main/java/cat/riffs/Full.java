@@ -201,6 +201,15 @@ public final class Full {
         d.show();
     }
 
+    /** Panell que puja des de baix amb un contingut lliure (2.37: els efectes d'una pista). Torna el diàleg ja obert. */
+    public static Dialog panellLliure(Activity a, View contingut) {
+        Dialog d = panellBaix(a, contingut);
+        Window w = d.getWindow();
+        if (w != null) w.setDimAmount(0.35f);
+        d.show();
+        return d;
+    }
+
     /** Panell amb un títol i una llista d'opcions (una per fila, amb icona). */
     public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions) {
         llista(a, titol, subtitol, opcions, null);

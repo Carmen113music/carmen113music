@@ -42,6 +42,15 @@ public final class Motor {
     private long linia;                       // la mostra de la línia de temps que s'escriurà ara
     /** Salts: {mostres escrites, mostra de la línia de temps} cada cop que la reproducció torna a l'inici del bucle. */
     private final java.util.ArrayList<long[]> salts = new java.util.ArrayList<>();
+    /** Estat dels efectes de cada pista (2.37); es buida en començar a sonar. */
+    private final java.util.Map<Projecte.Pista, Insercions.Proces> fx = new java.util.HashMap<>();
+
+    /** Els efectes de la pista que sonen ara (per veure quant comprimeix el compressor), o null. */
+    public Insercions.Proces proces(Projecte.Pista t) {
+        synchronized (projecte) {
+            return fx.get(t);
+        }
+    }
 
     public Motor(Projecte projecte, Map<String, short[]> audio) {
         this.projecte = projecte;
@@ -125,6 +134,9 @@ public final class Motor {
         mostresEscrites = 0;
         teMarca = false;
         linia = mostraInici;
+        synchronized (projecte) {
+            fx.clear();
+        }
         synchronized (salts) {
             salts.clear();
             salts.add(new long[]{0, mostraInici});
@@ -161,9 +173,9 @@ public final class Motor {
             int n2 = TROS - n1;
             synchronized (projecte) {
                 float[] nv = nivells.length == projecte.pistes.size() ? nivells : new float[projecte.pistes.size()];
-                Mesclador.mescla(projecte, audio, linia, mescla, n1, nv);
+                Mesclador.mescla(projecte, audio, linia, mescla, n1, nv, null, fx);
                 if (n2 > 0) {
-                    Mesclador.mescla(projecte, audio, ini, resta, n2, nv);
+                    Mesclador.mescla(projecte, audio, ini, resta, n2, nv, null, fx);
                     System.arraycopy(resta, 0, mescla, n1, n2);
                 }
                 nivells = nv;
