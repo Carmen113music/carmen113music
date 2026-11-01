@@ -50,6 +50,9 @@ public class PistesView extends View {
 
         /** Doble toc a una finestra de bateria: obrir el drumpad. */
         default void obreBateria(int pista, Projecte.Clip clip) {}
+
+        /** Mantenir premut un clip d'àudio i deixar-lo anar sense moure'l: opcions (convertir-lo a notes…). */
+        default void opcionsClip(int pista, Projecte.Clip clip) {}
     }
 
     private static final int CAP = 0, MOU = 1, RETALL_I = 2, RETALL_F = 3, FADE_IN = 4, FADE_OUT = 5, GUANY = 6,
@@ -712,7 +715,9 @@ public class PistesView extends View {
         eixDecidit = false;
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         if (oient != null) {
-            oient.info("De costat: tria més clips · Amunt o avall: canvia de pista");
+            boolean audio = !projecte.pistes.get(pista).esGenerat();
+            oient.info(audio ? "Deixa anar: converteix a notes · De costat: tria més clips · Amunt o avall: canvia de pista"
+                    : "De costat: tria més clips · Amunt o avall: canvia de pista");
             oient.seleccio();
         }
         vista.avisa();
@@ -870,6 +875,17 @@ public class PistesView extends View {
         if (mode == CARRIL) {
             acabaCarril();
             mode = CAP;
+            return;
+        }
+        if (mode == TRIA && !eixDecidit && clip != null && pista >= 0 && pista < projecte.pistes.size()
+                && !projecte.pistes.get(pista).esGenerat() && oient != null) {
+            // mantenir premut un clip d'àudio i deixar-lo anar sense moure'l: opcions del clip (2.34)
+            mode = CAP;
+            vista.tria(pista, clip);
+            oient.seleccio();
+            oient.info(null);
+            vista.avisa();
+            oient.opcionsClip(pista, clip);
             return;
         }
         if (mode == TRIA) {

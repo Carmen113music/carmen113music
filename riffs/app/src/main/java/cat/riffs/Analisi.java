@@ -30,7 +30,7 @@ import java.util.Properties;
  */
 public final class Analisi {
 
-    public static final int VERSIO = 1;
+    public static final int VERSIO = 2;   // 2.34: notes amb altura exacta i sense trossos de vibrato o lliscament
 
     /** Tipus d'acord que es detecten. */
     public static final String[] TIPUS = {"", "m", "7", "m7"};
@@ -44,11 +44,18 @@ public final class Analisi {
     public static final class Nota {
         public final long iniciMs, fiMs;
         public final int midi;
+        /** L'altura exacta, amb decimals (la veu no sempre cau just a la nota): serveix per corregir a la tonalitat. */
+        public final double to;
 
         public Nota(long iniciMs, long fiMs, int midi) {
+            this(iniciMs, fiMs, midi, midi);
+        }
+
+        public Nota(long iniciMs, long fiMs, int midi, double to) {
             this.iniciMs = iniciMs;
             this.fiMs = fiMs;
             this.midi = midi;
+            this.to = to;
         }
 
         /** «La3» (Do3 = 60, com al piano roll). */
@@ -320,26 +327,30 @@ public final class Analisi {
                 continue;
             }
             int inici = i;
-            int nota = (int) Math.round(m[i]);
+            // la nota canvia quan el to s'allunya clarament de la mitjana de la nota que sona
+            // (el vibrato i una veu una mica desafinada no la parteixen)
+            double suma = m[i];
             int j = i + 1;
             while (j < n && !Double.isNaN(m[j])) {
-                int q = (int) Math.round(m[j]);
-                if (q != nota) {
-                    // canvi només si es manté 3 finestres (30 ms)
-                    int k = j, iguals = 0;
-                    while (k < n && !Double.isNaN(m[k]) && Math.round(m[k]) == q && iguals < 3) {
-                        k++;
-                        iguals++;
-                    }
-                    if (iguals >= 3 || k >= n || Double.isNaN(m[k])) {
-                        if (iguals >= 3 || (k - j) >= 2) break;
-                    }
+                double mitjana = suma / (j - inici);
+                int k = j, lluny = 0, forca = 0;
+                while (k < n && !Double.isNaN(m[k]) && Math.abs(m[k] - mitjana) > 0.5 && lluny < 10) {
+                    if (Math.abs(m[k] - mitjana) > 0.75) forca++;
+                    k++;
+                    lluny++;
                 }
+                if (forca >= 3 || lluny >= 10) break;
                 // atac nou de la mateixa nota (cop de pua o síl·laba)
                 if (j - inici >= 6 && j + 1 < n) {
                     double minAnt = Double.MAX_VALUE;
-                    for (int k = Math.max(inici, j - 6); k < j; k++) minAnt = Math.min(minAnt, db[k]);
+                    for (int q = Math.max(inici, j - 6); q < j; q++) minAnt = Math.min(minAnt, db[q]);
                     if (db[j] - minAnt > 7 && db[j] >= db[j - 1] + 3) break;
+                }
+                // els primers 30 ms d'una nota (lliscament) no compten per a la mitjana
+                if (j - inici < 3) {
+                    suma = m[j] * (j - inici + 1);
+                } else {
+                    suma += m[j];
                 }
                 j++;
             }
@@ -347,14 +358,24 @@ public final class Analisi {
             double[] vals = new double[j - inici];
             for (int k = inici; k < j; k++) vals[k - inici] = m[k];
             Arrays.sort(vals);
-            int midi = (int) Math.round(vals[vals.length / 2]);
+            double toExacte = vals[vals.length / 2];
+            int midi = (int) Math.round(toExacte);
             long a = Math.round(inici * msPerPas + desfasMs - msPerPas / 2);
             long b = Math.round(j * msPerPas + desfasMs - msPerPas / 2);
             if (b - a >= 70 && midi >= 28 && midi <= 100) {
                 // enganxa amb l'anterior si és la mateixa nota i no hi ha atac (forat petit)
-                r.add(new Nota(Math.max(0, a), b, midi));
+                r.add(new Nota(Math.max(0, a), b, midi, toExacte));
             }
             i = j;
+        }
+        // lliscaments entre notes: una nota molt curta (< 110 ms) enganxada a la següent i a prop d'altura
+        // és el camí cap a aquella nota: s'hi ajunta
+        for (int q = r.size() - 2; q >= 0; q--) {
+            Nota c = r.get(q), seg = r.get(q + 1);
+            if (c.fiMs - c.iniciMs < 110 && seg.iniciMs - c.fiMs <= 40 && Math.abs(seg.midi - c.midi) <= 2 && seg.midi != c.midi) {
+                r.set(q + 1, new Nota(c.iniciMs, seg.fiMs, seg.midi, seg.to));
+                r.remove(q);
+            }
         }
         return r;
     }
@@ -733,6 +754,7 @@ public final class Analisi {
             for (String s : p.getProperty("notes", "").split(";")) {
                 String[] t = s.split(":");
                 if (t.length == 3) r.notes.add(new Nota(Long.parseLong(t[0]), Long.parseLong(t[1]), Integer.parseInt(t[2])));
+                else if (t.length == 4) r.notes.add(new Nota(Long.parseLong(t[0]), Long.parseLong(t[1]), Integer.parseInt(t[2]), Double.parseDouble(t[3])));
             }
             for (String s : p.getProperty("acords", "").split(";")) {
                 String[] t = s.split(":");
@@ -760,7 +782,8 @@ public final class Analisi {
         p.setProperty("vista", r.vistaAcords ? "acords" : "notes");
         p.setProperty("durada", Long.toString(r.duradaMs));
         StringBuilder sb = new StringBuilder();
-        for (Nota n : r.notes) sb.append(n.iniciMs).append(':').append(n.fiMs).append(':').append(n.midi).append(';');
+        for (Nota n : r.notes) sb.append(n.iniciMs).append(':').append(n.fiMs).append(':').append(n.midi).append(':')
+                .append(String.format(Locale.ROOT, "%.2f", n.to)).append(';');
         p.setProperty("notes", sb.toString());
         sb.setLength(0);
         for (Acord a : r.acords) sb.append(a.iniciMs).append(':').append(a.fiMs).append(':').append(a.arrel).append(':').append(a.tipus).append(';');

@@ -2,8 +2,8 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.33:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
-Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Pròximes fases: passar les notes i acords detectats a l'Estudi, notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
+**Versió 2.34:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou **convertir un clip d'àudio a notes** a l'Estudi (2.34). Pròximes fases: convertir a acords i a bateria (ritme amb la veu), notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
 
@@ -47,6 +47,7 @@ El primer cop l'app demana permís de micròfon.
 - **Tonalitat** a l'esquerra (p. ex. «La menor (Am)»). Si no és clara, també diu la segona opció («· o Do major»): passa sovint entre una tonalitat i la seva relativa.
 - Si la gravació té **tempo** (BPM i primer temps), els canvis d'acord s'enganxen als temps.
 - Per tornar-la a analitzar (per exemple, després de posar-hi el tempo): tres punts → **Torna a analitzar**. Amb el teclat obert (escrivint la lletra) la fila de la tonalitat s'amaga i la franja es queda.
+- 2.34: les notes es detecten millor (el vibrato i els lliscaments de la veu ja no parteixen les notes llargues ni fan notes curtes de més). Les anàlisis fetes amb la 2.33 s'han de tornar a fer (torna a sortir el botó «Analitza»).
 - Què detecta: acords majors, menors, de setena (7) i menors de setena (m7). Les notes funcionen amb **una sola nota alhora** (veu, riff, solo); amb acords, la fila de notes no té sentit. Gravacions de 10 minuts com a màxim.
 - Es desa al costat de la gravació (fitxer `.analisi`) i es mou o s'esborra amb ella.
 
@@ -101,6 +102,17 @@ El primer cop l'app demana permís de micròfon.
 - **Gravar tocant en directe** (com amb l'àudio): les pistes de sinte tenen el **botó de gravar**. Encén-lo i **mantén premut el play**: sona el projecte des d'un compàs abans (amb el compte i el clic, si el tens encès; aquí sí que pot sonar per l'altaveu, perquè no es grava cap micròfon) i als **dos terços de baix** surt un **teclat de dues octaves**. Amb **−** i **+** el pujes o el baixes d'octava (s'obre a Do1–Do3 per als baixos i Do3–Do5 per als leads). El que toques sona al moment amb el so de la pista. Pots fer servir més d'un dit, però sona només l'última tecla premuda (si la deixes i n'hi ha una altra de premuda, torna a aquella; arrossegar el dit canvia de nota, i amb glide, llisca).
   - Toca el **quadrat de dalt** per aturar: el que has tocat es posa a la pista en **finestres noves** a partir del compàs d'entrada (de fins a 8 compassos cadascuna), **ajustat a semicorxeres**, i ho pots retocar al **piano roll** (doble toc). El que toques durant el compte no es desa (si una nota comença just abans de l'entrada, comença a l'entrada).
   - Si a la pista ja hi havia finestres en aquell tros, no es treuen: sonarien juntes (com els clips d'àudio que es trepitgen).
+
+### Convertir un clip d'àudio a notes (2.34)
+- **Mantén premut un clip d'àudio** (una gravació de veu o un riff) fins que vibri i **deixa'l anar sense moure'l**. Surt el panell **Converteix**: *A notes (melodia)*. (*A acords* i *A bateria* arribaran més endavant.)
+- La primera vegada l'app escolta la gravació (a dalt surt el percentatge). Si ja l'havies analitzada a la fitxa, va de seguida.
+- **Opcions**: **Ajusta a la graella** (corxeres, semicorxeres o fuses), **Corregeix a la tonalitat** (les notes desafinades que cauen fora de la tonalitat detectada van a la nota més propera de l'escala) i **Octava** (−2 a +2; per exemple, −1 per convertir una melodia cantada en un baix). Es recorden per a la propera vegada.
+- **On van les notes?**: una pista de sinte, Poli o MIDI que ja tinguis, o **Pista nova · Sinte / Poli / MIDI** (tries el so com sempre).
+- Les notes queden en **finestres noves** de la pista d'instrument, al mateix lloc de la cançó on sonaven (de fins a 8 compassos cadascuna). Doble toc a la finestra per retocar-les al **piano roll**. El clip d'àudio no es toca: pots silenciar-lo (M) o treure'l.
+- Només converteix el tros que es veu del clip (si l'has retallat, només aquest tros). Funciona amb **una sola nota alhora** (veu, riff, solo).
+- Exemple: amb la base sonant, grava't cantant una melodia a l'Estudi, mantén premut el clip i converteix-lo a una pista nova de Poli o de sinte.
+- **Desfés** ho treu tot d'un cop.
+- Si mantens premut i arrossegues, funciona com sempre (de costat tria més clips; amunt o avall canvia de pista).
 
 ### Tocar sense gravar (assajar)
 - Les pistes de **sinte**, **MIDI** i **teremin** tenen un **botó petit amb l'instrument** a la capçalera, al costat del nom. En tocar-lo s'obre el teclat (o la quadrícula del teremin) als dos terços de baix: sona en directe amb el so de la pista, però **no es grava res**.
@@ -187,6 +199,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.34** (01/11/2026) — **Convertir un clip d'àudio a notes** a l'Estudi: mantenir premut el clip i deixar-lo anar → A notes → graella, correcció a la tonalitat i octava → a una pista de sinte, Poli o MIDI (que ja hi és o nova). Detecció de notes millorada (el vibrato i els lliscaments de la veu ja no parteixen notes ni n'afegeixen).
 - **2.33** (31/10/2026) — **Notes, acords i tonalitat** de les gravacions: botó «Analitza» a la fitxa, franja sota l'ona amb els acords o les notes (interruptor Notes / Acords; la veu comença amb notes i la guitarra amb acords), tonalitat (amb la segona opció si no és clara), canvis d'acord enganxats als temps si hi ha tempo. Tot es calcula al mòbil.
 - **2.32.2** (31/10/2026) — **Editor de so des del panell del teclat** de l'Estudi (assajant i gravant), amb «Escolta» per sentir els botons mentre es mouen. **Projecte nou** a la pestanya Estudi; la llista mostra també els projectes sense gravacions.
 - **2.32.1** (31/10/2026) — **Editors** (piano roll, drumpad i teremin): els botons de dalt ja no queden fora de la pantalla (si no hi caben, la tira es desplaça amb el dit) i fora el botó de compassos. **Piano roll**: rectangle per triar unes quantes notes i moure-les juntes. **Pads d'acords**: botons ▲ ▼ de posició (inversions) a l'editor d'acords.
