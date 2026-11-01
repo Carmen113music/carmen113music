@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.35:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.35.1:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou **convertir un clip d'àudio a notes** a l'Estudi (2.34), amb **corrector de la veu** i **conversió a bateria** del ritme fet amb la veu (2.35). Pròximes fases: convertir a acords, notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -127,6 +127,8 @@ El primer cop l'app demana permís de micròfon.
 ### Ritme fet amb la veu → bateria (2.35)
 - **Mantén premut un clip d'àudio** amb un ritme fet amb la boca (beatbox) i deixa'l anar → **A bateria (ritme fet amb la veu)**. Cal tenir algun kit de bateria.
 - Sense calibratge: l'app troba cada cop i el classifica pel so. Els **greus** («bum», «b») són **bombo**, els **del mig** («pf», «ka», «psh») **caixa**, els **aguts** («ts», «t») **hihat**, i un «tsss» llarg (més de 0,2 s) **hihat obert**. S'adapta als teus sons: ordena els cops de la gravació del més greu al més agut i hi busca tres grups. Si només en fas de dues menes (per exemple, bombo i hihat), mira quines són. La **força** de cada cop surt del volum.
+- 2.35.1: **el grup més greu és sempre el bombo** (el micròfon del mòbil agafa pocs greus i un bombo fet amb la boca pot sonar força agut). Si només hi ha dos grups, el de dalt és caixa, llevat que sigui gairebé només aguts («ts»): llavors és hihat.
+- 2.35.1: al panell surten **els grups de so que ha trobat**, del més greu al més agut («Grup 1 · 12 cops · el més greu»). Cada grup té un **triangle per escoltar-ne un cop** i un selector **Bombo / Caixa / Hihat / Res** («Res» = no el facis servir: respiracions, sorolls). En canviar-lo, el resum de dalt s'actualitza. **La tria es recorda**: la propera vegada que hi hagi el mateix nombre de grups, es farà servir la mateixa. A l'historial queda com sonava cada grup (per exemple «2,8 kHz → bombo (18)»).
 - Al panell surt quants cops ha trobat de cada mena. **Sensibilitat**: *Baixa* (només els cops clars), *Mitjana* o *Alta* (també els fluixos); en canviar-la es torna a escoltar. **Ajusta a la graella**: corxeres, semicorxeres o fuses.
 - **On va la bateria?**: una pista de bateria que ja tens (amb el seu kit) o **Pista nova · Bateria**. El ritme queda en finestres de fins a 4 compassos (el màxim del drumpad), al mateix lloc de la cançó, i es retoca al drumpad amb doble toc. El clip d'àudio no es toca.
 - Consell: fes els sons ben diferents entre ells i una mica separats, i grava a l'Estudi amb la base sonant pels auriculars (així queden a lloc).
@@ -216,6 +218,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.35.1** (01/11/2026) — Bateria amb la veu: el grup de sons més greu és sempre el bombo, i una caixa brillant ja no es confon amb el hihat (en Roger: els bombos sortien com a caixa i les caixes com a hihat). Al panell, els grups de so trobats amb un botó per escoltar-ne un cop i un selector Bombo / Caixa / Hihat / Res que es recorda.
 - **2.35** (01/11/2026) — **Corrector de la veu** en convertir a notes (No / Suau / Mig / Fort): salts d'octava, lliscaments, notes curtes i trossos d'una mateixa nota. **Ritme fet amb la veu → bateria**: mantenir premut un clip → A bateria; troba els cops i els classifica en bombo, caixa, hihat i hihat obert sense calibratge, amb sensibilitat i graella, a una pista de bateria nova o que ja hi és.
 - **2.34** (01/11/2026) — **Convertir un clip d'àudio a notes** a l'Estudi: mantenir premut el clip i deixar-lo anar → A notes → graella, correcció a la tonalitat i octava → a una pista de sinte, Poli o MIDI (que ja hi és o nova). Detecció de notes millorada (el vibrato i els lliscaments de la veu ja no parteixen notes ni n'afegeixen).
 - **2.33** (31/10/2026) — **Notes, acords i tonalitat** de les gravacions: botó «Analitza» a la fitxa, franja sota l'ona amb els acords o les notes (interruptor Notes / Acords; la veu comença amb notes i la guitarra amb acords), tonalitat (amb la segona opció si no és clara), canvis d'acord enganxats als temps si hi ha tempo. Tot es calcula al mòbil.

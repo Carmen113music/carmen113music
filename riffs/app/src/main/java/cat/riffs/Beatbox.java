@@ -20,8 +20,45 @@ public final class Beatbox {
 
     private Beatbox() {}
 
-    public static final int BOMBO = 0, CAIXA = 1, HIHAT = 2, OBERT = 3;
+    public static final int RES = -1, BOMBO = 0, CAIXA = 1, HIHAT = 2, OBERT = 3;
     public static final String[] NOMS = {"Bombo", "Caixa", "Hihat", "Hihat obert"};
+    /** El que es pot triar per a cada grup al panell (l'índex 3 = «Res»: aquells cops no es fan servir). */
+    public static final String[] TRIES = {"Bombo", "Caixa", "Hihat", "Res"};
+
+    /** Un grup de cops que sonen semblant (els ordena del més greu al més agut). */
+    public static final class Grup {
+        public double llum, centreHz, aguts;
+        public int cops;
+        /** El que l'app hi ha posat (o el que ha triat en Roger): BOMBO, CAIXA, HIHAT o RES. */
+        public int tipus;
+        /** El cop més fort del grup, per escoltar-lo. */
+        public long exempleMs = -1;
+        double exempleDb = -999;
+    }
+
+    /** El que s'ha sentit: els cops i els grups. */
+    public static final class Escolta {
+        public final List<Cop> cops = new ArrayList<>();
+        public final List<Grup> grups = new ArrayList<>();
+
+        /** Tria del panell: cada grup → BOMBO, CAIXA, HIHAT o RES (els hihats llargs passen a oberts). */
+        public void aplica(int[] tipusGrup) {
+            for (int g = 0; g < grups.size() && g < tipusGrup.length; g++) grups.get(g).tipus = tipusGrup[g];
+            for (Cop c : cops) {
+                int t = c.grup < grups.size() ? grups.get(c.grup).tipus : RES;
+                if (t == HIHAT && c.duradaMs >= 200) t = OBERT;
+                c.tipus = t;
+            }
+            forces(cops);
+        }
+
+        /** «0,1,2»: la tria de cada grup, per recordar-la. */
+        public String mapa() {
+            StringBuilder sb = new StringBuilder();
+            for (Grup g : grups) sb.append(sb.length() > 0 ? "," : "").append(g.tipus);
+            return sb.toString();
+        }
+    }
 
     /** Sensibilitat: com de fluixos poden ser els cops que es tenen en compte. */
     public static final String[] SENSIBILITATS = {"Baixa", "Mitjana", "Alta"};
@@ -29,6 +66,8 @@ public final class Beatbox {
     public static final class Cop {
         public final long ms;
         public int tipus;
+        /** Grup de so on ha caigut (0 = el més greu). */
+        public int grup;
         public int forca = 2;
         public final double centreHz, greus, aguts, duradaMs, db;
 
@@ -48,8 +87,14 @@ public final class Beatbox {
 
     /** Troba i classifica els cops. {@code sensibilitat}: 0 baixa, 1 mitjana, 2 alta. */
     public static List<Cop> detecta(short[] mostres, int sr, int sensibilitat) {
-        List<Cop> r = new ArrayList<>();
-        if (mostres == null || mostres.length < N * 2) return r;
+        return detectaTot(mostres, sr, sensibilitat).cops;
+    }
+
+    /** Com {@link #detecta}, però torna també els grups de so (per poder-los canviar al panell). */
+    public static Escolta detectaTot(short[] mostres, int sr, int sensibilitat) {
+        Escolta esc = new Escolta();
+        List<Cop> r = esc.cops;
+        if (mostres == null || mostres.length < N * 2) return esc;
         float[] x = redueix(mostres, sr);
         int n = (x.length - N) / PAS + 1;
         double[] hann = new double[N];
@@ -81,7 +126,7 @@ public final class Beatbox {
             fluxMax = Math.max(fluxMax, flux[k]);
             rmsMax = Math.max(rmsMax, rms[k]);
         }
-        if (fluxMax <= 0 || rmsMax < 0.002) return r;
+        if (fluxMax <= 0 || rmsMax < 0.002) return esc;
         double[] rel = {0.16, 0.10, 0.06};
         double[] porta = {-30, -36, -42};
         int sens = Math.max(0, Math.min(2, sensibilitat));
@@ -110,9 +155,9 @@ public final class Beatbox {
             int inici = Math.max(0, k * PAS - PAS / 2);
             r.add(mira(x, inici, db, rmsMax));
         }
-        classifica(r);
+        esc.grups.addAll(classifica(r));
         forces(r);
-        return r;
+        return esc;
     }
 
     /** Com sona un cop: energia per bandes, centre del so, durada. */
@@ -166,16 +211,17 @@ public final class Beatbox {
     /** On sol caure cada família (bombo, caixa, hihat) en lluminositat, si la gravació no diu res més. */
     static final double[] TIPIC = {6, 11, 16};
     /** Dos grups més a prop que això són la mateixa família. */
-    static final double SEPARACIO = 1.2;
+    static final double SEPARACIO = 0.7;
 
     /**
      * Agrupa els cops en bombo, caixa i hihat sense calibratge: ordena els cops de la gravació del més greu al
      * més agut i hi busca fins a tres grups (k-means d'una dimensió). Amb tres grups clars: greu = bombo,
      * mig = caixa, agut = hihat. Amb menys, cada grup pren la família on sol caure el seu so.
      */
-    static void classifica(List<Cop> cops) {
+    static List<Grup> classifica(List<Cop> cops) {
+        List<Grup> res = new ArrayList<>();
         int n = cops.size();
-        if (n == 0) return;
+        if (n == 0) return res;
         double[] v = new double[n];
         for (int i = 0; i < n; i++) v[i] = llum(cops.get(i));
         double[] ord = v.clone();
@@ -218,36 +264,52 @@ public final class Beatbox {
             }
             nouDe[(int) gr[2]] = fets.size() - 1;
         }
-        // a quina família va cada grup (respectant l'ordre greu → agut)
+        // els grups, del més greu al més agut
+        for (int k = 0; k < fets.size(); k++) res.add(new Grup());
+        for (int i = 0; i < n; i++) {
+            Cop cp = cops.get(i);
+            cp.grup = nouDe[g[i]];
+            Grup gr = res.get(cp.grup);
+            gr.cops++;
+            gr.llum += v[i];
+            gr.centreHz += Math.log(Math.max(60, cp.centreHz));
+            gr.aguts += cp.aguts;
+            if (cp.db > gr.exempleDb) {
+                gr.exempleDb = cp.db;
+                gr.exempleMs = cp.ms;
+            }
+        }
+        for (Grup gr : res) {
+            gr.llum /= gr.cops;
+            gr.centreHz = Math.exp(gr.centreHz / gr.cops);
+            gr.aguts /= gr.cops;
+        }
+        // a quina família va cada grup (respectant l'ordre greu → agut). 2.35.1: el grup més greu és sempre el
+        // bombo (el micròfon del mòbil agafa pocs greus i un bombo fet amb la boca pot sonar força agut)
         int[] familia;
-        if (fets.size() == 3) {
+        if (fets.size() >= 3) {
             familia = new int[]{BOMBO, CAIXA, HIHAT};
         } else if (fets.size() == 2) {
-            familia = new int[]{BOMBO, HIHAT};
-            double millor = Double.MAX_VALUE;
-            for (int a = 0; a < 3; a++) for (int b = a + 1; b < 3; b++) {
-                double d = Math.abs(fets.get(0)[0] - TIPIC[a]) + Math.abs(fets.get(1)[0] - TIPIC[b]);
-                if (d < millor) {
-                    millor = d;
-                    familia = new int[]{a, b};
-                }
-            }
+            Grup alt = res.get(1);
+            boolean xiuxiueig = alt.aguts > 0.8 && alt.centreHz > 5500;   // «ts»: gairebé només aguts
+            familia = new int[]{BOMBO, xiuxiueig ? HIHAT : CAIXA};
         } else {
             int m = 0;
             for (int k = 1; k < 3; k++) if (Math.abs(fets.get(0)[0] - TIPIC[k]) < Math.abs(fets.get(0)[0] - TIPIC[m])) m = k;
             familia = new int[]{m};
         }
-        for (int i = 0; i < n; i++) {
-            Cop cp = cops.get(i);
-            int t = familia[nouDe[g[i]]];
+        for (int k = 0; k < res.size(); k++) res.get(k).tipus = familia[k];
+        for (Cop cp : cops) {
+            int t = familia[cp.grup];
             if (t == HIHAT && cp.duradaMs >= 200) t = OBERT;
             cp.tipus = t;
         }
+        return res;
     }
 
     /** Força 1–3 segons el volum de cada cop respecte de la mitjana del seu tipus. */
     static void forces(List<Cop> cops) {
-        for (int t = 0; t < 4; t++) {
+        for (int t = 0; t < 4; t++) {   // els de RES (-1) no compten
             List<Double> dbs = new ArrayList<>();
             for (Cop c : cops) if (c.tipus == t) dbs.add(c.db);
             if (dbs.isEmpty()) continue;
@@ -326,6 +388,7 @@ public final class Beatbox {
         List<double[]> qs = new ArrayList<>();   // {ms a la línia de temps (quantitzat), tipus, força}
         double primer = Double.MAX_VALUE;
         for (Cop c : cops) {
+            if (c.tipus < 0) continue;   // «Res»: aquest grup no es fa servir
             if (c.ms < iniciMs - 20 || c.ms >= fiMs) continue;
             double t = posMs + c.ms;
             if (t < -msQuant / 2) continue;

@@ -3352,51 +3352,150 @@ public class ProjecteActivity extends Activity {
             }
             short[] mostres = m;
             int mostreig = sr;
-            List<Beatbox.Cop> cops = mostres == null ? null : Beatbox.detecta(mostres, mostreig, sens);
+            Beatbox.Escolta esc = mostres == null ? null : Beatbox.detectaTot(mostres, mostreig, sens);
             runOnUiThread(() -> {
                 convertint = false;
                 if (isFinishing()) return;
                 textInfo.setText("");
-                if (cops == null) Ui.avis(this, "No s'ha pogut escoltar aquest clip");
-                else opcionsBateria(clip, mostres, mostreig, cops, sens);
+                if (esc == null) {
+                    Ui.avis(this, "No s'ha pogut escoltar aquest clip");
+                    return;
+                }
+                recordaMapa(esc);
+                opcionsBateria(clip, mostres, mostreig, esc, sens);
             });
         }, "beatbox").start();
     }
 
+    /** Si l'última vegada amb el mateix nombre de grups en Roger va triar una altra cosa, la fa servir. */
+    private void recordaMapa(Beatbox.Escolta esc) {
+        String m = Ui.prefs(this).getString("bat_mapa_" + esc.grups.size(), null);
+        if (m == null) return;
+        String[] p = m.split(",");
+        if (p.length != esc.grups.size()) return;
+        int[] t = new int[p.length];
+        try {
+            for (int i = 0; i < p.length; i++) t[i] = Math.max(-1, Math.min(2, Integer.parseInt(p[i].trim())));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        esc.aplica(t);
+    }
+
     private static String resumCops(List<Beatbox.Cop> cops, long ini, long fi) {
         int[] n = new int[4];
-        int tot = 0;
+        int tot = 0, res = 0;
         for (Beatbox.Cop c : cops) {
             if (c.ms < ini - 20 || c.ms >= fi) continue;
+            if (c.tipus < 0) {
+                res++;
+                continue;
+            }
             n[c.tipus]++;
             tot++;
         }
-        if (tot == 0) return "No s'ha trobat cap cop";
+        if (tot == 0 && res == 0) return "No s'ha trobat cap cop";
         return tot + (tot == 1 ? " cop: " : " cops: ") + n[0] + " bombo · " + n[1] + " caixa · " + (n[2] + n[3]) + " hihat"
-                + (n[3] > 0 ? " (" + n[3] + " oberts)" : "");
+                + (n[3] > 0 ? " (" + n[3] + " oberts)" : "") + (res > 0 ? " · " + res + " sense fer servir" : "");
     }
 
-    /** Panell: graella i sensibilitat (si canvia, es torna a escoltar). Després, a quina pista. */
-    private void opcionsBateria(Projecte.Clip clip, short[] mostres, int sr, List<Beatbox.Cop> cops0, int sens0) {
+    private android.media.AudioTrack provaCop;
+
+    /** Fa sonar un tros curt de la gravació (un cop d'un grup). */
+    private void escoltaCop(short[] mostres, int sr, long ms) {
+        if (provaCop != null) {
+            try {
+                provaCop.stop();
+            } catch (RuntimeException ignorat) {
+            }
+            provaCop.release();
+            provaCop = null;
+        }
+        if (mostres == null || ms < 0) return;
+        int a = (int) Math.max(0, (ms - 15) * sr / 1000), n = Math.min(mostres.length - a, (int) (0.4 * sr));
+        if (n <= 0) return;
+        short[] tros = new short[n];
+        System.arraycopy(mostres, a, tros, 0, n);
+        for (int i = 0; i < Math.min(n, sr / 50); i++) tros[n - 1 - i] = (short) (tros[n - 1 - i] * i / (sr / 50.0));
+        try {
+            android.media.AudioTrack t = new android.media.AudioTrack.Builder()
+                    .setAudioAttributes(new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                    .setAudioFormat(new android.media.AudioFormat.Builder().setSampleRate(sr)
+                            .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setBufferSizeInBytes(n * 2)
+                    .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+                    .build();
+            t.write(tros, 0, n);
+            t.play();
+            provaCop = t;
+        } catch (RuntimeException e) {
+            Ui.avis(this, "No s'ha pogut fer sonar");
+        }
+    }
+
+    /** Una fila per grup de so: «Grup 1 · 12 cops · el més greu», escolta, i Bombo / Caixa / Hihat / Res. */
+    private void ompleGrups(LinearLayout caixa, Beatbox.Escolta esc, short[] mostres, int sr, Runnable canvi) {
+        caixa.removeAllViews();
+        int n = esc.grups.size();
+        if (n == 0) return;
+        caixa.addView(Ui.etiqueta(this, n == 1 ? "El so que fas" : "Els " + n + " sons que fas (del més greu al més agut)"));
+        for (int k = 0; k < n; k++) {
+            Beatbox.Grup g = esc.grups.get(k);
+            int idx = k;
+            LinearLayout fila = Ui.fila(this);
+            fila.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            FrameLayout escolta = Ui.botoIcona(this, Icona.PLAY, Ui.TEXT, Ui.SUPERFICIE2, 34, 14, "Escolta un cop d'aquest grup");
+            escolta.setOnClickListener(v -> escoltaCop(mostres, sr, g.exempleMs));
+            fila.addView(escolta);
+            fila.addView(Ui.espai(this, 8));
+            LinearLayout tx = Ui.columna(this);
+            String on = n > 1 && k == 0 ? " · el més greu" : n > 1 && k == n - 1 ? " · el més agut" : "";
+            tx.addView(Ui.unaLinia(Ui.negreta(this, "Grup " + (k + 1) + on, 12, Ui.TEXT)));
+            tx.addView(Ui.unaLinia(Ui.text(this, g.cops + (g.cops == 1 ? " cop" : " cops") + " · "
+                    + String.format(Locale.ROOT, "%.1f kHz", g.centreHz / 1000).replace('.', ','), 11, Ui.SUAU)));
+            fila.addView(tx, new LinearLayout.LayoutParams(Ui.dp(this, 112), LinearLayout.LayoutParams.WRAP_CONTENT));
+            fila.addView(Ui.espai(this, 6));
+            int triat = g.tipus < 0 ? 3 : Math.min(2, g.tipus);
+            fila.addView(Ui.segmentat(this, Beatbox.TRIES, triat, Ui.BATERIA, i -> {
+                int[] t = new int[n];
+                for (int q = 0; q < n; q++) t[q] = esc.grups.get(q).tipus < 0 ? -1 : Math.min(2, esc.grups.get(q).tipus);
+                t[idx] = i == 3 ? Beatbox.RES : i;
+                esc.aplica(t);
+                canvi.run();
+            }), Ui.pes(1));
+            caixa.addView(fila, Ui.ample(this, 6));
+        }
+    }
+
+    /** Panell: els grups de so (es poden canviar), sensibilitat (torna a escoltar) i graella. Després, a quina pista. */
+    private void opcionsBateria(Projecte.Clip clip, short[] mostres, int sr, Beatbox.Escolta esc0, int sens0) {
         android.content.SharedPreferences pr = Ui.prefs(this);
         int[] graella = {Math.max(0, Math.min(2, pr.getInt("bat_graella", 1)))};
         int[] sens = {sens0};
-        List<List<Beatbox.Cop>> cops = new ArrayList<>();
-        cops.add(cops0);
+        Beatbox.Escolta[] esc = {esc0};
 
         LinearLayout cos = Ui.columna(this);
         cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
-        TextView resum = Ui.text(this, resumCops(cops0, clip.iniciMs, clip.fiMs), 13, Ui.TEXT);
+        TextView resum = Ui.text(this, resumCops(esc0.cops, clip.iniciMs, clip.fiMs), 13, Ui.TEXT);
         cos.addView(resum);
-        cos.addView(Ui.text(this, "Sense calibratge: els cops greus («bum») són bombo, els del mig («pf», «ka») caixa i els aguts "
-                + "(«ts») hihat; un «tsss» llarg és un hihat obert. Després ho retoques al drumpad.", 11, Ui.SUAU), Ui.ample(this, 4));
+        cos.addView(Ui.text(this, "Si un grup no és el que toca, canvia'l: toca el triangle per escoltar-ne un cop. "
+                + "«Res» = no el facis servir (respiracions, sorolls). Es recorda per a la propera vegada.", 11, Ui.SUAU), Ui.ample(this, 4));
+        LinearLayout grups = Ui.columna(this);
+        cos.addView(grups, Ui.ample(this, 10));
+        Runnable[] refresca = new Runnable[1];
+        refresca[0] = () -> resum.setText(resumCops(esc[0].cops, clip.iniciMs, clip.fiMs));
+        ompleGrups(grups, esc[0], mostres, sr, refresca[0]);
 
         cos.addView(Ui.etiqueta(this, "Sensibilitat (cops fluixos)"), Ui.ample(this, 12));
         cos.addView(Ui.segmentat(this, Beatbox.SENSIBILITATS, sens[0], Ui.TEXT, i -> {
             sens[0] = i;
-            List<Beatbox.Cop> nous = Beatbox.detecta(mostres, sr, i);
-            cops.set(0, nous);
-            resum.setText(resumCops(nous, clip.iniciMs, clip.fiMs));
+            esc[0] = Beatbox.detectaTot(mostres, sr, i);
+            recordaMapa(esc[0]);
+            refresca[0].run();
+            ompleGrups(grups, esc[0], mostres, sr, refresca[0]);
         }), Ui.ample(this, 6));
 
         cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 12));
@@ -3404,12 +3503,14 @@ public class ProjecteActivity extends Activity {
 
         Full.panell(this, "Converteix a bateria", "Cada cop que fas amb la veu va a la fila del drumpad que li toca.",
                 cos, "Tria la pista", Ui.TEXT, () -> {
-                    pr.edit().putInt("bat_graella", graella[0]).putInt("bat_sensibilitat", sens[0]).apply();
-                    triaDestiBateria(clip, cops.get(0), graella[0]);
+                    escoltaCop(null, sr, -1);
+                    pr.edit().putInt("bat_graella", graella[0]).putInt("bat_sensibilitat", sens[0])
+                            .putString("bat_mapa_" + esc[0].grups.size(), esc[0].mapa()).apply();
+                    triaDestiBateria(clip, esc[0], graella[0]);
                 });
     }
 
-    private void triaDestiBateria(Projecte.Clip clip, List<Beatbox.Cop> cops, int graella) {
+    private void triaDestiBateria(Projecte.Clip clip, Beatbox.Escolta cops, int graella) {
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
             if (!t.esBateria()) continue;
@@ -3446,11 +3547,22 @@ public class ProjecteActivity extends Activity {
         return p;
     }
 
-    private void converteixBateria(Projecte.Pista t, Projecte.Clip clip, List<Beatbox.Cop> cops, int graella) {
+    /** «2,8 kHz → bombo (18) · 4,9 kHz → caixa (12)»: per a l'historial (i el diagnòstic). */
+    private static String textGrups(Beatbox.Escolta esc) {
+        StringBuilder sb = new StringBuilder();
+        for (Beatbox.Grup g : esc.grups) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(String.format(Locale.ROOT, "%.1f kHz", g.centreHz / 1000).replace('.', ',')).append(" → ")
+                    .append(g.tipus < 0 ? "res" : Beatbox.NOMS[g.tipus].toLowerCase(Locale.ROOT)).append(" (").append(g.cops).append(")");
+        }
+        return sb.toString();
+    }
+
+    private void converteixBateria(Projecte.Pista t, Projecte.Clip clip, Beatbox.Escolta esc, int graella) {
         if (t == null || !projecte.pistes.contains(t) || !t.esBateria()) return;
         atura();
         Patro plantilla = plantillaBateria(t);
-        Beatbox.Resultat r = Beatbox.ritmes(cops, clip.posMs, clip.iniciMs, clip.fiMs, projecte.msPerCompas(), projecte.compas,
+        Beatbox.Resultat r = Beatbox.ritmes(esc.cops, clip.posMs, clip.iniciMs, clip.fiMs, projecte.msPerCompas(), projecte.compas,
                 graella, plantilla);
         if (r.finestres.isEmpty()) {
             Ui.avis(this, "No hi ha cap cop per convertir en aquest clip");
@@ -3481,7 +3593,7 @@ public class ProjecteActivity extends Activity {
         String nomClip = pr != null && !pr.nom.isEmpty() ? pr.nom : "un clip";
         Ui.historial(this, "Convertit «" + nomClip + "» a bateria a «" + t.nomVisible() + "»: " + r.cops + " cops ("
                 + r.perTipus[0] + " bombo, " + r.perTipus[1] + " caixa, " + (r.perTipus[2] + r.perTipus[3]) + " hihat), compàs "
-                + r.compasEntrada + ", graella " + Conversio.GRAELLES[graella].toLowerCase(Locale.ROOT));
+                + r.compasEntrada + ", graella " + Conversio.GRAELLES[graella].toLowerCase(Locale.ROOT) + " · grups: " + textGrups(esc));
         ompleCapcaleres();
         posaEtiquetaPistes();
         int ip = projecte.pistes.indexOf(t);
@@ -3702,5 +3814,6 @@ public class ProjecteActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         if (motor != null) motor.atura();
+        escoltaCop(null, Sinte.MOSTREIG, -1);
     }
 }
