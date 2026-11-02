@@ -49,9 +49,15 @@ public class ProjecteActivity extends Activity {
     private LinearLayout botoSnap;
     // 2.42: en vertical, el text d'informació i les accions dels clips passen a una segona fila (el play no queda fora)
     private LinearLayout barraDalt, barraDalt2;
+    private LinearLayout barraEsq;   // 2.43: la part esquerra de la barra de dalt (desplaçable si no hi cap)
     private View mollaDalt;
     private FrameLayout botoInici;
     private TextView pastillaTon;
+    // 2.43: la pista triada (il·luminada) i el seu fader a la tira de l'esquerra
+    private Projecte.Pista pistaTriada;
+    private FaderView faderTira;
+    private TextView numTira, dbTira;
+    private View blocTira;
     private boolean calculantTon = false, refaTonDespres = false;
     private FrameLayout botoClic;
     private FrameLayout pestanyaPistes, pestanyaTaula;
@@ -316,6 +322,24 @@ public class ProjecteActivity extends Activity {
             return true;
         });
         dalt.addView(botoPlay);
+        // 2.43: tot el que va entre la fletxa i el botó de desfer passa a una franja que, si no hi cap (per exemple
+        // amb clips triats), es desplaça amb el dit; desfer, posició, inici i play queden sempre fixos a la dreta
+        LinearLayout esq = Ui.fila(this);
+        int iDesfes = dalt.indexOfChild(botoDesfes);
+        List<View> aMoure = new ArrayList<>();
+        for (int i = 1; i < iDesfes; i++) aMoure.add(dalt.getChildAt(i));
+        for (View v : aMoure) {
+            android.view.ViewGroup.LayoutParams lp = v.getLayoutParams();
+            dalt.removeView(v);
+            if (lp != null) esq.addView(v, lp);
+            else esq.addView(v);
+        }
+        android.widget.HorizontalScrollView franja = new android.widget.HorizontalScrollView(this);
+        franja.setHorizontalScrollBarEnabled(false);
+        franja.setFillViewport(true);
+        franja.addView(esq, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        dalt.addView(franja, 1, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        barraEsq = esq;
         arrel.addView(dalt);
         barraDalt = dalt;
         barraDalt2 = Ui.fila(this);
@@ -341,6 +365,37 @@ public class ProjecteActivity extends Activity {
         tira.addView(pestanyaPistes);
         tira.addView(Ui.espai(this, 6));
         tira.addView(pestanyaTaula);
+        // 2.43: el fader (amb vúmetre) de la pista triada
+        LinearLayout bloc = Ui.columna(this);
+        bloc.setGravity(Gravity.CENTER_HORIZONTAL);
+        View sepF = new View(this);
+        sepF.setBackgroundColor(Ui.LINIA);
+        LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(Ui.dp(this, 28), 1);
+        ls.topMargin = Ui.dp(this, 8);
+        ls.bottomMargin = Ui.dp(this, 6);
+        bloc.addView(sepF, ls);
+        numTira = Ui.negreta(this, "", 12, Ui.SUAU);
+        numTira.setGravity(Gravity.CENTER);
+        bloc.addView(numTira);
+        faderTira = new FaderView(this, 0, Ui.SUAU);
+        faderTira.posaCompacte(true);
+        faderTira.setContentDescription("Volum de la pista triada");
+        faderTira.setOient((db, acabat) -> {
+            Projecte.Pista t = pistaTriada;
+            if (t == null) return;
+            synchronized (projecte) {
+                t.volumDb = db;
+            }
+            if (dbTira != null) dbTira.setText(Projecte.textDb(db));
+            if (acabat) desa();
+        });
+        bloc.addView(faderTira, new LinearLayout.LayoutParams(Ui.dp(this, 42), 0, 1f));
+        dbTira = Ui.text(this, "", 9, Ui.SUAU);
+        dbTira.setGravity(Gravity.CENTER);
+        dbTira.setPadding(0, 0, 0, Ui.dp(this, 6));
+        bloc.addView(dbTira);
+        blocTira = bloc;
+        tira.addView(bloc, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         cosH.addView(tira, new LinearLayout.LayoutParams(Ui.dp(this, 44), LinearLayout.LayoutParams.MATCH_PARENT));
         View sepTira = new View(this);
         sepTira.setBackgroundColor(Ui.LINIA);
@@ -539,7 +594,46 @@ public class ProjecteActivity extends Activity {
 
     // ---------- Capçaleres de pista ----------
 
+    /** 2.43: el nom de l'instrument i el del so de cada pista d'instrument (es mostren a la capçalera). */
+    private void refaNomsInstruments() {
+        java.util.Map<String, Integer> quants = new java.util.HashMap<>();
+        for (Projecte.Pista t : projecte.pistes) {
+            t.nomInstrument = t.baseInstrument = t.nomSo = null;
+            t.iconaInstrument = -1;
+            if (!t.esInstrument()) continue;
+            String inst, so;
+            int icona;
+            if (t.esTeremin()) {
+                Gest g = gestDeLaPista(t);
+                inst = "Teremin";
+                so = g == null ? "" : g.preset;
+                icona = Icona.TEREMIN;
+            } else {
+                Melodia m = soDeLaPista(t);
+                if (m.esMidi()) {
+                    inst = "MIDI";
+                    icona = Icona.MIDI;
+                } else if (!m.poliSinte) {
+                    inst = "Analògic mono";
+                    icona = Icona.SINTE;
+                } else {
+                    int mo = m.so.motor;
+                    inst = mo == Sinte.ANALOGIC ? "Analògic poli" : Sinte.NOMS_MOTOR[Math.max(0, Math.min(Sinte.NOMS_MOTOR.length - 1, mo))];
+                    icona = mo == Sinte.ANALOGIC ? Icona.POLI : Ui.iconaMotor(mo);
+                }
+                so = m.preset;
+            }
+            int n = quants.getOrDefault(inst, 0) + 1;
+            quants.put(inst, n);
+            t.baseInstrument = inst;
+            t.nomInstrument = n > 1 ? inst + " " + n : inst;
+            t.nomSo = so;
+            t.iconaInstrument = icona;
+        }
+    }
+
     private void ompleCapcaleres() {
+        refaNomsInstruments();
         capcaleres.removeAllViews();
         for (int i = 0; i < projecte.pistes.size(); i++) {
             capcaleres.addView(capcalera(i), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
@@ -554,6 +648,8 @@ public class ProjecteActivity extends Activity {
         mes.setTag("mes");
         capcaleres.addView(mes, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, altPista));
         aplicaAlcada();
+        pintaTriada();
+        pintaFaderTira();
     }
 
     private View capcalera(int i) {
@@ -569,6 +665,7 @@ public class ProjecteActivity extends Activity {
         c.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 4));
         c.setClickable(true);
         c.setOnClickListener(v -> {
+            triaPista(t);
             if (t.esBateria() && t.clips.isEmpty()) {
                 textInfo.setTextColor(Ui.BATERIA);
                 textInfo.setText("Mantén premut a la fila per posar-hi un ritme, o fes-lo amb la veu: botó de gravar + mantén premut el play");
@@ -622,7 +719,8 @@ public class ProjecteActivity extends Activity {
         num.setMinWidth(Ui.dp(this, 16));
         dalt.addView(num);
         dalt.addView(Ui.espai(this, 4));
-        dalt.addView(Ui.imatge(this, Ui.iconaPista(t), color, 14), new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
+        dalt.addView(Ui.imatge(this, t.iconaInstrument > 0 ? t.iconaInstrument : Ui.iconaPista(t), color, 14),
+                new LinearLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16)));
         dalt.addView(Ui.espai(this, 6));
         dalt.addView(Ui.unaLinia(Ui.negreta(this, t.nomVisible(), 13, Ui.TEXT)), Ui.pes(1));
         if (t.esInstrument()) {
@@ -639,6 +737,13 @@ public class ProjecteActivity extends Activity {
             dalt.addView(toca, lt);
         }
         c.addView(dalt);
+        if (t.nomSo != null && !t.nomSo.isEmpty()) {
+            // 2.43: el so, a sota del nom de l'instrument
+            TextView so = Ui.unaLinia(Ui.text(this, t.nomSo, 11, Ui.SUAU));
+            so.setPadding(Ui.dp(this, 42), 0, 0, 0);
+            so.setTag("db");   // s'amaga com abans el text del volum quan la pista és baixa
+            c.addView(so);
+        }
 
         LinearLayout baix = Ui.fila(this);
         TextView m = botoMS("M", t.mut, Ui.ACCENT);
@@ -654,6 +759,7 @@ public class ProjecteActivity extends Activity {
             synchronized (projecte) {
                 projecte.armaRec(t.rec ? null : t);
             }
+            if (t.rec) triaPista(t);
             desa();
             // repinta les R de totes les pistes (només n'hi pot haver una)
             for (int k = 0; k < capcaleres.getChildCount(); k++) {
@@ -687,36 +793,8 @@ public class ProjecteActivity extends Activity {
         baix.addView(rec);
         baix.addView(Ui.espai(this, 4));
 
-        // fader: de -∞ (-60) a +6 dB, amb 0 dB al 90%
-        SeekBar fader = new SeekBar(this);
-        fader.setMax(660);
-        fader.setProgress((int) Math.round((t.volumDb + 60) * 10));
-        TextView db = Ui.text(this, Projecte.textDb(t.volumDb), 10, Ui.SUAU);
-        fader.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar b, int p, boolean usuari) {
-                if (!usuari) return;
-                double v = p / 10.0 - 60;
-                if (Math.abs(v) < 0.8) v = 0;   // s'enganxa a 0 dB
-                synchronized (projecte) {
-                    t.volumDb = v;
-                }
-                db.setText(Projecte.textDb(v));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar b) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar b) {
-                desa();
-            }
-        });
-        baix.addView(fader, Ui.pes(1));
+        // 2.43: el volum ja no és aquí: és el fader de la tira de l'esquerra (de la pista triada)
         c.addView(baix, Ui.ample(this, 6));
-        db.setPadding(Ui.dp(this, 64), 0, 0, 0);
-        db.setTag("db");
-        c.addView(db);
 
         fora.addView(c, Ui.pes(1));
         LinearLayout amb = Ui.columna(this);
@@ -857,6 +935,10 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Ui.iconaPista(t), "Obre el piano roll", false, () -> obrePianoRoll(k)));
         }
+        if (t.esNotes()) {
+            ops.add(new Full.Accio(t.iconaInstrument > 0 ? t.iconaInstrument : Ui.iconaPista(t), "Canvia l'instrument", false,
+                    () -> triaInstrumentPista(t)));
+        }
         ops.add(new Full.Accio(Icona.AJUSTOS, t.fx.actiu() ? "Efectes · " + t.fx.resum() : "Efectes (EQ, compressor, reverb…)", false,
                 () -> obreInsercions(t)));
         ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () ->
@@ -864,7 +946,7 @@ public class ProjecteActivity extends Activity {
                     String n = text == null ? "" : text.trim();
                     synchronized (projecte) {
                         // si és igual que el de la gravació, no cal nom propi
-                        t.nomPropi = n.equals(t.nom) ? "" : n;
+                        t.nomPropi = n.equals(t.nom) || n.equals(t.nomInstrument) ? "" : n;
                     }
                     desa();
                     ompleCapcaleres();
@@ -936,6 +1018,8 @@ public class ProjecteActivity extends Activity {
     // ---------- Clips triats ----------
 
     private void actualitzaAccions() {
+        // 2.43: triar un clip (o fer-ne una finestra nova) tria la seva pista
+        if (vista.triada >= 0 && vista.triada < projecte.pistes.size()) triaPista(projecte.pistes.get(vista.triada));
         int n = vista.triats.size();
         accions.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
         textTriats.setText(n == 1 ? "1 clip" : n + " clips");
@@ -1281,7 +1365,7 @@ public class ProjecteActivity extends Activity {
             int n = 1;
             for (Projecte.Pista x : projecte.pistes) if (poli ? x.esPoli() : x.esSinte()) n++;
             synchronized (projecte) {
-                projecte.afegeixSinte(wav, durada, n > 1 ? preset.nom + " " + n : preset.nom);
+                projecte.afegeixSinte(wav, durada, "");   // 2.43: es diu com l'instrument
             }
             carregaSo(wav);
         } catch (IOException e) {
@@ -1507,7 +1591,7 @@ public class ProjecteActivity extends Activity {
             int n = 1;
             for (Projecte.Pista x : projecte.pistes) if (x.esTeremin()) n++;
             synchronized (projecte) {
-                p = projecte.afegeixSinte(wav, durada, n > 1 ? "Teremin " + n : "Teremin");
+                p = projecte.afegeixSinte(wav, durada, "");
                 projecte.armaRec(p);
             }
             carregaSo(wav);
@@ -1572,6 +1656,7 @@ public class ProjecteActivity extends Activity {
 
     private void mostraTaula(boolean taula) {
         taulaVisible = taula;
+        if (blocTira != null) blocTira.setVisibility(taula ? View.INVISIBLE : View.VISIBLE);
         Ui.colorIcona(pestanyaPistes, taula ? Ui.SUAU : Ui.TEXT);
         Ui.colorIcona(pestanyaTaula, taula ? Ui.TEXT : Ui.SUAU);
         pestanyaPistes.setBackground(Ui.tocable(taula ? 0x00000000 : Ui.SUPERFICIE2, Ui.dp(this, 18)));
@@ -1612,6 +1697,7 @@ public class ProjecteActivity extends Activity {
     };
 
     private void ompleTaula() {
+        refaNomsInstruments();
         filaTaula.removeAllViews();
         resumsFx.clear();
         caixesFx.clear();
@@ -1971,6 +2057,7 @@ public class ProjecteActivity extends Activity {
         // la graella només mostra la icona i el botó de tornar a l'inici s'amaga. El play no surt mai de la pantalla.
         if (textSnap != null) textSnap.setVisibility(vertical ? View.GONE : View.VISIBLE);
         if (botoInici != null) botoInici.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        LinearLayout barraDalt = barraEsq != null ? barraEsq : this.barraDalt;
         boolean aDalt = textInfo.getParent() == barraDalt;
         if (vertical && aDalt) {
             int idx = barraDalt.indexOfChild(textInfo);
@@ -2149,6 +2236,7 @@ public class ProjecteActivity extends Activity {
         ritme = ritme || cant;
         tancaAssaig();
         atura();
+        if (pista != null) triaPista(pista);
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
         long iniciMs = entradaMs - Math.round(compteCompassos() * projecte.msPerCompas());   // pot ser negatiu
         Biblioteca b = Ui.biblioteca(this);
@@ -2399,6 +2487,7 @@ public class ProjecteActivity extends Activity {
         tancaAssaig();
         atura();
         boolean ter = t.esTeremin();
+        triaPista(t);
         Melodia base = ter ? null : soDeLaPista(t);
         Sinte.So so = ter ? gestDeLaPista(t).so : base.so;
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
@@ -2891,7 +2980,7 @@ public class ProjecteActivity extends Activity {
             int n = 1;
             for (Projecte.Pista x : projecte.pistes) if (x.esMidi()) n++;
             synchronized (projecte) {
-                projecte.afegeixSinte(wav, durada, Gm.nom(programa) + (n > 1 ? " " + n : ""));
+                projecte.afegeixSinte(wav, durada, "");
             }
             carregaSo(wav);
         } catch (IOException e) {
@@ -4583,6 +4672,230 @@ public class ProjecteActivity extends Activity {
     }
 
     private final Runnable refaTon = this::refaTonalitat;
+
+    // ---------- Canviar l'instrument d'una pista (2.43) ----------
+
+    /** Primer l'instrument (motor), després el so. Les notes es conserven. */
+    private void triaInstrumentPista(Projecte.Pista t) {
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.SINTE, "Analògic mono", false, () -> {
+            List<Full.Accio> sons = new ArrayList<>();
+            for (Sinte.Preset p : Sinte.PRESETS) sons.add(new Full.Accio(Icona.SINTE, p.nom, false, () -> canviaInstrument(t, p, false, -1)));
+            for (Sinte.Preset p : SonsPropis.llista(Ui.dirSons(this), false))
+                sons.add(new Full.Accio(Icona.SINTE, p.nom + "  · meu", false, () -> canviaInstrument(t, p, false, -1)));
+            Full.graella(this, "Analògic mono", "Una nota alhora.", sons, () -> triaInstrumentPista(t));
+        }));
+        ops.add(new Full.Accio(Icona.POLI, "Analògic poli", false, () -> {
+            List<Full.Accio> fams = new ArrayList<>();
+            for (int f : Poli.familiesDeMotor(Sinte.ANALOGIC)) {
+                fams.add(new Full.Accio(Icona.POLI, Poli.FAMILIES[f], false, () -> {
+                    List<Full.Accio> sons = new ArrayList<>();
+                    for (Sinte.Preset p : Poli.deFamilia(f)) sons.add(new Full.Accio(Icona.POLI, p.nom, false, () -> canviaInstrument(t, p, true, -1)));
+                    Full.graella(this, Poli.FAMILIES[f], "Analògic polifònic.", sons, () -> triaInstrumentPista(t));
+                }));
+            }
+            List<Sinte.Preset> meus = Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), Sinte.ANALOGIC);
+            if (!meus.isEmpty()) {
+                fams.add(new Full.Accio(Icona.POLI, "Els meus sons", false, () -> {
+                    List<Full.Accio> sons = new ArrayList<>();
+                    for (Sinte.Preset p : meus) sons.add(new Full.Accio(Icona.POLI, p.nom, false, () -> canviaInstrument(t, p, true, -1)));
+                    Full.graella(this, "Els meus sons", "Analògic polifònic.", sons, () -> triaInstrumentPista(t));
+                }));
+            }
+            Full.graella(this, "Analògic poli", "Tria una família.", fams, () -> triaInstrumentPista(t));
+        }));
+        for (int mo = Sinte.FM; mo <= Sinte.CORDA; mo++) {
+            int motor = mo;
+            int ic = Ui.iconaMotor(motor);
+            ops.add(new Full.Accio(ic, Sinte.NOMS_MOTOR[motor], false, () -> {
+                List<Full.Accio> sons = new ArrayList<>();
+                for (Sinte.Preset p : Poli.deFamilia(Poli.familiaDeMotor(motor))) sons.add(new Full.Accio(ic, p.nom, false, () -> canviaInstrument(t, p, true, -1)));
+                for (Sinte.Preset p : Poli.delMotor(SonsPropis.llista(Ui.dirSons(this), true), motor))
+                    sons.add(new Full.Accio(ic, p.nom + "  · meu", false, () -> canviaInstrument(t, p, true, -1)));
+                Full.graella(this, Sinte.NOMS_MOTOR[motor], "Tria el so.", sons, () -> triaInstrumentPista(t));
+            }));
+        }
+        ops.add(new Full.Accio(Icona.MIDI, "MIDI", false, () -> {
+            if (!Banc.hiEs()) {
+                Full.avis(this, "Cal el banc de sons", "Les pistes MIDI fan servir un banc amb els 128 instruments (uns 31 MB). "
+                        + "Baixa'l una vegada i torna aquí.", "Baixa'l", () -> {
+                    android.content.Intent i = new android.content.Intent(this, BancActivity.class);
+                    i.putExtra(BancActivity.EXTRA_BAIXA, true);
+                    startActivity(i);
+                });
+                return;
+            }
+            List<Full.Accio> fams = new ArrayList<>();
+            for (int f = 0; f < Gm.FAMILIES.length; f++) {
+                int ff = f;
+                fams.add(new Full.Accio(Icona.MIDI, Gm.FAMILIES[f], false, () -> {
+                    List<Full.Accio> ins = new ArrayList<>();
+                    for (int i = 0; i < 8; i++) {
+                        int prog = ff * 8 + i;
+                        ins.add(new Full.Accio(Icona.MIDI, Gm.nom(prog), false, () -> canviaInstrument(t, null, true, prog)));
+                    }
+                    Full.graella(this, Gm.FAMILIES[ff], "Instrument MIDI.", ins, () -> triaInstrumentPista(t));
+                }));
+            }
+            Full.graella(this, "MIDI", "Tria una família.", fams, () -> triaInstrumentPista(t));
+        }));
+        Full.llista(this, "Canvia l'instrument", "«" + t.nomVisible() + "». Les notes es queden; només canvia com sonen. "
+                + "Es pot desfer.", ops);
+    }
+
+    /** La frase {@code m} amb un altre instrument (les notes iguals; si passa a mono, les que es trepitgen es perden). */
+    private static Melodia ambInstrument(Melodia m, Sinte.Preset preset, boolean poli, int programa) {
+        Melodia r = new Melodia();
+        r.compas = m.compas;
+        r.passosPerCompas = m.passosPerCompas;
+        r.compassos = m.compassos;
+        if (programa >= 0) {
+            r.posaInstrument(programa);
+        } else {
+            r.preset = preset.nom;
+            r.so = preset.so.copia();
+            r.poliSinte = poli;
+        }
+        for (Melodia.Nota n : m.notes) r.posa(new Melodia.Nota(n.pas, n.llarg, n.nota, n.forca));
+        return r;
+    }
+
+    private void canviaInstrument(Projecte.Pista t, Sinte.Preset preset, boolean poli, int programa) {
+        if (!projecte.pistes.contains(t) || !t.esNotes()) return;
+        // les frases de la pista (la principal i les de les finestres)
+        List<String> wavs = new ArrayList<>();
+        if (t.wav != null && new File(projecte.carpeta, t.wav).isFile()) wavs.add(t.wav);
+        for (Projecte.Clip k : t.clips) if (!wavs.contains(k.wav) && Projecte.esNotes(k.wav)) wavs.add(k.wav);
+        int perdudes = 0;
+        java.util.Map<String, Melodia> noves = new java.util.LinkedHashMap<>();
+        for (String w : wavs) {
+            Melodia m = Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, w));
+            if (m == null) continue;
+            Melodia n = ambInstrument(m, preset, poli, programa);
+            perdudes += Math.max(0, m.notes.size() - n.notes.size());
+            noves.put(w, n);
+        }
+        String nomNou = programa >= 0 ? Gm.nom(programa) : preset.nom;
+        Runnable fes = () -> aplicaInstrument(t, noves, programa >= 0 ? "midi" : poli ? "poli" : "sinte", nomNou);
+        if (perdudes > 0) {
+            Full.confirma(this, "Passar a una nota alhora?", "L'analògic mono només fa una nota alhora: es perdran " + perdudes
+                    + (perdudes == 1 ? " nota" : " notes") + " dels acords. Es pot desfer.", "Canvia", false, fes);
+        } else {
+            fes.run();
+        }
+    }
+
+    /**
+     * Desa cada frase amb el so nou en un fitxer nou (a la carpeta del tipus nou) i hi passa les finestres; els fitxers
+     * vells es queden, perquè el Desfés ho pugui tornar enrere.
+     */
+    private void aplicaInstrument(Projecte.Pista t, java.util.Map<String, Melodia> noves, String tipus, String nomSo) {
+        atura();
+        java.util.Map<String, String> canvi = new java.util.HashMap<>();
+        java.util.Map<String, Long> durades = new java.util.HashMap<>();
+        try {
+            for (java.util.Map.Entry<String, Melodia> e : noves.entrySet()) {
+                String nou = tipus.equals("midi") ? projecte.wavMidiLliure() : tipus.equals("poli") ? projecte.wavPoliLliure() : projecte.wavSinteLliure();
+                Melodia m = e.getValue();
+                m.desa(Melodia.fitxerDe(projecte.carpeta, nou));
+                long d = m.escriuWav(projecte.carpeta, nou, projecte.bpm, projecte.compas);
+                canvi.put(e.getKey(), nou);
+                durades.put(nou, d);
+            }
+        } catch (IOException | RuntimeException e) {
+            Ui.avis(this, "No s'ha pogut canviar l'instrument");
+            return;
+        }
+        String instVell = t.nomInstrument;
+        synchronized (projecte) {
+            for (java.util.Map.Entry<String, String> e : canvi.entrySet()) {
+                String nou = e.getValue();
+                Projecte.Presa vella = projecte.preses.get(e.getKey());
+                Projecte.Presa p = new Projecte.Presa();
+                p.wav = nou;
+                p.nom = Projecte.nomGenerat(nou);
+                p.duradaMs = durades.get(nou);
+                if (vella != null) p.primerMs = vella.primerMs;
+                projecte.preses.put(nou, p);
+            }
+            for (Projecte.Clip k : t.clips) {
+                String nou = canvi.get(k.wav);
+                if (nou != null) k.wav = nou;
+            }
+            String nouT = canvi.get(t.wav);
+            if (nouT != null) t.wav = nouT;
+            else if (!canvi.isEmpty()) t.wav = canvi.values().iterator().next();
+        }
+        for (String nou : canvi.values()) carregaSo(nou);
+        desa();
+        ompleCapcaleres();
+        if (taulaVisible) ompleTaula();
+        pistes.invalidate();
+        Ui.historial(this, "Canviat l'instrument de «" + (instVell != null ? instVell : t.nomVisible()) + "» a "
+                + t.nomInstrument + " · " + nomSo);
+        textInfo.setTextColor(Ui.colorPista(t));
+        textInfo.setText(t.nomInstrument + " · " + nomSo);
+        vista.avisa();
+        refresca();
+    }
+
+    // ---------- Pista triada i fader de la tira (2.43) ----------
+
+    /** Tria una pista: queda il·luminada i el fader de l'esquerra passa a ser seu. M i S no la trien. */
+    private void triaPista(Projecte.Pista t) {
+        if (t != null && !projecte.pistes.contains(t)) t = null;
+        boolean canvi = t != pistaTriada;
+        pistaTriada = t;
+        pintaTriada();
+        if (canvi || faderTira != null) pintaFaderTira();
+    }
+
+    private void pintaTriada() {
+        if (capcaleres == null) return;
+        for (int k = 0; k < capcaleres.getChildCount() && k < projecte.pistes.size(); k++) {
+            Projecte.Pista p = projecte.pistes.get(k);
+            capcaleres.getChildAt(k).setBackgroundColor(p == pistaTriada ? Ui.alfa(Ui.colorPista(p), 40) : 0x00000000);
+        }
+    }
+
+    private void pintaFaderTira() {
+        if (faderTira == null) return;
+        Projecte.Pista t = pistaTriada;
+        if (t == null || !projecte.pistes.contains(t)) {
+            if (!projecte.pistes.isEmpty()) {
+                // cap de triada: la que té el botó de gravar o la primera
+                Projecte.Pista r = projecte.pistaRec();
+                pistaTriada = t = r != null ? r : projecte.pistes.get(0);
+                pintaTriada();
+            } else {
+                pistaTriada = null;
+                blocTira.setVisibility(View.INVISIBLE);
+                return;
+            }
+        }
+        blocTira.setVisibility(taulaVisible ? View.INVISIBLE : View.VISIBLE);
+        int color = Ui.colorPista(t);
+        faderTira.posa(t.volumDb, color);
+        numTira.setText(String.valueOf(projecte.pistes.indexOf(t) + 1));
+        numTira.setTextColor(color);
+        dbTira.setText(Projecte.textDb(t.volumDb));
+        faderTira.removeCallbacks(ticTira);
+        faderTira.post(ticTira);
+    }
+
+    /** Vúmetre del fader de la tira: de pressa mentre sona, a poc a poc si no. */
+    private final Runnable ticTira = new Runnable() {
+        @Override
+        public void run() {
+            if (faderTira == null || taulaVisible || isFinishing()) return;
+            Projecte.Pista t = pistaTriada;
+            int i = t == null ? -1 : projecte.pistes.indexOf(t);
+            boolean sona = motor != null && motor.sona();
+            faderTira.setNivell(sona && i >= 0 ? motor.nivell(i) : 0f);
+            if (sona) faderTira.postOnAnimation(this);
+            else faderTira.postDelayed(this, 120);
+        }
+    };
 
     // ---------- Tonalitat de la cançó (2.42) ----------
 

@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.42:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.43:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou el **bucle a l'Estudi** (2.36) i la **taula de so estil Cubase amb efectes per pista** (2.37). Pròximes fases: notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -104,6 +104,13 @@ El primer cop l'app demana permís de micròfon.
 - A dalt: el **kit** (canviar-lo manté els cops), la graella, el Solo i el **play** (el compàs que es veu a l'esquerra surt al subtítol: «compàs 2 de 4»; 2.32.1: ja no hi ha el botó de la llargada; si els botons no hi caben, la tira es desplaça amb el dit), que fa sonar el ritme en bucle, que fa sonar el ritme en bucle (es pot editar mentre sona). La columna que s'il·lumina segueix el so que surt de debò per l'altaveu o els auriculars.
 - En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria tenen botó de gravar per fer el ritme amb la veu (2.39, vegeu més avall).
 - Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
+
+### Pista triada, fader a l'esquerra i instruments (2.43)
+- **Pista triada**: la que has tocat (la capçalera o un clip seu), on has fet una finestra nova o la que has armat per gravar queda **il·luminada** amb el seu color. M i S no la trien.
+- **Fader de la pista triada** a la tira de l'esquerra, sota els botons Pistes / Taula, amb el **vúmetre** (es mou mentre sona), el número de la pista a dalt i els dB a sota. Doble toc = 0 dB. El volum ja no és a la capçalera de cada pista. (A la pestanya Taula hi ha tots els faders.)
+- **Pistes d'instrument amb el nom de l'instrument**: «Analògic mono», «Analògic poli», «FM», «Wavetable», «Orgue», «Corda pinçada», «MIDI», «Teremin» (amb un número si n'hi ha més d'una del mateix), amb la seva icona, i **el so a sota**, més petit. Si li poses un nom teu, es queda el teu.
+- **Canvia l'instrument**: mantén premut el nom d'una pista de sinte, Poli o MIDI i deixa'l anar → *Canvia l'instrument* → instrument → so. Les notes es queden. Si passes a **Analògic mono** i hi ha acords, avisa de quantes notes es perdran. Es pot desfer. (El teremin no es pot canviar: no desa notes.)
+- **Barra de dalt**: amb clips triats el play ja no surt de la pantalla; si la part de l'esquerra no hi cap, es desplaça amb el dit.
 
 ### Tonalitat, compte i numeració (2.42)
 - **Tonalitat de la cançó**: la pastilla al costat del tempo (per exemple «Am»). L'app la calcula sola amb el que sona a les pistes (notes dels sintes, acords i notes de les gravacions; la bateria no compta) i la refà després de cada canvi. **Toca-la** per fixar-ne una a mà (es veu en ambre) o tornar a **Automàtica**. *Cantar → notes* fa servir la fixada, si n'hi ha. També surt a la llista de projectes.
@@ -258,6 +265,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.43** (02/11/2026) — **Fader amb vúmetre de la pista triada** a la tira de l'esquerra (la pista triada queda il·luminada; el volum surt de les capçaleres). **Pistes d'instrument amb el nom de l'instrument** (FM, Orgue, MIDI…) i el so a sota. **Canvia l'instrument** d'una pista conservant les notes. Correcció: amb clips triats, el play sortia de la pantalla.
 - **2.42** (02/11/2026) — **Tonalitat de la cançó** a la barra de dalt (calculada sola, es pot fixar a mà) i a la llista de projectes. **Compassos numerats des del 0** (on comença la cançó; el compte és el −1). **Compte abans de gravar** configurable (1 a 4 compassos). El que toques una mica avançat (teclat, bateria amb la veu) no es perd. Correccions en vertical: la taula de so es desplaça amb dos dits i el play sempre es veu.
 - **2.41** (02/11/2026) — **Cantar → notes**: a les pistes de sinte, Poli i MIDI, mantenir premut el play → *Cantant*. Graves la veu sobre la base i, en aturar, es converteix en notes: tonalitat calculada amb la base i la veu, correcció de l'afinació general, neteja d'inflexions i respiracions, notes a l'escala i a la graella, octava dels baixos. Ajustos de graella i neteja a l'engranatge.
 - **2.40** (02/11/2026) — **Jocs de sons** per al ritme amb la veu (per exemple «Taula» i «Boca»): es canvia d'un a l'altre sense tornar a gravar els sons. **Botó d'ajustos fix** a la barra de dalt de l'Estudi (sons de la bateria, volum del clic, diagnòstic, kits, banc MIDI, historial); la pastilla del tempo és més curta. **Sons en targetes de tres en tres** a tots els panells de triar sons i presets. **Selleta als pads d'acords**: ▲ / ▼ a l'esquerra dels pads mouen tots els acords un semitò.

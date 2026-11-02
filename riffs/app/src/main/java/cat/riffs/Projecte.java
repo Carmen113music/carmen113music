@@ -175,8 +175,32 @@ public final class Projecte {
 
         /** El nom que es veu: el que li has posat, o el de la gravació. */
         public String nomVisible() {
+            if (nomInstrument != null && nomAutomatic()) return nomInstrument;
             if (nomPropi != null && !nomPropi.trim().isEmpty()) return nomPropi.trim();
             return nom == null || nom.isEmpty() ? "Pista" : nom;
+        }
+
+        /**
+         * 2.43: a les pistes d'instrument, el nom de l'instrument («FM», «MIDI», «Teremin 2»…) i el del so (el posa
+         * l'Estudi; no es desen). Si en Roger no hi ha posat un nom seu, la pista es diu com l'instrument.
+         */
+        public String nomInstrument, baseInstrument, nomSo;
+        public int iconaInstrument = -1;
+
+        /** El nom el va posar l'app (el del so, el de l'instrument, o cap), no en Roger. */
+        public boolean nomAutomatic() {
+            if (nomPropi == null || nomPropi.trim().isEmpty()) return true;
+            String n = nomPropi.trim();
+            return esNomDe(n, nomSo == null ? null : SonsPropis.base(nomSo)) || esNomDe(n, baseInstrument);
+        }
+
+        /** «Pad càlid» o «Pad càlid 2» és un nom posat sol a partir de «Pad càlid». */
+        private static boolean esNomDe(String n, String base) {
+            if (base == null || base.isEmpty()) return false;
+            if (n.equals(base)) return true;
+            if (!n.startsWith(base + " ")) return false;
+            String r = n.substring(base.length() + 1);
+            return !r.isEmpty() && r.chars().allMatch(Character::isDigit);
         }
 
         /** Pista de bateria (el seu so el fa el drumpad). */

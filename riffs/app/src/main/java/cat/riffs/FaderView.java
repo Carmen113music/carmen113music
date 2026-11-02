@@ -50,6 +50,23 @@ public class FaderView extends View {
         oient = o;
     }
 
+    /** 2.43: sense números (per a la tira estreta de l'esquerra). */
+    private boolean compacte = false;
+
+    public void posaCompacte(boolean c) {
+        compacte = c;
+        invalidate();
+    }
+
+    /** Canvia el valor i el color (el fader de la tira passa a una altra pista). */
+    public void posa(double db, int color) {
+        this.db = db;
+        this.color = color;
+        nivellDb = -100;
+        picDb = -100;
+        invalidate();
+    }
+
     public double db() {
         return db;
     }
@@ -110,11 +127,11 @@ public class FaderView extends View {
         float w = getWidth(), h = getHeight();
         float dalt = dp(14), baix = h - dp(14);
         // zones: [números del fader][guia + tapa][números del vúmetre][vúmetre]
-        float xGuia = w * 0.40f;
-        float tw = dp(13), th = dp(17);          // mitja amplada i mitja alçada de la tapa
+        float xGuia = compacte ? w * 0.36f : w * 0.40f;
+        float tw = compacte ? dp(10) : dp(13), th = compacte ? dp(13) : dp(17);   // mitja amplada i mitja alçada de la tapa
         float xNum = xGuia - tw - dp(3);          // els números, a l'esquerra de la tapa
-        float am = dp(7), xm = w - am - dp(4);
-        float xNumVu = xm - dp(3);
+        float am = compacte ? dp(6) : dp(7), xm = w - am - dp(compacte ? 3 : 4);
+        float xNumVu = compacte ? xm + dp(13) : xm - dp(3);
 
         // fons de la zona del fader i de la del vúmetre (com dues ranures)
         ple.setColor(0xFF121216);
@@ -126,7 +143,7 @@ public class FaderView extends View {
         // escala del fader (a l'esquerra)
         text.setTextAlign(Paint.Align.RIGHT);
         text.setTextSize(dp(8));
-        for (double m : ESCALA) {
+        for (double m : compacte ? new double[0] : ESCALA) {
             float y = yDe(posicio(m), dalt, baix);
             ple.setColor(m == 0 ? 0xFF9A9AA6 : 0xFF4A4A55);
             c.drawRect(xGuia - dp(8), y - 0.5f, xGuia - dp(4), y + 0.5f, ple);
@@ -135,10 +152,10 @@ public class FaderView extends View {
             c.drawText(t, xNum, y + dp(3), text);
         }
         text.setColor(Ui.SUAU);
-        c.drawText("∞", xNum, baix + dp(3), text);
+        if (!compacte) c.drawText("∞", xNum, baix + dp(3), text);
 
         // escala del vúmetre
-        for (double m : ESCALA_VU) {
+        for (double m : compacte ? new double[0] : ESCALA_VU) {
             float y = yDe(posicio(m), dalt, baix);
             text.setColor(Ui.APAGAT);
             c.drawText(m == 0 ? "0" : String.valueOf((int) -m), xNumVu, y + dp(3), text);
