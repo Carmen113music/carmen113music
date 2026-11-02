@@ -121,6 +121,7 @@ public class ProjecteActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SortidaViva.prepara(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setNavigationBarColor(Ui.FONS);
         String d = getIntent().getStringExtra(EXTRA_DIR);

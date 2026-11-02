@@ -1,8 +1,5 @@
 package cat.riffs;
 
-import android.media.AudioAttributes;
-import android.media.AudioFormat;
-import android.media.AudioTrack;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -18,7 +15,7 @@ final class MidiViu {
     private final Banc.Programa prog;
     private final float guany;
     private final ConcurrentLinkedQueue<int[]> cua = new ConcurrentLinkedQueue<>();   // {nota, vel}; vel 0 = apaga
-    private AudioTrack track;
+    private SortidaViva sortida;
     private Thread fil;
     private volatile boolean viu;
 
@@ -30,33 +27,9 @@ final class MidiViu {
 
     boolean comenca() {
         if (prog == null) return false;
-        int min = AudioTrack.getMinBufferSize(MidiSo.MOSTREIG, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        if (min <= 0) return false;
-        try {
-            track = new AudioTrack.Builder()
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_GAME)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build())
-                    .setAudioFormat(new AudioFormat.Builder()
-                            .setSampleRate(MidiSo.MOSTREIG)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build())
-                    .setBufferSizeInBytes(Math.max(min, TROS * 4))
-                    .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build();
-        } catch (RuntimeException e) {
-            return false;
-        }
-        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
-            track.release();
-            track = null;
-            return false;
-        }
+        sortida = new SortidaViva(MidiSo.MOSTREIG);   // 2.38.3: via ràpida i cua curta
+        if (!sortida.obre()) return false;
         viu = true;
-        track.play();
         fil = new Thread(this::bucle, "midi-viu");
         fil.setPriority(Thread.MAX_PRIORITY);
         fil.start();
@@ -93,13 +66,7 @@ final class MidiViu {
                     tros[i] = (short) Math.round(v * 32767f);
                 }
             }
-            int w;
-            try {
-                w = track.write(tros, 0, TROS);
-            } catch (RuntimeException ex) {
-                break;
-            }
-            if (w <= 0) break;
+            if (!sortida.escriu(tros, TROS)) break;
         }
     }
 
@@ -112,13 +79,9 @@ final class MidiViu {
             }
             fil = null;
         }
-        if (track != null) {
-            try {
-                track.stop();
-            } catch (RuntimeException ignorat) {
-            }
-            track.release();
-            track = null;
+        if (sortida != null) {
+            sortida.tanca();
+            sortida = null;
         }
     }
 }

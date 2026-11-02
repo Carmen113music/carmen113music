@@ -234,7 +234,8 @@ public class DiagnosticActivity extends Activity {
                 .append(Gravadora.nomFont(Gravadora.font(this, triada))).append('\n');
         AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (am != null) {
-            s.append("Freqüència nativa: ").append(am.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)).append(" Hz\n");
+            s.append("Freqüència nativa: ").append(am.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)).append(" Hz · paquet ")
+                    .append(am.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)).append(" mostres\n");
         }
         int minim = AudioRecord.getMinBufferSize(Gravadora.MOSTREIG, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
         s.append("Memòria mínima per gravar: ").append(minim).append(" bytes\n");
@@ -246,6 +247,7 @@ public class DiagnosticActivity extends Activity {
                 .append(" · auriculars: ").append(Metronom.auriculars(this) ? "sí" : "no").append('\n');
         s.append("Es desa a: ").append(Ui.nomCarpeta(this, Ui.carpetaActual(this))).append('\n');
         s.append("Darrera prova: ").append(resultatProva).append('\n');
+        s.append("Instrument en directe (darrer cop): ").append(SortidaViva.info).append('\n');
         s.append("Correcció de la bandera: ").append(textCorreccio()).append('\n');
         s.append("Mesures de retard (la més recent a dalt):\n").append(historialRetard().isEmpty() ? "(cap)" : historialRetard());
         return s.toString();

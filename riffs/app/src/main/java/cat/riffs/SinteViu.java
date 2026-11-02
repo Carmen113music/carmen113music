@@ -1,8 +1,5 @@
 package cat.riffs;
 
-import android.media.AudioAttributes;
-import android.media.AudioFormat;
-import android.media.AudioTrack;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -21,7 +18,7 @@ final class SinteViu {
     /** Sinte polifònic (2.31): diverses notes alhora ({@link #encen} / {@link #apaga}). */
     private final boolean poli;
     private final ConcurrentLinkedQueue<int[]> cua = new ConcurrentLinkedQueue<>();  // {nota, lligada}; nota < 0 = deixa
-    private AudioTrack track;
+    private SortidaViva sortida;
     private Thread fil;
     private volatile boolean viu;
     // teremin: to i volum continus (els posa el dit)
@@ -42,33 +39,9 @@ final class SinteViu {
     }
 
     boolean comenca() {
-        int min = AudioTrack.getMinBufferSize(Sinte.MOSTREIG, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        if (min <= 0) return false;
-        try {
-            track = new AudioTrack.Builder()
-                    .setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_GAME)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build())
-                    .setAudioFormat(new AudioFormat.Builder()
-                            .setSampleRate(Sinte.MOSTREIG)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build())
-                    .setBufferSizeInBytes(Math.max(min, TROS * 4))
-                    .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build();
-        } catch (RuntimeException e) {
-            return false;
-        }
-        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
-            track.release();
-            track = null;
-            return false;
-        }
+        sortida = new SortidaViva(Sinte.MOSTREIG);   // 2.38.3: via ràpida i cua curta
+        if (!sortida.obre()) return false;
         viu = true;
-        track.play();
         fil = new Thread(this::bucle, "sinte-viu");
         fil.setPriority(Thread.MAX_PRIORITY);
         fil.start();
@@ -175,13 +148,7 @@ final class SinteViu {
                     tros[i] = (short) Math.round(v * 32767f);
                 }
             }
-            int w;
-            try {
-                w = track.write(tros, 0, TROS);
-            } catch (RuntimeException ex) {
-                break;
-            }
-            if (w <= 0) break;
+            if (!sortida.escriu(tros, TROS)) break;
         }
     }
 
@@ -210,13 +177,7 @@ final class SinteViu {
                     tros[i] = (short) Math.round(v * 32767f);
                 }
             }
-            int w;
-            try {
-                w = track.write(tros, 0, TROS);
-            } catch (RuntimeException ex) {
-                break;
-            }
-            if (w <= 0) break;
+            if (!sortida.escriu(tros, TROS)) break;
         }
     }
 
@@ -229,13 +190,9 @@ final class SinteViu {
             }
             fil = null;
         }
-        if (track != null) {
-            try {
-                track.stop();
-            } catch (RuntimeException ignorat) {
-            }
-            track.release();
-            track = null;
+        if (sortida != null) {
+            sortida.tanca();
+            sortida = null;
         }
     }
 }
