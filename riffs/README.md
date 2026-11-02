@@ -2,7 +2,7 @@
 
 App d'Android personal per gravar idees musicals (riffs de guitarra i melodies cantades), endreçar-les per cançons i escriure'n la lletra.
 
-**Versió 2.39:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
+**Versió 2.41:** gravar (amb metrònom opcional), biblioteca amb carpetes, escoltar sobre l'ona, tempo i primer temps, lletra i notes, compartir.
 Inclou l'**Estudi multipista** (2.0). Inclou els **kits de bateria** (2.14) i les **pistes de bateria amb drumpad** (2.17) i les **pistes de sinte amb piano roll** (2.22) i el **sinte polifònic «Poli»** amb 50 sons (2.31). Inclou l'**anàlisi de notes, acords i tonalitat** de les gravacions (2.33). Inclou el **bucle a l'Estudi** (2.36) i la **taula de so estil Cubase amb efectes per pista** (2.37). Pròximes fases: notes de la tonalitat al piano roll, editor de so del teremin, quantitzar millor el que es toca en directe, bases de fàbrica i importar MIDI, marcadors i bucle, exportar la mescla, semitons, detecció de BPM i to, gravar sobre altres pistes.
 
 ## Com es fa servir
@@ -105,8 +105,20 @@ El primer cop l'app demana permís de micròfon.
 - En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria tenen botó de gravar per fer el ritme amb la veu (2.39, vegeu més avall).
 - Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
 
+### Cantar → notes (2.41)
+- Canta una melodia sobre la base i es converteix en notes d'un **sinte, Poli o MIDI**.
+- Encén el **botó de gravar** d'una pista de sinte, Poli o MIDI i **mantén premut el play** → *Cantant*. (També surt a la llista «Gravar a…» com «<pista> · cantant».) Amb auriculars, sents la base i la teva veu; no sona cap sinte mentre cantes.
+- En aturar (el quadrat de dalt), l'app escolta la veu i:
+  - calcula la **tonalitat de la cançó** amb el que sona a les altres pistes (les notes dels sintes i les gravacions de guitarra o veu) i també amb la teva veu;
+  - calcula si tota la veu anava una mica **alta o baixa** i ho corregeix;
+  - treu les notes que la veu fa sense voler (lliscaments, cops de veu, respiracions), posa cada nota a la nota de l'escala i a la **graella**;
+  - si la pista és un **baix**, porta les notes a l'octava dels baixos; si cantes molt greu per a un so agut, les puja una octava.
+- Les notes surten a la pista en finestres de fins a 8 compassos. Compta també el que cantis durant el compàs de compte (si la melodia comença abans del primer temps). A dalt diu la tonalitat i la correcció d'afinació. Si no t'agrada, **Desfés**.
+- Ajustos (engranatge) → *Cantar → notes*: la **graella** (corxeres, semicorxeres o fuses) i la **neteja de la veu** (No, Suau, Mig, Fort; per defecte Mig).
+- La veu no es guarda (no surt a la Biblioteca).
+
 ### Ajustos de l'Estudi (2.40)
-- El botó d'**ajustos** (engranatge) de la barra de dalt, al costat de la graella, és sempre al mateix lloc. Hi ha: **Sons de la bateria amb la veu**, **Volum del clic**, **Micròfon i retard** (diagnòstic), **Kits de bateria**, **Instruments MIDI** (banc de sons) i l'**Historial**.
+- El botó d'**ajustos** (engranatge) de la barra de dalt, al costat de la graella, és sempre al mateix lloc. Hi ha: **Sons de la bateria amb la veu**, **Cantar → notes**, **Volum del clic**, **Micròfon i retard** (diagnòstic), **Kits de bateria**, **Instruments MIDI** (banc de sons) i l'**Historial**.
 - La pastilla del tempo ara diu només «120 · 4/4» (ocupa menys).
 
 ### Triar sons en targetes (2.40)
@@ -239,6 +251,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.41** (02/11/2026) — **Cantar → notes**: a les pistes de sinte, Poli i MIDI, mantenir premut el play → *Cantant*. Graves la veu sobre la base i, en aturar, es converteix en notes: tonalitat calculada amb la base i la veu, correcció de l'afinació general, neteja d'inflexions i respiracions, notes a l'escala i a la graella, octava dels baixos. Ajustos de graella i neteja a l'engranatge.
 - **2.40** (02/11/2026) — **Jocs de sons** per al ritme amb la veu (per exemple «Taula» i «Boca»): es canvia d'un a l'altre sense tornar a gravar els sons. **Botó d'ajustos fix** a la barra de dalt de l'Estudi (sons de la bateria, volum del clic, diagnòstic, kits, banc MIDI, historial); la pastilla del tempo és més curta. **Sons en targetes de tres en tres** a tots els panells de triar sons i presets. **Selleta als pads d'acords**: ▲ / ▼ a l'esquerra dels pads mouen tots els acords un semitò.
 - **2.39** (02/11/2026) — **Ritme amb la veu (o picant a la taula) → bateria**, ara amb **els teus sons**: l'app aprèn com fas el bombo, la caixa i el hihat (4 o 5 cops de cada) i classifica cada cop pel que s'hi assembla més; treu el so de la base que s'escapa dels auriculars abans de comparar. Les pistes de bateria tenen botó de gravar; es grava sobre la base i els cops van a la pista. **En passades** (afegeix-hi o substitueix). Si cal tornar enrere, la versió estable anterior és la 2.38.3.
 - **2.38.3** (02/11/2026) — **Menys retard en tocar en directe** (sintes, Poli i MIDI amb el teclat): el so en directe surt a la freqüència pròpia del mòbil (perquè Android doni la via ràpida) i amb la cua de so més curta possible, que només creix si el so es talla. El diagnòstic diu el retard mesurat («Instrument en directe»). El que es grava no canvia.

@@ -79,6 +79,7 @@ public class ProjecteActivity extends Activity {
     private boolean assaig = false;         // el teclat obert per tocar sense gravar
     // ritme amb la veu (2.39): es grava el micròfon i, en aturar, els cops van a la pista de bateria
     private boolean gravantRitme = false;
+    private boolean gravantCant = false;    // 2.41: cantar a una pista d'instrument (la veu es converteix en notes)
     private Beatbox.Calibratge calRitme;
     private Gravadora gravCal;              // gravació curta per aprendre un so
     private Runnable compteCal;
@@ -116,7 +117,7 @@ public class ProjecteActivity extends Activity {
                     textInfo.setText("Compte: " + Math.max(1, falten));
                 } else {
                     textInfo.setTextColor(Ui.ACCENT);
-                    textInfo.setText(!gravantSinte ? (gravantRitme ? "● Gravant el ritme · " + jocActiu() : "● Gravant") : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
+                    textInfo.setText(!gravantSinte ? (gravantRitme ? "● Gravant el ritme · " + jocActiu() : gravantCant ? "● Canta · es convertirà en notes en aturar" : "● Gravant") : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
                 }
             } else if (ms > projecte.finalMs() + 800) {
                 atura();
@@ -1981,8 +1982,13 @@ public class ProjecteActivity extends Activity {
     private void triaPistaGravar() {
         if (!carregat || motor == null) return;
         Projecte.Pista armada = projecte.pistaRec();
+        if (armada != null && armada.esNotes()) {
+            // 2.41: tocant el teclat o cantant
+            triaModeInstrument(armada);
+            return;
+        }
         if (armada != null && armada.esInstrument()) {
-            // el sinte i el teremin es graven tocant en directe (no cal micròfon)
+            // el teremin es grava tocant en directe (no cal micròfon)
             comencaGravacioSinte(armada);
             return;
         }
@@ -2029,6 +2035,16 @@ public class ProjecteActivity extends Activity {
                     ompleCapcaleres();
                     comencaGravacioSinte(t);
                 }));
+                if (t.esNotes()) {
+                    ops.add(new Full.Accio(Icona.MIC, t.nomVisible() + " · cantant", false, () -> {
+                        synchronized (projecte) {
+                            projecte.armaRec(t);
+                        }
+                        desa();
+                        ompleCapcaleres();
+                        comencaCant(t);
+                    }));
+                }
                 continue;
             }
             ops.add(new Full.Accio(t.veu ? Icona.MIC : Icona.GUITARRA, t.nomVisible(), false, () -> {
@@ -2051,7 +2067,13 @@ public class ProjecteActivity extends Activity {
 
     /** {@code ritme}: la veu (o picar a la taula) per fer un ritme a la pista de bateria {@code pista} (2.39). */
     private void comencaGravacio(Projecte.Pista pista, boolean veu, boolean ritme) {
+        comencaGravacio(pista, veu, ritme, false);
+    }
+
+    /** {@code cant}: cantar a una pista d'instrument (2.41); com el ritme, la veu va a una carpeta amagada. */
+    private void comencaGravacio(Projecte.Pista pista, boolean veu, boolean ritme, boolean cant) {
         if (gravant || motor == null) return;
+        ritme = ritme || cant;
         tancaAssaig();
         atura();
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
@@ -2062,7 +2084,7 @@ public class ProjecteActivity extends Activity {
             // fora de la biblioteca (carpeta amagada): només serveix per trobar-hi els cops, després s'esborra
             File dir = new File(projecte.carpeta, ".veu");
             dir.mkdirs();
-            wavGravant = new File(dir, "ritme-" + ara + ".wav");
+            wavGravant = new File(dir, (cant ? "veu-" : "ritme-") + ara + ".wav");
         } else {
             wavGravant = b.nouWav(projecte.carpeta, ara);
         }
@@ -2129,7 +2151,8 @@ public class ProjecteActivity extends Activity {
         }
         vigilaAuriculars();
         gravant = true;
-        gravantRitme = ritme;
+        gravantRitme = ritme && !cant;
+        gravantCant = cant;
         // ona en directe: a la pista triada o en una fila nova a sota (amb la seva capçalera provisional)
         int fila = pista != null ? projecte.pistes.indexOf(pista) : projecte.pistes.size();
         if (pista == null) {
@@ -2202,6 +2225,11 @@ public class ProjecteActivity extends Activity {
         if (gravantRitme) {
             gravantRitme = false;
             acabaRitme(wav, pistaGravant, primer, durada, motiu);
+            return;
+        }
+        if (gravantCant) {
+            gravantCant = false;
+            acabaCant(wav, pistaGravant, primer, durada, motiu);
             return;
         }
         Biblioteca b = Ui.biblioteca(this);
@@ -3540,6 +3568,199 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
+    // ---------- Cantar → notes (2.41) ----------
+
+    /** Pista de sinte, Poli o MIDI armada + mantenir premut el play: tocant el teclat o cantant. */
+    private void triaModeInstrument(Projecte.Pista t) {
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.SINTE, "Tocant el teclat", false, () -> comencaGravacioSinte(t)));
+        ops.add(new Full.Accio(Icona.MIC, "Cantant (la veu es converteix en notes)", false, () -> comencaCant(t)));
+        Full.llista(this, "Com hi graves?", "«" + t.nomVisible() + "». Cantant: graves la veu escoltant la base i, en aturar, "
+                + "es converteix en notes a la tonalitat de la cançó. Cal auriculars.", ops);
+    }
+
+    private void comencaCant(Projecte.Pista t) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+            return;
+        }
+        synchronized (projecte) {
+            projecte.armaRec(t);
+        }
+        comencaGravacio(t, true, false, true);
+    }
+
+    /** Ajustos de cantar → notes: graella i com de fort és el corrector. */
+    private void obreAjustosCant() {
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        int[] graella = {Math.max(0, Math.min(2, pr.getInt("cant_graella", 1)))};
+        int[] corr = {Math.max(0, Math.min(3, pr.getInt("cant_corrector", 2)))};
+        LinearLayout cos = Ui.columna(this);
+        cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
+        cos.addView(Ui.etiqueta(this, "Ajusta a la graella"));
+        cos.addView(Ui.segmentat(this, Conversio.GRAELLES, graella[0], Ui.SINTE, i -> graella[0] = i), Ui.ample(this, 6));
+        cos.addView(Ui.etiqueta(this, "Neteja de la veu"), Ui.ample(this, 14));
+        cos.addView(Ui.segmentat(this, Conversio.CORRECTORS, corr[0], Ui.SINTE, i -> corr[0] = i), Ui.ample(this, 6));
+        cos.addView(Ui.text(this, "Treu les notes que la veu fa sense voler (lliscaments, cops de veu, respiracions). "
+                + "Mig va bé per a gairebé tot; Fort, si encara surten notes de més; No, per a melodies molt ràpides.", 11, Ui.SUAU),
+                Ui.ample(this, 4));
+        Full.panell(this, "Cantar → notes", "Les notes sempre s'ajusten a la tonalitat de la cançó i a la teva afinació.",
+                cos, "Fet", Ui.SINTE, () -> pr.edit().putInt("cant_graella", graella[0]).putInt("cant_corrector", corr[0]).apply());
+    }
+
+    /**
+     * En aturar: analitza la veu, calcula la tonalitat de la base (les altres pistes + la veu), la desafinació, i posa
+     * les notes a la pista en frases de fins a 8 compassos.
+     */
+    private void acabaCant(File wav, Projecte.Pista t, long primer, long durada, String motiu) {
+        vista.capcalMs = entradaMs;
+        if (durada < primer + 300 || t == null) {
+            wav.delete();
+            textInfo.setText(motiu != null ? motiu : "Aturat abans d'entrar: no s'ha fet res");
+            refresca();
+            return;
+        }
+        int color = Ui.colorPista(t);
+        textInfo.setTextColor(color);
+        textInfo.setText("Escoltant la veu…");
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        int graella = Math.max(0, Math.min(2, pr.getInt("cant_graella", 1)));
+        int corrector = Math.max(0, Math.min(3, pr.getInt("cant_corrector", 2)));
+        boolean greu = soDeLaPista(t).esGreu();
+        double msCompas = projecte.msPerCompas();
+        int compas = projecte.compas;
+        long entrada = entradaMs;
+        // el que sona a la resta de pistes (per la tonalitat): frases de notes i gravacions d'àudio
+        List<String> notesBase = new ArrayList<>(), audioBase = new ArrayList<>();
+        Map<String, Boolean> esVeu = new HashMap<>();
+        synchronized (projecte) {
+            for (Projecte.Pista p : projecte.pistes) {
+                for (Projecte.Clip k : p.clips) {
+                    if (Projecte.esNotes(k.wav)) {
+                        if (!notesBase.contains(k.wav)) notesBase.add(k.wav);
+                    } else if (!Projecte.esGenerat(k.wav)) {
+                        if (!audioBase.contains(k.wav)) audioBase.add(k.wav);
+                        Projecte.Presa presa = projecte.preses.get(k.wav);
+                        esVeu.put(k.wav, presa != null && presa.veu);
+                    }
+                }
+            }
+        }
+        new Thread(() -> {
+            String error = null;
+            Analisi.Resultat an = null;
+            Cantat.Tonalitat to = null;
+            Conversio.Resultat r = null;
+            try {
+                Wav.Info info = Wav.llegeixInfo(wav);
+                short[] m = info == null ? null : Wav.llegeixMostres(wav);
+                if (m == null) throw new IOException("sense so");
+                int sr = info.mostreig > 0 ? info.mostreig : Gravadora.MOSTREIG;
+                an = Analisi.analitza(m, sr, true, 0, -1, f -> {
+                    runOnUiThread(() -> textInfo.setText("Escoltant la veu… " + Math.round(f * 100) + " %"));
+                    return true;
+                });
+                // tonalitat de la base
+                double[] h = new double[12];
+                for (String w : notesBase) Cantat.sumaMelodia(h, Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, w)), msCompas);
+                int n = 0;
+                for (String w : audioBase) {
+                    File f = new File(projecte.carpeta, w);
+                    Analisi.Resultat ra = Analisi.llegeix(f);
+                    if (ra == null) {
+                        int q = ++n;
+                        runOnUiThread(() -> textInfo.setText("Buscant la tonalitat de la base… " + q + "/" + audioBase.size()));
+                        Wav.Info ia = Wav.llegeixInfo(f);
+                        short[] ma = ia == null ? null : Wav.llegeixMostres(f);
+                        if (ma == null) continue;
+                        ra = Analisi.analitza(ma, ia.mostreig > 0 ? ia.mostreig : Gravadora.MOSTREIG,
+                                Boolean.TRUE.equals(esVeu.get(w)), 0, -1, null);
+                        try {
+                            Analisi.desa(f, ra);   // la propera vegada (i a la fitxa) ja hi serà
+                        } catch (IOException ignorat) {
+                        }
+                    }
+                    Cantat.sumaAnalisi(h, ra);
+                }
+                double base = 0;
+                for (double v : h) base += v;
+                Cantat.sumaVeu(h, an.notes, 0.5);
+                to = Cantat.tonalitat(h);
+                if (to != null) to.deLaBase = base > 0;
+                // el compàs de compte també compta (anacrusi: la melodia pot començar abans del primer temps)
+                r = Cantat.converteix(an, to, entrada - primer, Math.max(0, primer - Math.round(msCompas)), durada, msCompas, compas,
+                        graella, corrector, greu);
+            } catch (IOException | RuntimeException | OutOfMemoryError e) {
+                error = "No s'ha pogut convertir la veu" + (e.getMessage() != null ? " (" + e.getMessage() + ")" : "");
+            }
+            wav.delete();
+            String err = error;
+            Cantat.Tonalitat ton = to;
+            Conversio.Resultat res = r;
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (err != null) {
+                    Ui.avis(this, err);
+                    textInfo.setText("");
+                    return;
+                }
+                posaCant(t, res, ton, motiu);
+            });
+        }, "cantNotes").start();
+    }
+
+    private void posaCant(Projecte.Pista t, Conversio.Resultat r, Cantat.Tonalitat to, String motiu) {
+        if (t == null || !projecte.pistes.contains(t) || !t.esNotes()) return;
+        if (r == null || r.frases.isEmpty()) {
+            textInfo.setTextColor(Ui.GUITARRA);
+            textInfo.setText(motiu != null ? motiu : "No he sentit cap nota: canta més fort o més a prop del mòbil");
+            refresca();
+            return;
+        }
+        Melodia base = soDeLaPista(t);
+        Projecte.Clip primer = null;
+        int notes = 0, finestres = 0;
+        for (GravacioNotes.Frase f : r.frases) {
+            Melodia m = base.buidaAmbElMateixSo();
+            m.compas = projecte.compas;
+            m.passosPerCompas = r.ppc;
+            m.compassos = f.compassos;
+            for (Melodia.Nota n : f.notes) m.posa(new Melodia.Nota(n.pas, n.llarg, n.nota, n.forca));
+            notes += m.notes.size();
+            try {
+                String wav = primer == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()
+                        ? t.wav : projecte.wavNotesLliure(t.wav);
+                m.desa(Melodia.fitxerDe(projecte.carpeta, wav));
+                long durada = m.escriuWav(projecte.carpeta, wav, projecte.bpm, projecte.compas);
+                Projecte.Clip c;
+                synchronized (projecte) {
+                    c = projecte.afegeixFinestraBateria(t, wav, durada, r.compasEntrada + f.compasDes);
+                }
+                carregaSo(wav);
+                finestres++;
+                if (primer == null) primer = c;
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar una part de les notes");
+            }
+        }
+        desa();
+        String textTo = to == null ? "sense tonalitat" : to.nom() + (to.deLaBase ? "" : " (de la veu)");
+        String afin = Math.abs(r.afinacio) >= 0.05 ? String.format(Locale.ROOT, " · afinació %+d cèntims", Math.round(r.afinacio * 100)) : "";
+        Ui.historial(this, "Cantat a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes") + ", compàs "
+                + r.compasEntrada + ", " + textTo + afin + (r.octava != 0 ? ", octava " + (r.octava > 0 ? "+" : "") + r.octava : "")
+                + ", graella " + Conversio.GRAELLES[Math.max(0, Math.min(2, Ui.prefs(this).getInt("cant_graella", 1)))].toLowerCase(Locale.ROOT)
+                + (r.netejades > 0 ? ", " + r.netejades + " trossos netejats" : "") + (finestres > 1 ? ", " + finestres + " finestres" : ""));
+        int ip = projecte.pistes.indexOf(t);
+        if (primer != null) vista.tria(ip, primer);
+        actualitzaAccions();
+        if (taulaVisible) ompleTaula();
+        textInfo.setTextColor(Ui.colorPista(t));
+        textInfo.setText(motiu != null ? motiu : notes + (notes == 1 ? " nota" : " notes") + " · " + textTo + afin
+                + " · doble toc per veure-les al piano roll");
+        vista.avisa();
+        refresca();
+    }
+
     // ---------- Ajustos (2.40) ----------
 
     /** Totes les configuracions en un sol lloc, des del botó d'ajustos de la barra de dalt. */
@@ -3547,6 +3768,7 @@ public class ProjecteActivity extends Activity {
         if (gravant) return;
         List<Full.Accio> ops = new ArrayList<>();
         ops.add(new Full.Accio(Icona.BATERIA, "Sons de la bateria amb la veu · " + jocActiu(), false, () -> obreSonsRitme(null, false)));
+        ops.add(new Full.Accio(Icona.MIC, "Cantar → notes (graella, neteja)", false, this::obreAjustosCant));
         ops.add(new Full.Accio(Icona.METRONOM, "Volum del clic · " + Math.round(volumClic * 100) + " %", false, () ->
                 Full.lliscador(this, "Volum del clic", Math.round(volumClic * 100), 150, val -> {
                     volumClic = val / 100f;

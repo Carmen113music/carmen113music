@@ -3,6 +3,7 @@ package cat.riffs;
 import java.util.List;
 
 /**
+ * 2.41: la fa servir {@link Cantat} (cantar → notes). La 2.34–2.35 la feia servir per convertir clips a l'Estudi (descartat).
  * Converteix les notes detectades en un clip d'àudio (veu o riff) en frases per a una pista d'instrument
  * (sinte, Poli o MIDI), ajustades a la graella del projecte i, si es vol, a la tonalitat.
  * No depèn d'Android: es prova amb Java d'escriptori.
@@ -23,6 +24,10 @@ public final class Conversio {
         public boolean tonalitat = true;
         public int octava = 0;      // −2..+2
         public boolean poli = false;
+        /** 2.41: l'escala de la base (si no, la de la mateixa anàlisi). */
+        public boolean[] escala;
+        /** 2.41: desafinació general de la veu (semitons) que es treu abans d'ajustar les notes. */
+        public double afinacio = 0;
     }
 
     public static final class Resultat {
@@ -30,6 +35,8 @@ public final class Conversio {
         public List<GravacioNotes.Frase> frases;
         public int ppc;                 // caselles per compàs de les frases
         public int notes, corregides, netejades;
+        public double afinacio;
+        public int octava;
     }
 
     /**
@@ -44,13 +51,21 @@ public final class Conversio {
         int semis = Patro.passosDe(compas);                  // caselles de semicorxera per compàs
         r.ppc = o.graella == 2 ? semis * 2 : semis;
         double msQuant = msPerCompas / (o.graella == 0 ? semis / 2.0 : o.graella == 2 ? semis * 2.0 : semis);
-        boolean[] escala = o.tonalitat ? an.escala() : null;
+        boolean[] escala = o.escala != null ? o.escala : o.tonalitat ? an.escala() : null;
 
         List<Analisi.Nota> llista = an.notes;
+        if (o.afinacio != 0) {
+            llista = new java.util.ArrayList<>();
+            for (Analisi.Nota n : an.notes) {
+                double to = n.to - o.afinacio;
+                llista.add(new Analisi.Nota(n.iniciMs, n.fiMs, (int) Math.round(to), to));
+            }
+        }
         if (o.corrector > 0) {
             int[] corr = new int[1];
-            llista = corregeix(an.notes, o.corrector, msQuant, escala, corr);
-            r.netejades = an.notes.size() - llista.size();
+            int abans = llista.size();
+            llista = corregeix(llista, o.corrector, msQuant, escala, corr);
+            r.netejades = abans - llista.size();
             r.corregides = corr[0];
         }
 
