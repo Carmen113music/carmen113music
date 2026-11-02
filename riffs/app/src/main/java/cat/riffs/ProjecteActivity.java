@@ -83,7 +83,9 @@ public class ProjecteActivity extends Activity {
     private Gravadora gravCal;              // gravació curta per aprendre un so
     private Runnable compteCal;
     private android.media.AudioTrack provaCop;
-    private Projecte.Pista sonsDespresDelPermis;
+    private boolean sonsDespresDelPermis;
+    private View filaPads;          // els pads d'acords amb la selleta (▲ ▼) a l'esquerra
+    private Runnable refaSemis;
     private View panellTeclat;
     private TextView textTeclat;
     // desfer
@@ -114,7 +116,7 @@ public class ProjecteActivity extends Activity {
                     textInfo.setText("Compte: " + Math.max(1, falten));
                 } else {
                     textInfo.setTextColor(Ui.ACCENT);
-                    textInfo.setText(!gravantSinte ? (gravantRitme ? "● Gravant el ritme" : "● Gravant") : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
+                    textInfo.setText(!gravantSinte ? (gravantRitme ? "● Gravant el ritme · " + jocActiu() : "● Gravant") : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
                 }
             } else if (ms > projecte.finalMs() + 800) {
                 atura();
@@ -226,6 +228,11 @@ public class ProjecteActivity extends Activity {
         botoSnap.setOnClickListener(v -> desplegableSnap(v));
         dalt.addView(botoSnap);
         pintaSnap();
+        dalt.addView(Ui.espai(this, 8));
+        // 2.40: ajustos, sempre al mateix lloc (sons de la bateria, retard, kits, banc MIDI…)
+        FrameLayout ajustos = Ui.botoIcona(this, Icona.AJUSTOS, Ui.TEXT, Ui.SUPERFICIE, 32, 17, "Ajustos");
+        ajustos.setOnClickListener(v -> obreAjustos());
+        dalt.addView(ajustos);
         dalt.addView(Ui.espai(this, 8));
 
         // accions dels clips triats (només es veuen si n'hi ha)
@@ -1012,7 +1019,7 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, Sinte.NOMS_MOTOR[motor], "Al piano roll el pots canviar escoltant-lo, i retocar-lo a l'editor de so («So»).",
+        Full.graella(this, Sinte.NOMS_MOTOR[motor], "Al piano roll el pots canviar escoltant-lo, i retocar-lo a l'editor de so («So»).",
                 ops, () -> triaSintes(despres));
     }
 
@@ -1208,7 +1215,7 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, "Analògic mono", "Els baixos s'obren a les notes greus i els leads a les agudes. "
+        Full.graella(this, "Analògic mono", "Els baixos s'obren a les notes greus i els leads a les agudes. "
                 + "Al piano roll el pots canviar escoltant-los.", ops, () -> triaSintes(despres));
     }
 
@@ -1260,11 +1267,11 @@ public class ProjecteActivity extends Activity {
                         if (despres != null) despres.run();
                     }));
                 }
-                Full.llista(this, nf, "Al piano roll el pots canviar escoltant-los.", sons,
+                Full.graella(this, nf, "Al piano roll el pots canviar escoltant-los.", sons,
                         () -> triaPresetPoli(despres, analogic));   // «<»: torna a les famílies
             }));
         }
-        Full.llista(this, analogic ? "Analògic poli" : "Sinte polifònic", "Pots tocar acords. Tria una família.", ops,
+        Full.graella(this, analogic ? "Analògic poli" : "Sinte polifònic", "Pots tocar acords. Tria una família.", ops,
                 analogic ? () -> triaSintes(despres) : null);
     }
 
@@ -1433,7 +1440,7 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, "So del teremin", "Es toca en directe: encén el botó de gravar de la pista i mantén premut el play. "
+        Full.graella(this, "So del teremin", "Es toca en directe: encén el botó de gravar de la pista i mantén premut el play. "
                 + "Després pots canviar el so i el que has tocat sonarà amb el nou.", ops);
     }
 
@@ -2449,7 +2456,7 @@ public class ProjecteActivity extends Activity {
                 if (despres != null) despres.run();
             }));
         }
-        Full.llista(this, "Presets d'acords", "Posa els 8 acords de la cançó, en ordre, als pads 1 a 8 "
+        Full.graella(this, "Presets d'acords", "Posa els 8 acords de la cançó, en ordre, als pads 1 a 8 "
                 + "(d'esquerra a dreta, com en un piano: C, C#, D…). Amb el llapis en pots canviar qualsevol.", ops);
     }
 
@@ -2552,7 +2559,7 @@ public class ProjecteActivity extends Activity {
                     () -> triaPoliDeFamiliaPanell(t, nom, f, motor, true)));
         }
         if (propis) ops.add(new Full.Accio(Ui.iconaMotor(motor), "Els meus sons", false, () -> triaPoliDeFamiliaPanell(t, nom, -1, motor, true)));
-        Full.llista(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + base.preset + ". Tria una família.", ops);
+        Full.graella(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + base.preset + ". Tria una família.", ops);
     }
 
     private void triaPoliDeFamiliaPanell(Projecte.Pista t, TextView nom, int ff, int motor, boolean ambEnrere) {
@@ -2607,7 +2614,7 @@ public class ProjecteActivity extends Activity {
                         () -> triaFamiliaPanell(t, nom, soDeLaPista(t)));      // i a la llista de famílies
             }));
         }
-        Full.llista(this, "Instrument", "Ara: " + Gm.nom(base.programa) + ". Tria una família.", ops);
+        Full.graella(this, "Instrument", "Ara: " + Gm.nom(base.programa) + ". Tria una família.", ops);
     }
 
     /**
@@ -2761,11 +2768,11 @@ public class ProjecteActivity extends Activity {
                         if (despres != null) despres.run();
                     }));
                 }
-                Full.llista(this, Gm.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", ins,
+                Full.graella(this, Gm.FAMILIES[ff], "Al piano roll el pots canviar escoltant-los.", ins,
                         () -> triaInstrumentNou(despres));   // «<»: torna a les famílies
             }));
         }
-        Full.llista(this, "Instrument MIDI", "Polifònic: pots fer acords. Tria una família.", ops);
+        Full.graella(this, "Instrument MIDI", "Polifònic: pots fer acords. Tria una família.", ops);
     }
 
     /** Crea una pista MIDI buida amb aquest instrument. */
@@ -2966,6 +2973,7 @@ public class ProjecteActivity extends Activity {
             });
             Runnable trasPreset = () -> {   // s'han posat els acords d'un preset
                 mini.posaAcords(pads.acords());
+                if (refaSemis != null) refaSemis.run();
                 posaPreset.run();
                 triaPad.run();
             };
@@ -2982,6 +2990,7 @@ public class ProjecteActivity extends Activity {
                 if (!modeAcords[0]) editant[0] = false;
                 teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
                 pads.setVisibility(modeAcords[0] && !editant[0] ? View.VISIBLE : View.GONE);
+                if (filaPads != null) filaPads.setVisibility(pads.getVisibility());
                 editorF.setVisibility(modeAcords[0] && editant[0] ? View.VISIBLE : View.GONE);
                 preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
                 llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
@@ -3010,7 +3019,58 @@ public class ProjecteActivity extends Activity {
             barra.addView(preset, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
             pads.posaColor(color);
             posaPreset.run();
-            zona.addView(pads, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            // 2.40: a l'esquerra dels pads, ▲ / ▼ mouen tots els acords un semitò (com una selleta)
+            LinearLayout ambSelleta = Ui.fila(this);
+            LinearLayout selleta = Ui.columna(this);
+            selleta.setPadding(Ui.dp(this, 8), Ui.dp(this, 6), 0, Ui.dp(this, 6));
+            FrameLayout puja = new FrameLayout(this), baixa = new FrameLayout(this);
+            TextView textSemis = Ui.negreta(this, "", 11, Ui.SUAU);
+            textSemis.setGravity(Gravity.CENTER);
+            Runnable pintaSemis = () -> {
+                int st = pads.acords().semitons;
+                textSemis.setText(st == 0 ? "0" : (st > 0 ? "+" : "−") + Math.abs(st));
+                textSemis.setTextColor(st == 0 ? Ui.SUAU : color);
+            };
+            Ui.AmbIndex mou = st -> {
+                Acords a = pads.acords();
+                if (!a.transposa(st)) {
+                    Ui.avis(this, st > 0 ? "Ja no es pot pujar més" : "Ja no es pot baixar més");
+                    return;
+                }
+                desaAcords(a);
+                pads.invalidate();
+                pintaSemis.run();
+                posaPreset.run();
+                // fa sonar el primer acord, per sentir on ha quedat
+                for (Acords.Acord ac : a.pads) {
+                    if (ac.buit()) continue;
+                    provaAcord(ac.notes(pads.base()), pads);
+                    break;
+                }
+                if (textTeclat == null) return;
+                textTeclat.setTextColor(color);
+                textTeclat.setText("Acords " + (st > 0 ? "un semitò amunt" : "un semitò avall") + " · total "
+                        + (a.semitons == 0 ? "0" : (a.semitons > 0 ? "+" : "−") + Math.abs(a.semitons)));
+            };
+            for (int k = 0; k < 2; k++) {
+                FrameLayout b = k == 0 ? puja : baixa;
+                b.setClickable(true);
+                b.setContentDescription(k == 0 ? "Tots els acords un semitò amunt" : "Tots els acords un semitò avall");
+                b.setBackground(Ui.tocable(Ui.SUPERFICIE2, Ui.dp(this, 12)));
+                b.addView(Ui.imatge(this, k == 0 ? Icona.AMUNT : Icona.AVALL, Ui.TEXT, 22),
+                        new FrameLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24), Gravity.CENTER));
+                int st = k == 0 ? 1 : -1;
+                b.setOnClickListener(v -> mou.fet(st));
+            }
+            selleta.addView(puja, new LinearLayout.LayoutParams(Ui.dp(this, 44), 0, 1f));
+            selleta.addView(textSemis, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 22)));
+            selleta.addView(baixa, new LinearLayout.LayoutParams(Ui.dp(this, 44), 0, 1f));
+            pintaSemis.run();
+            ambSelleta.addView(selleta, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT));
+            ambSelleta.addView(pads, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            filaPads = ambSelleta;
+            refaSemis = pintaSemis;
+            zona.addView(ambSelleta, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
             FrameLayout.LayoutParams le = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
             le.setMargins(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), 0);
             zona.addView(editor, le);
@@ -3018,6 +3078,7 @@ public class ProjecteActivity extends Activity {
             barra.post(aplicaMode);
             teclat.setVisibility(modeAcords[0] ? View.GONE : View.VISIBLE);
             pads.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
+            ambSelleta.setVisibility(pads.getVisibility());
             editor.setVisibility(View.GONE);
             preset.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
             llapis.setVisibility(modeAcords[0] ? View.VISIBLE : View.GONE);
@@ -3391,6 +3452,8 @@ public class ProjecteActivity extends Activity {
         }
         panellTeclat = null;
         textTeclat = null;
+        filaPads = null;
+        refaSemis = null;
         ajustaBarra(getResources().getConfiguration());
     }
 
@@ -3477,11 +3540,126 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
+    // ---------- Ajustos (2.40) ----------
+
+    /** Totes les configuracions en un sol lloc, des del botó d'ajustos de la barra de dalt. */
+    private void obreAjustos() {
+        if (gravant) return;
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.BATERIA, "Sons de la bateria amb la veu · " + jocActiu(), false, () -> obreSonsRitme(null, false)));
+        ops.add(new Full.Accio(Icona.METRONOM, "Volum del clic · " + Math.round(volumClic * 100) + " %", false, () ->
+                Full.lliscador(this, "Volum del clic", Math.round(volumClic * 100), 150, val -> {
+                    volumClic = val / 100f;
+                    if (motor != null) motor.posaVolumClic(volumClic);
+                    Ui.prefs(this).edit().putFloat("estudi_clic_vol", volumClic).apply();
+                }, val -> val + " %")));
+        ops.add(new Full.Accio(Icona.AJUSTOS, "Micròfon i retard (diagnòstic)", false,
+                () -> startActivity(new android.content.Intent(this, DiagnosticActivity.class))));
+        ops.add(new Full.Accio(Icona.BATERIA, "Kits de bateria (baixar, importar)", false,
+                () -> startActivity(new android.content.Intent(this, KitsActivity.class))));
+        ops.add(new Full.Accio(Icona.MIDI, "Instruments MIDI (banc de sons)", false,
+                () -> startActivity(new android.content.Intent(this, BancActivity.class))));
+        ops.add(new Full.Accio(Icona.HISTORIAL, "Historial", false,
+                () -> startActivity(new android.content.Intent(this, HistorialActivity.class))));
+        Full.llista(this, "Ajustos", "Es fan servir a tot arreu de l'app.", ops);
+    }
+
     // ---------- Ritme amb la veu → bateria (2.39) ----------
 
     private Beatbox.Calibratge calibratge() {
-        if (calRitme == null) calRitme = Beatbox.Calibratge.deText(Ui.prefs(this).getString("ritme_sons", null));
+        if (calRitme == null) calRitme = Beatbox.Calibratge.deText(Ui.prefs(this).getString("ritme_sons_" + jocActiu(), null));
         return calRitme;
+    }
+
+    // Jocs de sons (2.40): per exemple «Taula» i «Boca»; cada un té els seus exemples i es canvia sense regravar
+
+    private List<String> jocs() {
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        String t = pr.getString("ritme_jocs", null);
+        List<String> l = new ArrayList<>();
+        if (t == null) {
+            // de la 2.39: els sons que ja hi havia passen a ser el primer joc
+            String primer = "Joc 1";
+            l.add(primer);
+            android.content.SharedPreferences.Editor e = pr.edit().putString("ritme_jocs", primer).putString("ritme_joc", primer);
+            String vells = pr.getString("ritme_sons", null);
+            if (vells != null) e.putString("ritme_sons_" + primer, vells).remove("ritme_sons");
+            e.apply();
+            File dirVell = new File(getFilesDir(), "ritme-veu");
+            for (int k = 0; k < Beatbox.SONS; k++) {
+                File f = new File(dirVell, "so" + k + ".wav");
+                if (!f.isFile()) continue;
+                File nou = fitxerExemple(primer, k);
+                nou.getParentFile().mkdirs();
+                f.renameTo(nou);
+            }
+            return l;
+        }
+        for (String n : t.split("\n")) if (!n.trim().isEmpty()) l.add(n);
+        if (l.isEmpty()) l.add("Joc 1");
+        return l;
+    }
+
+    private String jocActiu() {
+        List<String> l = jocs();
+        String a = Ui.prefs(this).getString("ritme_joc", null);
+        return a != null && l.contains(a) ? a : l.get(0);
+    }
+
+    private void desaJocs(List<String> l, String actiu) {
+        Ui.prefs(this).edit().putString("ritme_jocs", String.join("\n", l)).putString("ritme_joc", actiu).apply();
+        calRitme = null;
+    }
+
+    private File fitxerExemple(String joc, int tipus) {
+        String carpeta = "joc-" + Integer.toHexString(joc.hashCode());
+        return new File(new File(new File(getFilesDir(), "ritme-veu"), carpeta), "so" + tipus + ".wav");
+    }
+
+    /** Joc nou (amb un nom) o canviar el nom d'un que ja hi és ({@code vell} != null). */
+    private void nomJoc(String vell, Runnable despres) {
+        Full.demanaText(this, vell == null ? "Nom del joc de sons" : "Nom nou", vell == null ? "" : vell,
+                vell == null ? "Crea" : "Desa", text -> {
+                    String n = text == null ? "" : text.trim().replace('\n', ' ');
+                    List<String> l = jocs();
+                    if (n.isEmpty() || (l.contains(n) && !n.equals(vell))) {
+                        Ui.avis(this, n.isEmpty() ? "Cal un nom" : "Ja hi ha un joc amb aquest nom");
+                        return;
+                    }
+                    android.content.SharedPreferences pr = Ui.prefs(this);
+                    if (vell == null) {
+                        l.add(n);
+                    } else {
+                        l.set(l.indexOf(vell), n);
+                        String sons = pr.getString("ritme_sons_" + vell, null);
+                        android.content.SharedPreferences.Editor e = pr.edit().remove("ritme_sons_" + vell);
+                        if (sons != null) e.putString("ritme_sons_" + n, sons);
+                        e.apply();
+                        for (int k = 0; k < Beatbox.SONS; k++) {
+                            File f = fitxerExemple(vell, k), nou = fitxerExemple(n, k);
+                            if (!f.isFile()) continue;
+                            nou.getParentFile().mkdirs();
+                            f.renameTo(nou);
+                        }
+                    }
+                    desaJocs(l, n);
+                    despres.run();
+                });
+    }
+
+    private void esborraJoc(String joc, Runnable despres) {
+        List<String> l = jocs();
+        if (l.size() <= 1) {
+            Ui.avis(this, "Ha de quedar com a mínim un joc de sons");
+            return;
+        }
+        Full.confirma(this, "Esborrar el joc «" + joc + "»?", "Es perden els sons apresos d'aquest joc.", "Esborra", true, () -> {
+            l.remove(joc);
+            Ui.prefs(this).edit().remove("ritme_sons_" + joc).apply();
+            for (int k = 0; k < Beatbox.SONS; k++) fitxerExemple(joc, k).delete();
+            desaJocs(l, l.get(0));
+            despres.run();
+        });
     }
 
     /** Pista de bateria armada + mantenir premut el play: si ja coneix els teus sons, grava; si no, primer els aprèn. */
@@ -3515,7 +3693,7 @@ public class ProjecteActivity extends Activity {
     }
 
     private File fitxerExemple(int tipus) {
-        return new File(new File(getFilesDir(), "ritme-veu"), "so" + tipus + ".wav");
+        return fitxerExemple(jocActiu(), tipus);
     }
 
     /**
@@ -3524,7 +3702,7 @@ public class ProjecteActivity extends Activity {
      */
     private void obreSonsRitme(Projecte.Pista t, boolean gravarDespres) {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            sonsDespresDelPermis = gravarDespres ? null : t;
+            sonsDespresDelPermis = !gravarDespres;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
             return;
         }
@@ -3536,6 +3714,44 @@ public class ProjecteActivity extends Activity {
 
         LinearLayout cos = Ui.columna(this);
         cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
+        android.app.Dialog[] dd = new android.app.Dialog[1];
+        // reobre el panell (en canviar de joc, crear-ne o esborrar-ne un)
+        Runnable reobre = () -> {
+            if (dd[0] != null) dd[0].dismiss();
+            obreSonsRitme(t, gravarDespres);
+        };
+        cos.addView(Ui.etiqueta(this, "Joc de sons (mantén-lo premut per canviar-ne el nom o esborrar-lo)"));
+        android.widget.HorizontalScrollView hj = new android.widget.HorizontalScrollView(this);
+        hj.setHorizontalScrollBarEnabled(false);
+        LinearLayout filaJocs = Ui.fila(this);
+        String actiu = jocActiu();
+        for (String joc : jocs()) {
+            boolean es = joc.equals(actiu);
+            LinearLayout xip = Ui.pastilla(this, 0, joc, es ? Ui.BATERIA : Ui.SUPERFICIE2, es ? 0xFF16121F : Ui.TEXT);
+            xip.setOnClickListener(v -> {
+                if (es) return;
+                aturaCalibratge();
+                desaJocs(jocs(), joc);
+                reobre.run();
+            });
+            xip.setOnLongClickListener(v -> {
+                List<Full.Accio> ops = new ArrayList<>();
+                ops.add(new Full.Accio(Icona.LLAPIS, "Canvia el nom", false, () -> nomJoc(joc, reobre)));
+                ops.add(new Full.Accio(Icona.PAPERERA, "Esborra el joc", true, () -> esborraJoc(joc, reobre)));
+                Full.llista(this, "Joc «" + joc + "»", null, ops);
+                return true;
+            });
+            filaJocs.addView(xip, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 34)));
+            filaJocs.addView(Ui.espai(this, 6));
+        }
+        LinearLayout nou = Ui.pastilla(this, Icona.MES, "Nou", Ui.SUPERFICIE2, Ui.SUAU);
+        nou.setOnClickListener(v -> {
+            aturaCalibratge();
+            nomJoc(null, reobre);
+        });
+        filaJocs.addView(nou, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 34)));
+        hj.addView(filaJocs);
+        cos.addView(hj, Ui.ample(this, 6));
         cos.addView(Ui.text(this, "Grava cada so 4 o 5 vegades, amb una mica d'espai entre cop i cop. Pot ser qualsevol cosa "
                 + "(picar a la taula, un so amb la boca, un llapis…) mentre sonin diferents entre ells. "
                 + "Cal com a mínim el bombo i la caixa; el hihat també el pots fer en una altra passada.", 11, Ui.SUAU));
@@ -3570,7 +3786,7 @@ public class ProjecteActivity extends Activity {
         cos.addView(Ui.etiqueta(this, "Sensibilitat (cops fluixos)"), Ui.ample(this, 12));
         cos.addView(Ui.segmentat(this, Beatbox.SENSIBILITATS, sens[0], Ui.TEXT, i -> sens[0] = i), Ui.ample(this, 6));
 
-        android.app.Dialog d = Full.panell(this, "Els teus sons de bateria",
+        android.app.Dialog d = Full.panell(this, "Els teus sons de bateria · " + actiu,
                 "L'app aprèn com sonen i, quan graves, cada cop va a la fila que toca del drumpad.",
                 cos, gravarDespres ? "Grava el ritme" : "Fet", Ui.BATERIA, () -> {
                     pr.edit().putInt("ritme_graella", graella[0]).putInt("ritme_capes", capes[0]).putInt("ritme_sens", sens[0]).apply();
@@ -3578,6 +3794,7 @@ public class ProjecteActivity extends Activity {
                     if (calibratge().llest()) comencaRitme(t);
                     else Ui.avis(this, "Primer grava com a mínim dos sons (bombo i caixa)");
                 });
+        dd[0] = d;
         d.setOnDismissListener(x -> {
             aturaCalibratge();
             // la graella, les capes i la sensibilitat es desen també si es tanca sense el botó
@@ -3643,10 +3860,10 @@ public class ProjecteActivity extends Activity {
                             estat.setText("No he sentit cap cop: torna-ho a provar més fort");
                             return;
                         }
-                        Ui.prefs(ProjecteActivity.this).edit().putString("ritme_sons", calibratge().text()).apply();
+                        Ui.prefs(ProjecteActivity.this).edit().putString("ritme_sons_" + jocActiu(), calibratge().text()).apply();
                         int n = calibratge().quants(tipus);
                         estat.setText(n + (n == 1 ? " cop après" : " cops apresos") + (n < 3 ? " · millor si en fas més" : ""));
-                        Ui.historial(ProjecteActivity.this, "Ritme amb la veu: après el so «" + NOMS_SONS[tipus] + "» (" + n + " cops)");
+                        Ui.historial(ProjecteActivity.this, "Ritme amb la veu: après el so «" + NOMS_SONS[tipus] + "» del joc «" + jocActiu() + "» (" + n + " cops)");
                     });
                 }, "aprenSo").start();
             }
@@ -3871,7 +4088,7 @@ public class ProjecteActivity extends Activity {
         }
         desa();
         String detall = r.perTipus[0] + " bombo · " + r.perTipus[1] + " caixa · " + (r.perTipus[2] + r.perTipus[3]) + " hihat";
-        Ui.historial(this, "Ritme amb la veu a «" + t.nomVisible() + "»: " + r.cops + " cops (" + detall + "), compàs "
+        Ui.historial(this, "Ritme amb la veu (joc «" + jocActiu() + "») a «" + t.nomVisible() + "»: " + r.cops + " cops (" + detall + "), compàs "
                 + r.compasEntrada + ", graella " + Beatbox.GRAELLES[graella].toLowerCase(Locale.ROOT)
                 + (ajuntades > 0 ? ", afegit a " + ajuntades + (ajuntades == 1 ? " finestra" : " finestres") : "")
                 + (trets > 0 ? ", substituïdes " + trets : ""));
@@ -3902,9 +4119,9 @@ public class ProjecteActivity extends Activity {
     public void onRequestPermissionsResult(int codi, String[] permisos, int[] resultats) {
         super.onRequestPermissionsResult(codi, permisos, resultats);
         if (codi == PERMIS_MIC && resultats.length > 0 && resultats[0] == PackageManager.PERMISSION_GRANTED) {
-            Projecte.Pista sons = sonsDespresDelPermis;
-            sonsDespresDelPermis = null;
-            if (sons != null && projecte.pistes.contains(sons)) obreSonsRitme(sons, false);
+            boolean sons = sonsDespresDelPermis;
+            sonsDespresDelPermis = false;
+            if (sons) obreSonsRitme(null, false);
             else triaPistaGravar();
         } else if (codi == PERMIS_MIC) {
             Ui.avis(this, "Cal permís de micròfon per gravar.");
@@ -3914,7 +4131,7 @@ public class ProjecteActivity extends Activity {
     // ---------- Tempo ----------
 
     private void mostraTempo() {
-        textTempo.setText(Math.round(projecte.bpm) + " BPM · " + Ritme.nomCompas(projecte.compas));
+        textTempo.setText(Math.round(projecte.bpm) + " · " + Ritme.nomCompas(projecte.compas));
     }
 
     private void editaTempo() {

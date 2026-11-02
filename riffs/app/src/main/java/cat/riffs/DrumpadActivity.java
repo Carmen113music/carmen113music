@@ -259,7 +259,7 @@ public class DrumpadActivity extends Activity {
                 if (bucle != null) reprenBucle();
             }));
         }
-        Full.llista(this, "Kit de bateria", "Cada fila agafa el primer so del seu tipus del kit nou. Els cops no es toquen.", ops);
+        Full.graella(this, "Kit de bateria", "Cada fila agafa el primer so del seu tipus del kit nou. Els cops no es toquen.", ops);
     }
 
     private void triaCompassos() {

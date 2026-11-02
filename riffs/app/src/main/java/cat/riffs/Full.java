@@ -270,6 +270,35 @@ public final class Full {
         d[0].show();
     }
 
+    /**
+     * Com {@link #llista(Activity, String, String, List, Runnable)}, però amb targetes de tres en tres (2.40):
+     * per triar sons, presets, famílies o kits.
+     */
+    public static void graella(Activity a, String titol, String subtitol, List<Accio> opcions, Runnable enrere) {
+        Dialog[] d = new Dialog[1];
+        LinearLayout cos = capTria(a, titol, subtitol, () -> {
+            d[0].dismiss();
+            if (enrere != null) enrere.run();
+        }, null);
+        List<LinearLayout> cartes = new java.util.ArrayList<>();
+        for (Accio ac : opcions) {
+            LinearLayout f = targeta(a, ac.icona, ac.nom, ac.perill ? Ui.ACCENT : Ui.TEXT);
+            pintaTargeta(a, f, false, Ui.TEXT);
+            f.setOnClickListener(v -> {
+                d[0].dismiss();
+                ac.fet.run();
+            });
+            cartes.add(f);
+        }
+        afegeixGraellaTria(a, cos, cartes);
+        d[0] = panellBaix(a, cos);
+        d[0].show();
+    }
+
+    public static void graella(Activity a, String titol, String subtitol, List<Accio> opcions) {
+        graella(a, titol, subtitol, opcions, null);
+    }
+
     public static void triaAmbProva(Activity a, String titol, String subtitol, String[] noms, int triat, int color,
                                     Ui.AmbIndex prova, Ui.AmbIndex tria) {
         triaAmbProva(a, titol, subtitol, noms, triat, color, prova, tria, null, null);
@@ -294,19 +323,14 @@ public final class Full {
             }
             if (enrere != null) enrere.run();
         }, fet);
-        LinearLayout files = Ui.columna(a);
+        // 2.40: targetes, tres per fila (abans una fila per so: ocupava molt)
         List<LinearLayout> rows = new java.util.ArrayList<>();
         Runnable pinta = () -> {
-            for (int i = 0; i < rows.size(); i++) {
-                boolean t = i == sel[0];
-                LinearLayout f = rows.get(i);
-                f.setBackground(Ui.tocable(t ? Ui.alfa(color, 50) : Ui.SUPERFICIE2, Ui.dp(a, 12)));
-                Ui.colorIcona(f, t ? color : Ui.SUAU);
-            }
+            for (int i = 0; i < rows.size(); i++) pintaTargeta(a, rows.get(i), i == sel[0], color);
         };
         for (int i = 0; i < noms.length; i++) {
             int idx = i;
-            LinearLayout f = filaTria(a, Icona.PLAY, noms[i], Ui.TEXT);
+            LinearLayout f = targeta(a, Icona.PLAY, noms[i], Ui.TEXT);
             f.setOnClickListener(v -> {
                 prova.fet(idx);
                 if (sel[0] != idx) {
@@ -316,10 +340,9 @@ public final class Full {
                 }
             });
             rows.add(f);
-            files.addView(f, Ui.ample(a, 5));
         }
         pinta.run();
-        afegeixLlistaTria(a, cos, files, noms.length);
+        afegeixGraellaTria(a, cos, rows);
         d[0] = panellBaix(a, cos);
         fet.setOnClickListener(v -> d[0].dismiss());
         d[0].show();
@@ -369,7 +392,67 @@ public final class Full {
         return f;
     }
 
+    static final int PER_FILA = 3, ALT_TARGETA = 54;
+
+    /** Una targeta de les graelles de triar: icona petita i el nom (fins a dues línies). */
+    private static LinearLayout targeta(Activity a, int icona, String nom, int color) {
+        LinearLayout f = Ui.fila(a);
+        f.setClickable(true);
+        f.setFocusable(true);
+        f.setGravity(Gravity.CENTER_VERTICAL);
+        f.setPadding(Ui.dp(a, 10), Ui.dp(a, 4), Ui.dp(a, 8), Ui.dp(a, 4));
+        if (icona > 0) {
+            f.addView(Ui.imatge(a, icona, Ui.SUAU, 14), new LinearLayout.LayoutParams(Ui.dp(a, 16), Ui.dp(a, 16)));
+            f.addView(Ui.espai(a, 8));
+        }
+        TextView t = Ui.negreta(a, nom, 12.5f, color);
+        t.setMaxLines(2);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        t.setLineSpacing(0, 1.05f);
+        f.addView(t, Ui.pes(1));
+        return f;
+    }
+
+    /** Triada: fons del color i vora; si no, el gris de sempre. */
+    private static void pintaTargeta(Activity a, LinearLayout f, boolean triada, int color) {
+        android.graphics.drawable.Drawable fons = Ui.tocable(triada ? Ui.alfa(color, 50) : Ui.SUPERFICIE2, Ui.dp(a, 12));
+        if (triada) {
+            GradientDrawable vora = new GradientDrawable();
+            vora.setCornerRadius(Ui.dp(a, 12));
+            vora.setColor(0x00000000);
+            vora.setStroke(Ui.dp(a, 1.5f), color);
+            fons = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{fons, vora});
+        }
+        f.setBackground(fons);
+        Ui.colorIcona(f, triada ? color : Ui.SUAU);
+    }
+
+    /** Posa les targetes de tres en tres, dins un desplaçament limitat a l'espai que es veu. */
+    private static void afegeixGraellaTria(Activity a, LinearLayout cos, List<LinearLayout> cartes) {
+        LinearLayout files = Ui.columna(a);
+        int n = cartes.size(), nf = (n + PER_FILA - 1) / PER_FILA;
+        for (int r = 0; r < nf; r++) {
+            LinearLayout fila = Ui.fila(a);
+            for (int c = 0; c < PER_FILA; c++) {
+                int i = r * PER_FILA + c;
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(a, ALT_TARGETA), 1);
+                if (c > 0) lp.leftMargin = Ui.dp(a, 6);
+                if (i < n) {
+                    fila.addView(cartes.get(i), lp);
+                } else {
+                    fila.addView(new View(a), lp);   // espai buit: les de l'última fila fan la mateixa amplada
+                }
+            }
+            files.addView(fila, Ui.ample(a, r == 0 ? 0 : 6));
+        }
+        afegeixLlistaTria(a, cos, files, nf, ALT_TARGETA + 6);
+    }
+
     private static void afegeixLlistaTria(Activity a, LinearLayout cos, LinearLayout files, int n) {
+        afegeixLlistaTria(a, cos, files, n, 47);
+    }
+
+    private static void afegeixLlistaTria(Activity a, LinearLayout cos, LinearLayout files, int n, int altFilaDp) {
         ScrollView sc = new ScrollView(a);
         files.setPadding(files.getPaddingLeft(), files.getPaddingTop(), files.getPaddingRight(), Ui.dp(a, 10));
         sc.addView(files);
@@ -380,7 +463,7 @@ public final class Full {
         int altVisible = vis.height() > 0 ? vis.height() : a.getResources().getDisplayMetrics().heightPixels;
         int maxim = Math.max(Ui.dp(a, 120), altVisible - Ui.dp(a, 175));
         LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(Ui.dp(a, 47) * n + Ui.dp(a, 18), maxim));
+                Math.min(Ui.dp(a, altFilaDp) * n + Ui.dp(a, 18), maxim));
         ls.topMargin = Ui.dp(a, 8);
         cos.addView(sc, ls);
     }
@@ -414,6 +497,8 @@ public final class Full {
             ac.tensions = b.tensions;
             ac.baix = b.baix;
             ac.inversio = b.inversio;
+            ac.octava = b.octava;
+            ac.octavaBaix = b.octavaBaix;
             pinta.run();
         }
 
@@ -489,6 +574,8 @@ public final class Full {
                 ac.tensions = 0;
                 ac.baix = -1;
                 ac.inversio = 0;
+                ac.octava = 0;
+                ac.octavaBaix = 0;
             }
         };
         for (int i = 0; i < bArrel.size(); i++) {
@@ -521,6 +608,7 @@ public final class Full {
             bBaix.get(i).setOnClickListener(v -> {
                 siBuit.run();
                 ac.baix = k - 1;
+                ac.octavaBaix = 0;
                 ed.avisa();
             });
         }

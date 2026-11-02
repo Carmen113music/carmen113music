@@ -105,9 +105,21 @@ El primer cop l'app demana permís de micròfon.
 - En sortir, el ritme es converteix en el so de la finestra. Si n'has canviat la llargada, la finestra s'allarga o s'escurça (vigila que no trepitgi la del costat: sonarien les dues). Si canvies el **tempo** o el **compàs** del projecte, la bateria es torna a fer al tempo nou i es manté als mateixos compassos. Les pistes de bateria tenen botó de gravar per fer el ritme amb la veu (2.39, vegeu més avall).
 - Els ritmes i el seu so es guarden dins la carpeta de la cançó, en una carpeta amagada (`.bateria`) que la Biblioteca no mostra.
 
+### Ajustos de l'Estudi (2.40)
+- El botó d'**ajustos** (engranatge) de la barra de dalt, al costat de la graella, és sempre al mateix lloc. Hi ha: **Sons de la bateria amb la veu**, **Volum del clic**, **Micròfon i retard** (diagnòstic), **Kits de bateria**, **Instruments MIDI** (banc de sons) i l'**Historial**.
+- La pastilla del tempo ara diu només «120 · 4/4» (ocupa menys).
+
+### Triar sons en targetes (2.40)
+- Tots els panells per triar sons, presets, famílies, instruments MIDI, kits i presets d'acords mostren **targetes de tres en tres** en lloc d'una fila per so. La triada té el fons i la vora del color de la pista.
+
+### Selleta als pads d'acords (2.40)
+- A l'esquerra dels pads d'acords hi ha dos botons llargs: **▲** puja **tots els acords un semitò** i **▼** els baixa, com posar o treure una selleta a la guitarra. Els noms canvien (Fm → F#m) i el so puja o baixa just un semitò, sense salts d'octava. Entre els dos botons surt quants semitons els has mogut (+2, −1…). En moure'ls sona el primer acord.
+- Es desa amb els pads. Si tries un preset d'acords nou, torna a 0.
+
 ### Ritme amb la veu (2.39)
 - Fes la bateria **amb la veu o picant a la taula** mentre sona la base: cada cop va a la fila que toca del drumpad.
-- **Els teus sons**: el primer cop, l'app et demana gravar cada so 4 o 5 vegades (**Bombo**, **Caixa** i, si vols, **Hihat**). Pot ser qualsevol so (picar a la taula, un «tx» amb la boca, un llapis…) mentre siguin diferents entre ells. Ho recorda; per tornar-ho a fer: mantén premut el nom de la pista de bateria i deixa'l anar → *Ritme amb la veu: els teus sons*. El triangle de cada so fa sonar com l'ha après.
+- **Els teus sons**: el primer cop, l'app et demana gravar cada so 4 o 5 vegades (**Bombo**, **Caixa** i, si vols, **Hihat**). Pot ser qualsevol so (picar a la taula, un «tx» amb la boca, un llapis…) mentre siguin diferents entre ells. Ho recorda. Per tornar-ho a fer: botó d'**ajustos** de la barra de dalt de l'Estudi → *Sons de la bateria amb la veu* (o mantén premut el nom de la pista de bateria i deixa'l anar → *Ritme amb la veu: els teus sons*). El triangle de cada so fa sonar com l'ha après.
+- **Jocs de sons** (2.40): pots tenir-ne uns quants (per exemple «Taula» i «Boca»), cada un amb els seus sons apresos. A dalt del panell: toca un joc per fer-lo servir, **+ Nou** per crear-ne un, i mantén-ne un premut per canviar-li el nom o esborrar-lo. Mentre graves, a dalt surt quin joc fas servir.
 - **Gravar**: encén el **botó de gravar** de la pista de bateria i **mantén premut el play** (o tria-la a la llista «Gravar a…»). Entra al compàs més proper al capçal, amb un compàs de compte abans. **Cal auriculars** (si no, no sona res perquè no es gravi la base). Toca el quadrat per acabar: els cops es posen a la pista en finestres de fins a 4 compassos.
 - **En passades**: amb «Afegeix-hi» (per defecte), si tornes a gravar des del mateix compàs els cops nous s'afegeixen al ritme que ja hi havia (per exemple, primer bombo i caixa, després el hihat). Amb «Substitueix», el que hi havia en aquells compassos es treu. El **Desfés** ho desfà tot d'un sol cop.
 - Al mateix panell: la **graella** (corxeres, semicorxeres o fuses) i la **sensibilitat** (si se'n perden de fluixos).
@@ -227,6 +239,7 @@ La compila GitHub Actions al repositori `Carmen113music/carmen113music`:
 - L'APK surt a **Actions** → la darrera execució de «Riffs (APK)» → **Artifacts** → `Riffs`.
 
 ## Historial de versions
+- **2.40** (02/11/2026) — **Jocs de sons** per al ritme amb la veu (per exemple «Taula» i «Boca»): es canvia d'un a l'altre sense tornar a gravar els sons. **Botó d'ajustos fix** a la barra de dalt de l'Estudi (sons de la bateria, volum del clic, diagnòstic, kits, banc MIDI, historial); la pastilla del tempo és més curta. **Sons en targetes de tres en tres** a tots els panells de triar sons i presets. **Selleta als pads d'acords**: ▲ / ▼ a l'esquerra dels pads mouen tots els acords un semitò.
 - **2.39** (02/11/2026) — **Ritme amb la veu (o picant a la taula) → bateria**, ara amb **els teus sons**: l'app aprèn com fas el bombo, la caixa i el hihat (4 o 5 cops de cada) i classifica cada cop pel que s'hi assembla més; treu el so de la base que s'escapa dels auriculars abans de comparar. Les pistes de bateria tenen botó de gravar; es grava sobre la base i els cops van a la pista. **En passades** (afegeix-hi o substitueix). Si cal tornar enrere, la versió estable anterior és la 2.38.3.
 - **2.38.3** (02/11/2026) — **Menys retard en tocar en directe** (sintes, Poli i MIDI amb el teclat): el so en directe surt a la freqüència pròpia del mòbil (perquè Android doni la via ràpida) i amb la cua de so més curta possible, que només creix si el so es talla. El diagnòstic diu el retard mesurat («Instrument en directe»). El que es grava no canvia.
 - **2.38.2** (01/11/2026) — Correcció: als panells d'efectes (insercions) i als editors de so, lliscar de costat per desplaçar-se ja no mou ni encén res. Norma per a tots els botons: **de costat = desplaçar; amunt o avall = canviar el valor**. La taula d'ones i la corda també es mouen ara amunt o avall.

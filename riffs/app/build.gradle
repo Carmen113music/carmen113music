@@ -10,8 +10,8 @@ android {
         applicationId 'cat.riffs'
         minSdk 26
         targetSdk 34
-        versionCode 53
-        versionName '2.39'
+        versionCode 54
+        versionName '2.40'
     }
 
     // Clau fixa perquè les noves versions s'instal·lin per sobre de l'anterior

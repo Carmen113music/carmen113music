@@ -43,6 +43,11 @@ public final class Acords {
          */
         public int inversio = 0;
         public static final int MAX_INVERSIO = 4;
+        /** Octaves amunt o avall (2.40): perquè en transposar tots els pads el so no faci salts d'octava. */
+        public int octava = 0;
+        /** Octaves de més de la nota greu respecte de l'acord (quan en transposar dona la volta per un altre lloc). */
+        public int octavaBaix = 0;
+        public static final int MAX_OCTAVA = 3;
 
         public boolean buit() {
             return arrel < 0;
@@ -67,6 +72,8 @@ public final class Acords {
             a.tensions = tensions;
             a.baix = baix;
             a.inversio = inversio;
+            a.octava = octava;
+            a.octavaBaix = octavaBaix;
             return a;
         }
 
@@ -165,7 +172,7 @@ public final class Acords {
          */
         public int[] notes(int doBase) {
             if (buit()) return new int[0];
-            int r = doBase + arrel;
+            int r = doBase + arrel + 12 * octava;
             int[] iv = intervals();
             int extra = baix >= 0 && baix != arrel ? 1 : 0;
             int[] n = new int[iv.length + extra];
@@ -173,7 +180,7 @@ public final class Acords {
             for (int i = 0; i < iv.length; i++) ac[i] = r + iv[i];
             inverteix(ac, inversio);
             for (int i = 0; i < iv.length; i++) n[i] = Math.max(0, Math.min(127, ac[i]));
-            if (extra == 1) n[iv.length] = Math.max(0, Math.min(127, doBase - 12 + Math.floorMod(baix, 12)));
+            if (extra == 1) n[iv.length] = Math.max(0, Math.min(127, doBase - 12 + 12 * (octava + octavaBaix) + Math.floorMod(baix, 12)));
             return n;
         }
 
@@ -201,7 +208,9 @@ public final class Acords {
         /** En text, per desar-ho: «arrel,grafia,tipus,tensions,baix[,inversió]» o «-». */
         public String text() {
             if (buit()) return "-";
-            return arrel + "," + grafia + "," + tipus + "," + tensions + "," + baix + (inversio != 0 ? "," + inversio : "");
+            return arrel + "," + grafia + "," + tipus + "," + tensions + "," + baix
+                    + (inversio != 0 || octava != 0 || octavaBaix != 0 ? "," + inversio : "")
+                    + (octava != 0 || octavaBaix != 0 ? "," + octava : "") + (octavaBaix != 0 ? "," + octavaBaix : "");
         }
 
         public static Acord deText(String s) {
@@ -216,6 +225,8 @@ public final class Acords {
                 a.baix = Integer.parseInt(c[4].trim());
                 if (a.baix >= 0) a.baix = Math.floorMod(a.baix, 12);
                 if (c.length > 5) a.inversio = Math.max(-MAX_INVERSIO, Math.min(MAX_INVERSIO, Integer.parseInt(c[5].trim())));
+                if (c.length > 6) a.octava = Math.max(-MAX_OCTAVA, Math.min(MAX_OCTAVA, Integer.parseInt(c[6].trim())));
+                if (c.length > 7) a.octavaBaix = Math.max(-1, Math.min(1, Integer.parseInt(c[7].trim())));
             } catch (RuntimeException e) {
                 return new Acord();
             }
@@ -355,6 +366,36 @@ public final class Acords {
     public final Acord[] pads = new Acord[PADS];
     /** El preset d'on venen (títol) o buit si s'han tocat a mà. */
     public String preset = "";
+    /** Semitons que s'han mogut tots els pads alhora (2.40, com una selleta), per mostrar-ho. */
+    public int semitons = 0;
+
+    /**
+     * Mou tots els acords {@code st} semitons (com posar o treure una selleta a la guitarra): canvien de nom
+     * (Fm → F#m) i sonen just un semitò més amunt o més avall, sense salts d'octava. Torna false si no es pot
+     * (algun acord ja seria massa agut o massa greu).
+     */
+    public boolean transposa(int st) {
+        for (Acord a : pads) {
+            if (a.buit()) continue;
+            int oc = a.octava + Math.floorDiv(a.arrel + st, 12);
+            if (Math.abs(oc) > Acord.MAX_OCTAVA) return false;
+        }
+        for (Acord a : pads) {
+            if (a.buit()) continue;
+            int n = a.arrel + st;
+            a.octava += Math.floorDiv(n, 12);
+            a.arrel = Math.floorMod(n, 12);
+            if (a.baix >= 0) {
+                // la nota greu es mou igual: si dona la volta, es compensa amb l'octava de l'acord
+                int b = a.baix + st;
+                a.octavaBaix += Math.floorDiv(b, 12) - Math.floorDiv(n, 12);
+                a.baix = Math.floorMod(b, 12);
+            }
+            a.grafia = 0;
+        }
+        semitons += st;
+        return true;
+    }
 
     public Acords() {
         for (int i = 0; i < PADS; i++) pads[i] = new Acord();
@@ -408,6 +449,7 @@ public final class Acords {
             if (i > 0) sb.append(';');
             sb.append(pads[i].text());
         }
+        if (semitons != 0) sb.append('|').append(semitons);
         return sb.toString();
     }
 
@@ -415,9 +457,16 @@ public final class Acords {
         if (s == null || s.isEmpty()) return perDefecte();
         if (s.startsWith("v2|")) {
             Acords a = new Acords();
-            String[] parts = s.split("\\|", 3);
+            String[] parts = s.split("\\|", 4);
             a.preset = parts.length > 1 ? parts[1] : "";
             String[] p = parts.length > 2 ? parts[2].split(";", -1) : new String[0];
+            if (parts.length > 3) {
+                try {
+                    a.semitons = Integer.parseInt(parts[3].trim());
+                } catch (NumberFormatException ignorat) {
+                    a.semitons = 0;
+                }
+            }
             for (int i = 0; i < PADS && i < p.length; i++) a.pads[i] = Acord.deText(p[i]);
             return a;
         }

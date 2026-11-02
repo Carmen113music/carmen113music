@@ -18,7 +18,7 @@ public class Icona extends Drawable {
     public static final int MIC = 1, GUITARRA = 2, CARPETA = 3, HISTORIAL = 4, AJUSTOS = 5,
             PLAY = 6, PAUSA = 7, STOP = 8, ENRERE5 = 9, BUCLE = 10, COMPARTIR = 11, PAPERERA = 12,
             MES = 13, XEVRO = 14, ENRERE = 15, ESTUDI = 16, PUNTS = 17, MOURE = 18, LLETRA = 19,
-            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37, POLI = 38, FM = 39, ONA = 40, ORGUE = 41, CORDA = 42;
+            NOTA = 20, BIBLIOTECA = 21, LLAPIS = 22, METRONOM = 23, BANDERA = 24, MENYS = 25, DUPLICA = 26, PUJA = 27, BAIXA = 28, REC = 29, GRAELLA = 30, PISTES = 31, TAULA = 32, BATERIA = 33, SINTE = 34, TEREMIN = 35, DESFES = 36, MIDI = 37, POLI = 38, FM = 39, ONA = 40, ORGUE = 41, CORDA = 42, AMUNT = 43, AVALL = 44;
 
     private final int tipus;
     private final Paint traz = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -299,6 +299,20 @@ public class Icona extends Drawable {
             case MES:
                 linia(c, 12, 5, 12, 19);
                 linia(c, 5, 12, 19, 12);
+                break;
+            case AMUNT:   // xebró cap amunt (2.40: moure els acords un semitò)
+                p.reset();
+                p.moveTo(5.5f, 15);
+                p.lineTo(12, 8.5f);
+                p.lineTo(18.5f, 15);
+                c.drawPath(p, traz);
+                break;
+            case AVALL:
+                p.reset();
+                p.moveTo(5.5f, 9);
+                p.lineTo(12, 15.5f);
+                p.lineTo(18.5f, 9);
+                c.drawPath(p, traz);
                 break;
             case XEVRO:
                 p.reset();

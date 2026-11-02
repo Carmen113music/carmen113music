@@ -286,7 +286,7 @@ public class PianoRollActivity extends Activity {
             int ff = f;
             ops.add(new Full.Accio(Icona.MIDI, Gm.FAMILIES[f] + (f == actual ? "  (ara)" : ""), false, () -> triaDeFamilia(ff)));
         }
-        Full.llista(this, "Instrument", "Ara: " + Gm.nom(melodia.programa) + ". Tria una família.", ops);
+        Full.graella(this, "Instrument", "Ara: " + Gm.nom(melodia.programa) + ". Tria una família.", ops);
     }
 
     private void triaDeFamilia(int f) {
@@ -381,7 +381,7 @@ public class PianoRollActivity extends Activity {
             boolean meu = SonsPropis.troba(Ui.dirSons(this), true, SonsPropis.base(melodia.preset)) != null;
             ops.add(new Full.Accio(Ui.iconaMotor(motor), "Els meus sons" + (meu ? "  (ara)" : ""), false, () -> triaPoliDeFamilia(-1, motor, true)));
         }
-        Full.llista(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + melodia.preset + ". Tria una família.", ops);
+        Full.graella(this, "So · " + Sinte.NOMS_MOTOR[motor], "Ara: " + melodia.preset + ". Tria una família.", ops);
     }
 
     /** {@code f} = −1: els sons desats (del mateix motor). {@code ambEnrere}: la fletxa «<» torna a les famílies. */
