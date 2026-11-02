@@ -26,6 +26,8 @@ public final class Cantat {
         public double claredat;
         /** true = de la base; false = de la mateixa veu (no hi havia res més). */
         public boolean deLaBase;
+        /** 2.42: fixada a mà al projecte. */
+        public boolean manual;
 
         public boolean[] escala() {
             int[] e = menor ? new int[]{0, 2, 3, 5, 7, 8, 10} : new int[]{0, 2, 4, 5, 7, 9, 11};

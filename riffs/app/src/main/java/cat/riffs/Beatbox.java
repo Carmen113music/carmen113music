@@ -610,6 +610,15 @@ public final class Beatbox {
      */
     public static Resultat ritmes(List<Cop> cops, long posMs, long iniciMs, long fiMs, double msPerCompas, int compas,
                                   int graella, Patro plantilla) {
+        return ritmes(cops, posMs, iniciMs, fiMs, msPerCompas, compas, graella, plantilla, -1);
+    }
+
+    /**
+     * Com l'altra; {@code entradaMs} ≥ 0: els cops que cauen abans (a la línia de temps) van a l'entrada (2.42: un cop
+     * fet una mica avançat respecte del primer temps no es perd).
+     */
+    public static Resultat ritmes(List<Cop> cops, long posMs, long iniciMs, long fiMs, double msPerCompas, int compas,
+                                  int graella, Patro plantilla, long entradaMs) {
         Resultat r = new Resultat();
         int semis = Patro.passosDe(compas);
         double msQuant = msPerCompas / (graella == 0 ? semis / 2.0 : graella == 2 ? semis * 2.0 : semis);
@@ -619,6 +628,7 @@ public final class Beatbox {
             if (c.tipus < 0) continue;   // «Res»: aquest grup no es fa servir
             if (c.ms < iniciMs - 20 || c.ms >= fiMs) continue;
             double t = posMs + c.ms;
+            if (entradaMs >= 0 && t < entradaMs) t = entradaMs;
             if (t < -msQuant / 2) continue;
             double q = Math.max(0, Math.round(t / msQuant) * msQuant);
             qs.add(new double[]{q, c.tipus, c.forca});

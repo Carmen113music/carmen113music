@@ -246,6 +246,26 @@ public final class Projecte {
     public int compas = 4;
     /** Bucle de la reproducció (2.36): del compàs {@code bucleDe} (des de 0) fins abans de {@code bucleA}. -1 = cap. */
     public int bucleDe = -1, bucleA = -1;
+    /**
+     * 2.42: tonalitat de la cançó (arrel 0–11, −1 = encara no se sap). Es calcula sola amb el que sona a les pistes;
+     * si {@code tonManual}, l'ha fixada en Roger i no es toca.
+     */
+    public int tonArrel = -1;
+    public boolean tonMenor = false, tonManual = false;
+
+    public boolean teTonalitat() {
+        return tonArrel >= 0 && tonArrel < 12;
+    }
+
+    /** «Am», «C», «F#m» (com els acords). */
+    public String tonalitatCurta() {
+        return teTonalitat() ? Analisi.NOTES_EN[tonArrel] + (tonMenor ? "m" : "") : "";
+    }
+
+    /** «La menor». */
+    public String tonalitatLlarga() {
+        return teTonalitat() ? Analisi.nomTonalitat(tonArrel, tonMenor) : "";
+    }
     public boolean bucleActivat = false;
 
     public boolean teBucle() {
@@ -374,6 +394,14 @@ public final class Projecte {
      * On entra la gravació: l'inici del compàs més proper al capçal (com a mínim el compàs 2,
      * perquè hi càpiga el compte d'un compàs abans).
      */
+    /**
+     * 2.42: el número de compàs que es veu. Internament els compassos es compten des d'1 i la cançó comença al 2
+     * (l'1 és per al compte); en pantalla, la cançó comença al 0: «… −1, 0, 1, 2…».
+     */
+    public static long numCompas(long intern) {
+        return intern - 2;
+    }
+
     public long entradaGravacio(long capcalMs) {
         long n = Math.round(capcalMs / msPerCompas()) + 1;
         return Math.round(iniciCompas((int) Math.max(2, n)));
@@ -839,7 +867,8 @@ public final class Projecte {
         }
         // sense la línia de la data, perquè dues fotos iguals siguin iguals
         StringBuilder sb = new StringBuilder();
-        for (String l : w.toString().split("\n")) if (!l.startsWith("#")) sb.append(l).append('\n');
+        // ni la tonalitat (es calcula sola: no és un pas per desfer)
+        for (String l : w.toString().split("\n")) if (!l.startsWith("#") && !l.startsWith("tonalitat=")) sb.append(l).append('\n');
         return sb.toString();
     }
 
@@ -872,6 +901,18 @@ public final class Projecte {
         Projecte pr = new Projecte(carpeta);
         pr.bpm = Ritme.limita(dec(p.getProperty("tempo"), 120));
         pr.compas = (int) Math.max(1, Math.min(12, dec(p.getProperty("compas"), 4)));
+        String[] tn = p.getProperty("tonalitat", "").split(",");
+        if (tn.length == 3) {
+            try {
+                int a = Integer.parseInt(tn[0].trim());
+                if (a >= 0 && a < 12) {
+                    pr.tonArrel = a;
+                    pr.tonMenor = "1".equals(tn[1].trim());
+                    pr.tonManual = "1".equals(tn[2].trim());
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
         String[] bc = p.getProperty("bucle", "").split(",");
         if (bc.length == 3) {
             try {
@@ -971,6 +1012,7 @@ public final class Projecte {
         p.setProperty("tempo", String.format(Locale.ROOT, "%.2f", bpm));
         p.setProperty("compas", Integer.toString(compas));
         if (teBucle()) p.setProperty("bucle", bucleDe + "," + bucleA + "," + (bucleActivat ? 1 : 0));
+        if (teTonalitat()) p.setProperty("tonalitat", tonArrel + "," + (tonMenor ? 1 : 0) + "," + (tonManual ? 1 : 0));
         p.setProperty("preses", Integer.toString(preses.size()));
         int gi = 0;
         for (Presa g : preses.values()) {

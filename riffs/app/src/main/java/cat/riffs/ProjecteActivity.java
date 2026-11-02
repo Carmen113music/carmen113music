@@ -47,6 +47,12 @@ public class ProjecteActivity extends Activity {
     private FrameLayout botoPlay;
     private TextView textPosicio, textInfo, textTempo, textSnap;
     private LinearLayout botoSnap;
+    // 2.42: en vertical, el text d'informació i les accions dels clips passen a una segona fila (el play no queda fora)
+    private LinearLayout barraDalt, barraDalt2;
+    private View mollaDalt;
+    private FrameLayout botoInici;
+    private TextView pastillaTon;
+    private boolean calculantTon = false, refaTonDespres = false;
     private FrameLayout botoClic;
     private FrameLayout pestanyaPistes, pestanyaTaula;
     private TextView nomTitol;
@@ -213,6 +219,19 @@ public class ProjecteActivity extends Activity {
         xipTempo.addView(textTempo);
         dalt.addView(xipTempo);
         pintaClic();
+        dalt.addView(Ui.espai(this, 6));
+        // 2.42: tonalitat de la cançó (calculada sola; tocant-la es pot fixar a mà)
+        pastillaTon = Ui.negreta(this, "", 13, Ui.TEXT);
+        pastillaTon.setGravity(Gravity.CENTER);
+        pastillaTon.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 10), 0);
+        pastillaTon.setMinHeight(Ui.dp(this, 28));
+        pastillaTon.setMinWidth(Ui.dp(this, 36));
+        pastillaTon.setClickable(true);
+        pastillaTon.setContentDescription("Tonalitat de la cançó");
+        pastillaTon.setBackground(Ui.tocable(Ui.SUPERFICIE, Ui.dp(this, 14)));
+        pastillaTon.setOnClickListener(v -> triaTonalitat());
+        dalt.addView(pastillaTon);
+        pintaTon();
         dalt.addView(Ui.espai(this, 10));
 
         // Graella (snap): una icona; en tocar-la surt el desplegable Compàs / Temps / Lliure
@@ -283,6 +302,7 @@ public class ProjecteActivity extends Activity {
             if (sonava) play();
         });
         dalt.addView(inici);
+        botoInici = inici;
         dalt.addView(Ui.espai(this, 8));
         botoPlay = Ui.botoIcona(this, Icona.PLAY, Ui.SOBRE_COLOR, Ui.TEXT, 36, 18, "Reprodueix (mantén premut per gravar)");
         botoPlay.setOnClickListener(v -> {
@@ -297,6 +317,14 @@ public class ProjecteActivity extends Activity {
         });
         dalt.addView(botoPlay);
         arrel.addView(dalt);
+        barraDalt = dalt;
+        barraDalt2 = Ui.fila(this);
+        barraDalt2.setGravity(Gravity.CENTER_VERTICAL);
+        barraDalt2.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 10), Ui.dp(this, 3));
+        barraDalt2.setMinimumHeight(Ui.dp(this, 30));
+        barraDalt2.setVisibility(View.GONE);
+        arrel.addView(barraDalt2);
+        mollaDalt = new View(this);
         arrel.addView(Ui.separador(this));
 
         // ---- A l'esquerra, la tira de pestanyes: Pistes (taulell) i Taula (de so) ----
@@ -324,6 +352,27 @@ public class ProjecteActivity extends Activity {
         // un dit mou els faders; dos dits desplacen la taula (com al taulell)
         vistaTaula = new android.widget.HorizontalScrollView(this) {
             private float xDits = Float.NaN;
+            private boolean desplacant = false;
+
+            /**
+             * 2.42: si els dos dits cauen sobre faders diferents, cada fader es quedava el seu dit i la taula no es
+             * movia (calien tres dits). Ara, quan hi ha dos dits a la taula, els faders deixen el gest i la taula es desplaça.
+             */
+            @Override
+            public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+                int a = ev.getActionMasked();
+                if (a == android.view.MotionEvent.ACTION_DOWN) desplacant = false;
+                if (!desplacant && ev.getPointerCount() >= 2) {
+                    desplacant = true;
+                    android.view.MotionEvent c = android.view.MotionEvent.obtain(ev);
+                    c.setAction(android.view.MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(c);
+                    c.recycle();
+                    xDits = Float.NaN;
+                }
+                if (desplacant) return onTouchEvent(ev);
+                return super.dispatchTouchEvent(ev);
+            }
 
             @Override
             public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
@@ -1126,7 +1175,7 @@ public class ProjecteActivity extends Activity {
         actualitzaAccions();
         desa();
         textInfo.setTextColor(Ui.BATERIA);
-        textInfo.setText("Ritme al compàs " + compas + " · doble toc per editar-lo");
+        textInfo.setText("Ritme al compàs " + Projecte.numCompas(compas) + " · doble toc per editar-lo");
         vista.avisa();
         refresca();
     }
@@ -1138,7 +1187,7 @@ public class ProjecteActivity extends Activity {
         long compas = Math.round(clip.iniciVisible() / projecte.msPerCompas()) + 1;
         int copies = 0;
         for (Projecte.Pista p : projecte.pistes) for (Projecte.Clip k : p.clips) if (k.wav.equals(clip.wav)) copies++;
-        String nom = "Bateria · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        String nom = "Bateria · compàs " + Projecte.numCompas(compas) + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
         desa();   // l'editor llegeix el projecte per fer sonar la resta de pistes
         android.content.Intent i = new android.content.Intent(this, DrumpadActivity.class);
         i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
@@ -1314,7 +1363,7 @@ public class ProjecteActivity extends Activity {
         actualitzaAccions();
         desa();
         textInfo.setTextColor(Ui.colorPista(t));
-        textInfo.setText("Frase al compàs " + compas + " · doble toc per escriure-hi notes");
+        textInfo.setText("Frase al compàs " + Projecte.numCompas(compas) + " · doble toc per escriure-hi notes");
         vista.avisa();
         refresca();
     }
@@ -1332,7 +1381,7 @@ public class ProjecteActivity extends Activity {
                 if (k == clip) nomPista = p.nomVisible();
             }
         }
-        String nom = nomPista + " · compàs " + compas + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
+        String nom = nomPista + " · compàs " + Projecte.numCompas(compas) + (copies > 1 ? " (i " + (copies - 1) + (copies == 2 ? " còpia més)" : " còpies més)") : "");
         desa();   // l'editor llegeix el projecte per fer sonar la resta de pistes
         android.content.Intent i = new android.content.Intent(this, PianoRollActivity.class);
         i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
@@ -1488,7 +1537,7 @@ public class ProjecteActivity extends Activity {
         i.putExtra(DrumpadActivity.EXTRA_POS, clip.posMs);
         i.putExtra(DrumpadActivity.EXTRA_DIR, projecte.carpeta.getAbsolutePath());
         i.putExtra(DrumpadActivity.EXTRA_WAV, clip.wav);
-        i.putExtra(DrumpadActivity.EXTRA_NOM, nomPista + " · compàs " + compas);
+        i.putExtra(DrumpadActivity.EXTRA_NOM, nomPista + " · compàs " + Projecte.numCompas(compas));
         i.putExtra(DrumpadActivity.EXTRA_BPM, projecte.bpm);
         i.putExtra(DrumpadActivity.EXTRA_COMPAS, projecte.compas);
         presetEditor = presetDe(clip.wav);
@@ -1917,6 +1966,29 @@ public class ProjecteActivity extends Activity {
         boolean vertical = conf.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT;
         if (nomTitol != null) nomTitol.setVisibility(vertical || panellTeclat != null ? View.GONE : View.VISIBLE);
         if (textPosicio != null) textPosicio.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        if (barraDalt == null || barraDalt2 == null || textInfo == null || accions == null) return;
+        // 2.42: en vertical no hi cap tot en una fila: el text i les accions dels clips baixen a una segona fila,
+        // la graella només mostra la icona i el botó de tornar a l'inici s'amaga. El play no surt mai de la pantalla.
+        if (textSnap != null) textSnap.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        if (botoInici != null) botoInici.setVisibility(vertical ? View.GONE : View.VISIBLE);
+        boolean aDalt = textInfo.getParent() == barraDalt;
+        if (vertical && aDalt) {
+            int idx = barraDalt.indexOfChild(textInfo);
+            barraDalt.removeView(textInfo);
+            barraDalt.removeView(accions);
+            barraDalt.addView(mollaDalt, idx, new LinearLayout.LayoutParams(0, 1, 1f));
+            barraDalt2.addView(textInfo, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            barraDalt2.addView(accions);
+            barraDalt2.setVisibility(View.VISIBLE);
+        } else if (!vertical && !aDalt) {
+            int idx = barraDalt.indexOfChild(mollaDalt);
+            barraDalt.removeView(mollaDalt);
+            barraDalt2.removeView(textInfo);
+            barraDalt2.removeView(accions);
+            barraDalt.addView(textInfo, idx, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            barraDalt.addView(accions, idx + 1);
+            barraDalt2.setVisibility(View.GONE);
+        }
     }
 
     // ---------- Graella ----------
@@ -2008,7 +2080,8 @@ public class ProjecteActivity extends Activity {
         }
         long entrada = projecte.entradaGravacio(vista.capcalMs);
         long compas = Math.round(entrada / projecte.msPerCompas()) + 1;
-        String sub = "Entra al compàs " + compas + ", amb un compàs de compte abans. La pista que triïs queda marcada "
+        int cc0 = compteCompassos();
+        String sub = "Entra al compàs " + Projecte.numCompas(compas) + ", amb " + (cc0 == 1 ? "un compàs" : cc0 + " compassos") + " de compte abans. La pista que triïs queda marcada "
                 + "amb el botó de gravar vermell: la propera vegada no et preguntarà (toca'l per canviar-la).";
         if (!Metronom.auriculars(this)) {
             sub += " Sense auriculars no sonarà res (per l'altaveu es gravaria): el compte serà visual.";
@@ -2077,7 +2150,7 @@ public class ProjecteActivity extends Activity {
         tancaAssaig();
         atura();
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
-        long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
+        long iniciMs = entradaMs - Math.round(compteCompassos() * projecte.msPerCompas());   // pot ser negatiu
         Biblioteca b = Ui.biblioteca(this);
         long ara = System.currentTimeMillis();
         if (ritme) {
@@ -2253,6 +2326,9 @@ public class ProjecteActivity extends Activity {
             clip = projecte.afegeixPresa(pistaGravant, wav.getName(), fitxaGravant.titol, fitxaGravant.esVeu(),
                     durada, primer, entradaMs);
         }
+        // 2.42: el clip comença un compàs abans de l'entrada (el que toquis avançat no es perd), encara que el compte
+        // sigui més llarg; la resta del fitxer hi és, i es pot estirar el clip cap a l'esquerra
+        clip.iniciMs = Math.max(0, Math.min(clip.fiMs - 100, primer - Math.round(projecte.msPerCompas())));
         if (nova) {
             synchronized (projecte) {
                 projecte.armaRec(projecte.pistes.get(projecte.pistes.size() - 1));
@@ -2263,7 +2339,7 @@ public class ProjecteActivity extends Activity {
         String nomPista = ip >= 0 ? projecte.pistes.get(ip).nomVisible() : "";
         long compas = Math.round(entradaMs / projecte.msPerCompas()) + 1;
         Ui.historial(this, "Gravat a l'Estudi «" + fitxaGravant.titol + "» (" + Biblioteca.durada(durada) + ") a "
-                + (nova ? "una pista nova" : "la pista «" + nomPista + "»") + ", entra al compàs " + compas
+                + (nova ? "una pista nova" : "la pista «" + nomPista + "»") + ", entra al compàs " + Projecte.numCompas(compas)
                 + (correccio != 0 ? " · retard corregit " + correccio + " ms (" + Retards.nomVisible(sortida, sortidaNom) + ")" : ""));
         if (nova) {
             ompleCapcaleres();
@@ -2326,7 +2402,7 @@ public class ProjecteActivity extends Activity {
         Melodia base = ter ? null : soDeLaPista(t);
         Sinte.So so = ter ? gestDeLaPista(t).so : base.so;
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
-        long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
+        long iniciMs = entradaMs - Math.round(compteCompassos() * projecte.msPerCompas());   // pot ser negatiu
         notesGravades = new GravacioNotes();
         gestGravat = new Gest.Gravacio();
         pistaSinte = t;
@@ -3460,7 +3536,7 @@ public class ProjecteActivity extends Activity {
             }
         }
         desa();
-        Ui.historial(this, "Gravat el teremin «" + t.nomVisible() + "», entra al compàs " + compasEntrada
+        Ui.historial(this, "Gravat el teremin «" + t.nomVisible() + "», entra al compàs " + Projecte.numCompas(compasEntrada)
                 + (finestres > 1 ? ", " + finestres + " finestres" : ""));
         int ip = projecte.pistes.indexOf(t);
         if (primer != null) vista.tria(ip, primer);
@@ -3558,7 +3634,7 @@ public class ProjecteActivity extends Activity {
         }
         desa();
         Ui.historial(this, "Gravat amb el teclat a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes")
-                + ", entra al compàs " + compasEntrada + (finestres > 1 ? ", " + finestres + " finestres" : ""));
+                + ", entra al compàs " + Projecte.numCompas(compasEntrada) + (finestres > 1 ? ", " + finestres + " finestres" : ""));
         int ip = projecte.pistes.indexOf(t);
         if (primer != null) vista.tria(ip, primer);
         actualitzaAccions();
@@ -3633,19 +3709,17 @@ public class ProjecteActivity extends Activity {
         // el que sona a la resta de pistes (per la tonalitat): frases de notes i gravacions d'àudio
         List<String> notesBase = new ArrayList<>(), audioBase = new ArrayList<>();
         Map<String, Boolean> esVeu = new HashMap<>();
-        synchronized (projecte) {
-            for (Projecte.Pista p : projecte.pistes) {
-                for (Projecte.Clip k : p.clips) {
-                    if (Projecte.esNotes(k.wav)) {
-                        if (!notesBase.contains(k.wav)) notesBase.add(k.wav);
-                    } else if (!Projecte.esGenerat(k.wav)) {
-                        if (!audioBase.contains(k.wav)) audioBase.add(k.wav);
-                        Projecte.Presa presa = projecte.preses.get(k.wav);
-                        esVeu.put(k.wav, presa != null && presa.veu);
-                    }
-                }
-            }
+        fontsTonalitat(notesBase, audioBase, esVeu);
+        // 2.42: si la tonalitat és fixada a mà, mana aquesta
+        Cantat.Tonalitat fixada = null;
+        if (projecte.tonManual && projecte.teTonalitat()) {
+            fixada = new Cantat.Tonalitat();
+            fixada.arrel = projecte.tonArrel;
+            fixada.menor = projecte.tonMenor;
+            fixada.deLaBase = true;
+            fixada.manual = true;
         }
+        Cantat.Tonalitat tonFixada = fixada;
         new Thread(() -> {
             String error = null;
             Analisi.Resultat an = null;
@@ -3660,33 +3734,18 @@ public class ProjecteActivity extends Activity {
                     runOnUiThread(() -> textInfo.setText("Escoltant la veu… " + Math.round(f * 100) + " %"));
                     return true;
                 });
-                // tonalitat de la base
-                double[] h = new double[12];
-                for (String w : notesBase) Cantat.sumaMelodia(h, Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, w)), msCompas);
-                int n = 0;
-                for (String w : audioBase) {
-                    File f = new File(projecte.carpeta, w);
-                    Analisi.Resultat ra = Analisi.llegeix(f);
-                    if (ra == null) {
-                        int q = ++n;
-                        runOnUiThread(() -> textInfo.setText("Buscant la tonalitat de la base… " + q + "/" + audioBase.size()));
-                        Wav.Info ia = Wav.llegeixInfo(f);
-                        short[] ma = ia == null ? null : Wav.llegeixMostres(f);
-                        if (ma == null) continue;
-                        ra = Analisi.analitza(ma, ia.mostreig > 0 ? ia.mostreig : Gravadora.MOSTREIG,
-                                Boolean.TRUE.equals(esVeu.get(w)), 0, -1, null);
-                        try {
-                            Analisi.desa(f, ra);   // la propera vegada (i a la fitxa) ja hi serà
-                        } catch (IOException ignorat) {
-                        }
-                    }
-                    Cantat.sumaAnalisi(h, ra);
+                // tonalitat: la fixada a mà o la de la base (+ la veu)
+                if (tonFixada != null) {
+                    to = tonFixada;
+                } else {
+                    double[] h = histogramaBase(notesBase, audioBase, esVeu, q ->
+                            runOnUiThread(() -> textInfo.setText("Buscant la tonalitat de la base… " + q + "/" + audioBase.size())));
+                    double base = 0;
+                    for (double v : h) base += v;
+                    Cantat.sumaVeu(h, an.notes, 0.5);
+                    to = Cantat.tonalitat(h);
+                    if (to != null) to.deLaBase = base > 0;
                 }
-                double base = 0;
-                for (double v : h) base += v;
-                Cantat.sumaVeu(h, an.notes, 0.5);
-                to = Cantat.tonalitat(h);
-                if (to != null) to.deLaBase = base > 0;
                 // el compàs de compte també compta (anacrusi: la melodia pot començar abans del primer temps)
                 r = Cantat.converteix(an, to, entrada - primer, Math.max(0, primer - Math.round(msCompas)), durada, msCompas, compas,
                         graella, corrector, greu);
@@ -3744,10 +3803,10 @@ public class ProjecteActivity extends Activity {
             }
         }
         desa();
-        String textTo = to == null ? "sense tonalitat" : to.nom() + (to.deLaBase ? "" : " (de la veu)");
+        String textTo = to == null ? "sense tonalitat" : to.nom() + (to.manual ? " (fixada)" : to.deLaBase ? "" : " (de la veu)");
         String afin = Math.abs(r.afinacio) >= 0.05 ? String.format(Locale.ROOT, " · afinació %+d cèntims", Math.round(r.afinacio * 100)) : "";
         Ui.historial(this, "Cantat a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes") + ", compàs "
-                + r.compasEntrada + ", " + textTo + afin + (r.octava != 0 ? ", octava " + (r.octava > 0 ? "+" : "") + r.octava : "")
+                + Projecte.numCompas(r.compasEntrada) + ", " + textTo + afin + (r.octava != 0 ? ", octava " + (r.octava > 0 ? "+" : "") + r.octava : "")
                 + ", graella " + Conversio.GRAELLES[Math.max(0, Math.min(2, Ui.prefs(this).getInt("cant_graella", 1)))].toLowerCase(Locale.ROOT)
                 + (r.netejades > 0 ? ", " + r.netejades + " trossos netejats" : "") + (finestres > 1 ? ", " + finestres + " finestres" : ""));
         int ip = projecte.pistes.indexOf(t);
@@ -3761,6 +3820,23 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
+    /** Compassos de compte abans d'entrar a gravar (Ajustos; per defecte 1). */
+    private int compteCompassos() {
+        return Math.max(1, Math.min(4, Ui.prefs(this).getInt("compte_compassos", 1)));
+    }
+
+    private void triaCompte() {
+        List<Full.Accio> ops = new ArrayList<>();
+        int ara = compteCompassos();
+        for (int k = 1; k <= 4; k++) {
+            int n = k;
+            ops.add(new Full.Accio(Icona.METRONOM, n + (n == 1 ? " compàs" : " compassos") + (n == ara ? " · ara" : ""), false, () ->
+                    Ui.prefs(this).edit().putInt("compte_compassos", n).apply()));
+        }
+        Full.llista(this, "Compte abans de gravar", "Quants compassos sonen abans d'entrar a gravar. Si graves al principi "
+                + "de la cançó, els que no hi caben sonen només amb el clic.", ops);
+    }
+
     // ---------- Ajustos (2.40) ----------
 
     /** Totes les configuracions en un sol lloc, des del botó d'ajustos de la barra de dalt. */
@@ -3768,6 +3844,8 @@ public class ProjecteActivity extends Activity {
         if (gravant) return;
         List<Full.Accio> ops = new ArrayList<>();
         ops.add(new Full.Accio(Icona.BATERIA, "Sons de la bateria amb la veu · " + jocActiu(), false, () -> obreSonsRitme(null, false)));
+        int cc = compteCompassos();
+        ops.add(new Full.Accio(Icona.METRONOM, "Compte abans de gravar · " + cc + (cc == 1 ? " compàs" : " compassos"), false, this::triaCompte));
         ops.add(new Full.Accio(Icona.MIC, "Cantar → notes (graella, neteja)", false, this::obreAjustosCant));
         ops.add(new Full.Accio(Icona.METRONOM, "Volum del clic · " + Math.round(volumClic * 100) + " %", false, () ->
                 Full.lliscador(this, "Volum del clic", Math.round(volumClic * 100), 150, val -> {
@@ -4235,8 +4313,9 @@ public class ProjecteActivity extends Activity {
         Patro plantilla = plantillaBateria(t);
         double msCompas = projecte.msPerCompas();
         // un cop a la gravació (ms) cau a la línia de temps a entrada + (ms − primer temps)
-        Beatbox.Resultat r = Beatbox.ritmes(cops, entradaMs - primer, Math.max(0, primer - 100), durada, msCompas,
-                projecte.compas, graella, plantilla);
+        // 2.42: els cops fins a mitja negra abans del primer temps compten (van al primer temps)
+        Beatbox.Resultat r = Beatbox.ritmes(cops, entradaMs - primer, Math.max(0, primer - Math.round(projecte.msPerTemps() / 2)),
+                durada, msCompas, projecte.compas, graella, plantilla, entradaMs);
         if (r.finestres.isEmpty()) {
             textInfo.setTextColor(Ui.GUITARRA);
             textInfo.setText(motiu != null ? motiu : "No he sentit cap cop: prova més fort o amb més sensibilitat");
@@ -4311,7 +4390,7 @@ public class ProjecteActivity extends Activity {
         desa();
         String detall = r.perTipus[0] + " bombo · " + r.perTipus[1] + " caixa · " + (r.perTipus[2] + r.perTipus[3]) + " hihat";
         Ui.historial(this, "Ritme amb la veu (joc «" + jocActiu() + "») a «" + t.nomVisible() + "»: " + r.cops + " cops (" + detall + "), compàs "
-                + r.compasEntrada + ", graella " + Beatbox.GRAELLES[graella].toLowerCase(Locale.ROOT)
+                + Projecte.numCompas(r.compasEntrada) + ", graella " + Beatbox.GRAELLES[graella].toLowerCase(Locale.ROOT)
                 + (ajuntades > 0 ? ", afegit a " + ajuntades + (ajuntades == 1 ? " finestra" : " finestres") : "")
                 + (trets > 0 ? ", substituïdes " + trets : ""));
         ompleCapcaleres();
@@ -4403,6 +4482,7 @@ public class ProjecteActivity extends Activity {
                 carregat = true;
                 textInfo.setText("");
                 motor = new Motor(projecte, audio);
+                refaTonalitat();
             });
         }).start();
     }
@@ -4411,7 +4491,7 @@ public class ProjecteActivity extends Activity {
 
     /** «compassos 3 a 6» o «compàs 3». */
     private static String textCompassos(int de, int a) {
-        return a - de <= 1 ? "compàs " + (de + 1) : "compassos " + (de + 1) + " a " + a;
+        return a - de <= 1 ? "compàs " + Projecte.numCompas(de + 1) : "compassos " + Projecte.numCompas(de + 1) + " a " + Projecte.numCompas(a);
     }
 
     /** El bucle ha canviat: es desa, el motor l'agafa (també mentre sona) i s'avisa a dalt. */
@@ -4477,8 +4557,8 @@ public class ProjecteActivity extends Activity {
         double mpt = projecte.msPerTemps();
         double temps = ms / mpt;
         long t = (long) Math.floor(temps + 1e-9);
-        long comp = t / projecte.compas + 1;
-        long dins = t % projecte.compas + 1;
+        long comp = Projecte.numCompas(Math.floorDiv(t, (long) projecte.compas) + 1);
+        long dins = Math.floorMod(t, (long) projecte.compas) + 1;
         long sub = (long) Math.floor((temps - t) * 4) + 1;
         return String.format(Locale.ROOT, "%d.%d.%d", comp, dins, Math.min(4, sub));
     }
@@ -4495,6 +4575,159 @@ public class ProjecteActivity extends Activity {
             return;
         }
         if (foto != null && desfes.registra(foto)) pintaDesfes();
+        // 2.42: la tonalitat es torna a calcular una mica després de cada canvi (si no és fixada a mà)
+        if (pastillaTon != null) {
+            pastillaTon.removeCallbacks(refaTon);
+            pastillaTon.postDelayed(refaTon, 1500);
+        }
+    }
+
+    private final Runnable refaTon = this::refaTonalitat;
+
+    // ---------- Tonalitat de la cançó (2.42) ----------
+
+    private void pintaTon() {
+        if (pastillaTon == null) return;
+        if (projecte.teTonalitat()) {
+            pastillaTon.setText(projecte.tonalitatCurta());
+            pastillaTon.setTextColor(projecte.tonManual ? Ui.GUITARRA : Ui.TEXT);
+        } else {
+            pastillaTon.setText(calculantTon ? "…" : "To");
+            pastillaTon.setTextColor(Ui.SUAU);
+        }
+    }
+
+    /** Les frases de notes i les gravacions d'àudio del projecte (per calcular-ne la tonalitat). */
+    private void fontsTonalitat(List<String> notes, List<String> audioW, Map<String, Boolean> esVeu) {
+        synchronized (projecte) {
+            for (Projecte.Pista p : projecte.pistes) {
+                if (p.mut) continue;
+                for (Projecte.Clip k : p.clips) {
+                    if (Projecte.esNotes(k.wav)) {
+                        if (!notes.contains(k.wav)) notes.add(k.wav);
+                    } else if (!Projecte.esGenerat(k.wav)) {
+                        if (!audioW.contains(k.wav)) audioW.add(k.wav);
+                        Projecte.Presa presa = projecte.preses.get(k.wav);
+                        esVeu.put(k.wav, presa != null && presa.veu);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Histograma de notes de la base (fora del fil de la pantalla): notes dels sintes i notes/acords de les gravacions
+     * (si una gravació encara no s'ha analitzat, s'analitza i es desa per a la propera vegada).
+     */
+    private double[] histogramaBase(List<String> notes, List<String> audioW, Map<String, Boolean> esVeu,
+                                    java.util.function.IntConsumer avis) {
+        double[] h = new double[12];
+        double msCompas = projecte.msPerCompas();
+        for (String w : notes) Cantat.sumaMelodia(h, Melodia.llegeix(Melodia.fitxerDe(projecte.carpeta, w)), msCompas);
+        int n = 0;
+        for (String w : audioW) {
+            File f = new File(projecte.carpeta, w);
+            Analisi.Resultat ra = Analisi.llegeix(f);
+            if (ra == null) {
+                if (avis != null) avis.accept(++n);
+                Wav.Info ia = Wav.llegeixInfo(f);
+                short[] ma = ia == null ? null : Wav.llegeixMostres(f);
+                if (ma == null) continue;
+                ra = Analisi.analitza(ma, ia.mostreig > 0 ? ia.mostreig : Gravadora.MOSTREIG,
+                        Boolean.TRUE.equals(esVeu.get(w)), 0, -1, null);
+                try {
+                    Analisi.desa(f, ra);
+                } catch (IOException ignorat) {
+                }
+            }
+            Cantat.sumaAnalisi(h, ra);
+        }
+        return h;
+    }
+
+    /** Torna a calcular la tonalitat (en un fil) si no és fixada a mà. */
+    private void refaTonalitat() {
+        if (projecte.tonManual || isFinishing()) return;
+        if (calculantTon) {
+            refaTonDespres = true;
+            return;
+        }
+        calculantTon = true;
+        refaTonDespres = false;
+        pintaTon();
+        List<String> notes = new ArrayList<>(), audioW = new ArrayList<>();
+        Map<String, Boolean> esVeu = new HashMap<>();
+        fontsTonalitat(notes, audioW, esVeu);
+        new Thread(() -> {
+            Cantat.Tonalitat to = null;
+            try {
+                to = Cantat.tonalitat(histogramaBase(notes, audioW, esVeu, null));
+            } catch (RuntimeException | OutOfMemoryError ignorat) {
+                to = null;
+            }
+            Cantat.Tonalitat t = to;
+            runOnUiThread(() -> {
+                calculantTon = false;
+                if (isFinishing()) return;
+                if (!projecte.tonManual && t != null && (t.arrel != projecte.tonArrel || t.menor != projecte.tonMenor)) {
+                    synchronized (projecte) {
+                        projecte.tonArrel = t.arrel;
+                        projecte.tonMenor = t.menor;
+                    }
+                    try {
+                        synchronized (projecte) {
+                            projecte.desa();
+                        }
+                    } catch (IOException ignorat) {
+                    }
+                }
+                pintaTon();
+                if (refaTonDespres) refaTonalitat();
+            });
+        }, "tonalitat").start();
+    }
+
+    /** Toca la pastilla: automàtica (la calcula sola) o una de fixada. */
+    private void triaTonalitat() {
+        List<Full.Accio> ops = new ArrayList<>();
+        ops.add(new Full.Accio(Icona.SINTE, "Automàtica", false, () -> {
+            synchronized (projecte) {
+                projecte.tonManual = false;
+            }
+            desaSenseDesfer();
+            pintaTon();
+            refaTonalitat();
+        }));
+        for (int m = 0; m < 2; m++) {
+            for (int k = 0; k < 12; k++) {
+                int arrel = k;
+                boolean menor = m == 1;
+                ops.add(new Full.Accio(0, Analisi.nomTonalitat(arrel, menor), false, () -> {
+                    synchronized (projecte) {
+                        projecte.tonArrel = arrel;
+                        projecte.tonMenor = menor;
+                        projecte.tonManual = true;
+                    }
+                    desaSenseDesfer();
+                    pintaTon();
+                    Ui.historial(this, "Tonalitat fixada a mà: " + projecte.tonalitatLlarga());
+                }));
+            }
+        }
+        String ara = projecte.teTonalitat() ? projecte.tonalitatLlarga() + (projecte.tonManual ? " (fixada a mà)" : " (calculada)")
+                : "encara no se sap (cal alguna pista amb notes o acords)";
+        Full.graella(this, "Tonalitat de la cançó", "Ara: " + ara + ". «Automàtica» la calcula amb el que sona a les pistes; "
+                + "si en tries una, queda fixada. Cantar → notes la fa servir.", ops, null);
+    }
+
+    private void desaSenseDesfer() {
+        try {
+            synchronized (projecte) {
+                projecte.desa();
+            }
+        } catch (IOException e) {
+            Ui.avis(this, "No s'ha pogut desar el projecte.");
+        }
     }
 
     private void pintaDesfes() {

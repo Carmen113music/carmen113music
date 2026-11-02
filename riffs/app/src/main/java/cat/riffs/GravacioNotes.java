@@ -92,6 +92,11 @@ public final class GravacioNotes {
             int a = (int) Math.round((t.iniciMs - entradaMs) / msPas);
             int b = (int) Math.round((t.fiMs - entradaMs) / msPas);
             if (b <= a) b = a + 1;           // un toc molt curt és, com a mínim, una casella
+            // 2.42: una nota tocada una mica avançada (fins a mitja negra abans de l'entrada) no es perd: va a l'entrada
+            if (a < 0 && t.iniciMs >= entradaMs - msPerCompas / 8) {
+                b = Math.max(b, b - a);
+                a = 0;
+            }
             if (b <= 0) continue;            // durant el compte
             a = Math.max(0, a);
             qs.add(new int[]{a, b, t.nota, t.forca});

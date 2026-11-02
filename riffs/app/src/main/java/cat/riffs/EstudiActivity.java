@@ -105,7 +105,8 @@ public class EstudiActivity extends Activity {
             Projecte p = Projecte.obre(c.dir);
             int n = Math.max(grav, p.pistes.size());
             info = (n == 0 ? "Buit" : n == 1 ? "1 pista" : n + " pistes")
-                    + "  ·  " + Math.round(p.bpm) + " BPM · " + Ritme.nomCompas(p.compas);
+                    + "  ·  " + Math.round(p.bpm) + " BPM · " + Ritme.nomCompas(p.compas)
+                    + (p.teTonalitat() ? "  ·  " + p.tonalitatLlarga() : "");
         } else {
             info = (grav == 1 ? "1 pista" : grav + " pistes") + "  ·  sense obrir";
         }

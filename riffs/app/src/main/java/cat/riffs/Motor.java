@@ -127,7 +127,7 @@ public final class Motor {
             track = null;
             return false;
         }
-        mostraInici = Math.max(0, Mesclador.msAMostra(ms));
+        mostraInici = Mesclador.msAMostra(ms);   // 2.42: pot ser negatiu (compte abans del principi de la cançó)
         synchronized (this) {
             teMarca = false;
         }

@@ -129,12 +129,12 @@ public final class Ritme {
     public static void ompleClics(short[] tros, long inici, double mostresPerTemps, int compas,
                                   short[] fort, short[] fluix) {
         int llarg = Math.max(fort.length, fluix.length);
+        // 2.42: abans del zero (compte de més d'un compàs al principi de la cançó) també hi ha clics
         long primer = (long) Math.floor((inici - llarg) / mostresPerTemps);
-        if (primer < 0) primer = 0;
         for (long t = primer; ; t++) {
             long pos = Math.round(t * mostresPerTemps);
             if (pos >= inici + tros.length) break;
-            short[] c = (t % compas == 0) ? fort : fluix;
+            short[] c = (Math.floorMod(t, (long) compas) == 0) ? fort : fluix;
             for (int i = 0; i < tros.length; i++) {
                 long k = inici + i - pos;
                 if (k >= 0 && k < c.length) tros[i] = (short) Math.max(-32768, Math.min(32767, tros[i] + c[(int) k]));

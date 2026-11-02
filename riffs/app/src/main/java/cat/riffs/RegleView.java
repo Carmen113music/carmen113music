@@ -83,12 +83,14 @@ public class RegleView extends View {
 
         long primer = (long) Math.floor(vista.ms(0) / mpt);
         long darrer = (long) Math.ceil(vista.ms(w) / mpt);
-        for (long t = Math.max(0, primer); t <= darrer; t++) {
+        // 2.42: també abans del principi (el compte de més d'un compàs); els números són els de pantalla (−1, 0, 1…)
+        for (long t = Math.max(-4L * compas, primer); t <= darrer; t++) {
             float x = vista.x(t * mpt);
-            boolean esCompas = t % compas == 0;
-            long numCompas = t / compas + 1;
+            boolean esCompas = Math.floorMod(t, (long) compas) == 0;
+            long numIntern = Math.floorDiv(t, (long) compas) + 1;
+            long numCompas = Projecte.numCompas(numIntern);
             if (esCompas) {
-                boolean numera = (numCompas - 1) % cadaCompas == 0;
+                boolean numera = Math.floorMod(numIntern - 1, (long) cadaCompas) == 0;
                 linia.setColor(numera ? 0x66FFFFFF : 0x33FFFFFF);
                 linia.setStrokeWidth(Ui.dp(getContext(), 1));
                 c.drawLine(x, numera ? h * 0.35f : h * 0.6f, x, h, linia);
