@@ -5,7 +5,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Ritme fet amb la veu (beatbox) → cops de bateria (2.35). Sense calibratge.
+ * Ritme fet amb la veu o picant a la taula → cops de bateria. 2.35: sense calibratge (descartat).
+ * 2.39: {@link Calibratge}: l'app aprèn els sons d'en Roger i cada cop va al que s'hi assembla més.
  * <ol>
  * <li>Troba els cops: quan l'espectre canvia de cop (flux espectral) i el so és prou fort.</li>
  * <li>Per a cada cop mira com sona els primers 70 ms: on cau l'energia (greus, mitjos, aguts) i el «centre» del so.</li>
@@ -70,6 +71,8 @@ public final class Beatbox {
         public int grup;
         public int forca = 2;
         public final double centreHz, greus, aguts, duradaMs, db;
+        /** Energia per bandes (2.39), per comparar-lo amb els sons apresos. */
+        double[] bandes;
 
         Cop(long ms, double centreHz, double greus, double aguts, double duradaMs, double db) {
             this.ms = ms;
@@ -171,10 +174,12 @@ public final class Beatbox {
         Analisi.fft(re, im);
         double bin = FS / (double) N_TRET;
         double tot = 0, greus = 0, aguts = 0, cent = 0;
+        double[] banda = new double[VORES.length - 1];
         for (int b = 1; b < N_TRET / 2; b++) {
             double hz = b * bin;
             if (hz < 30) continue;
             double p = re[b] * re[b] + im[b] * im[b];
+            for (int q = 0; q < banda.length; q++) if (hz >= VORES[q] && hz < VORES[q + 1]) banda[q] += p;
             tot += p;
             cent += p * hz;
             if (hz < 250) greus += p;
@@ -200,7 +205,33 @@ public final class Beatbox {
             else if (i > 2 && env[i] < pic * 0.1) break;
         }
         long ms = Math.round(inici * 1000.0 / FS);
-        return new Cop(ms, centre, tot > 0 ? greus / tot : 0, tot > 0 ? aguts / tot : 0, dur * 10.0, db);
+        Cop c = new Cop(ms, centre, tot > 0 ? greus / tot : 0, tot > 0 ? aguts / tot : 0, dur * 10.0, db);
+        // 2.39: es treu el so de fons (la base que s'escapa dels auriculars, soroll) que hi havia just abans del cop
+        double[] fons = new double[banda.length];
+        int a0 = inici - lon - (int) (0.01 * FS);
+        if (a0 >= 0) {
+            Arrays.fill(re, 0);
+            Arrays.fill(im, 0);
+            for (int i = 0; i < lon; i++) {
+                double w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / lon);
+                re[i] = x[a0 + i] * w;
+            }
+            Analisi.fft(re, im);
+            for (int b = 1; b < N_TRET / 2; b++) {
+                double hz = b * bin;
+                if (hz < 30) continue;
+                double p = re[b] * re[b] + im[b] * im[b];
+                for (int q = 0; q < banda.length; q++) if (hz >= VORES[q] && hz < VORES[q + 1]) fons[q] += p;
+            }
+        }
+        double net = 0;
+        for (int q = 0; q < banda.length; q++) {
+            banda[q] = Math.max(banda[q] * 0.02, banda[q] - 1.5 * fons[q]);
+            net += banda[q];
+        }
+        c.bandes = new double[banda.length];
+        for (int q = 0; q < banda.length; q++) c.bandes[q] = net > 0 ? banda[q] / net : 0;
+        return c;
     }
 
     /** Lluminositat d'un cop: com més alt, més agut i més «xiuxiueig» (en octaves aproximades). */
@@ -350,6 +381,203 @@ public final class Beatbox {
             r[j] = (float) (acc / suma / 32768.0);
         }
         return r;
+    }
+
+    // ---------- Els teus sons (2.39): aprendre'ls i reconèixer-los ----------
+
+    /** Vores de les bandes (Hz) per descriure com sona un cop. */
+    static final double[] VORES = {30, 150, 300, 600, 1200, 2400, 4800, 11025};
+    /** Quants sons es poden aprendre: bombo, caixa i hihat. */
+    public static final int SONS = 3;
+    public static final String[] GRAELLES = {"Corxeres", "Semicorxeres", "Fuses"};
+
+    /** Com sona un cop, en números comparables: energia relativa de cada banda (en desenes de dB) i durada. */
+    static double[] trets(Cop c) {
+        int nb = VORES.length - 1;
+        double[] t = new double[nb + 1];
+        for (int q = 0; q < nb; q++) {
+            double v = c.bandes == null ? 0 : c.bandes[q];
+            t[q] = Math.max(-4, Math.log10(v + 1e-5));   // 0 = tota l'energia; -4 = res
+        }
+        t[nb] = 0.6 * Math.log(Math.max(20, Math.min(500, c.duradaMs)) / 60.0) / Math.log(2);
+        return t;
+    }
+
+    static double distancia(double[] a, double[] b) {
+        double s = 0;
+        for (int i = 0; i < Math.min(a.length, b.length); i++) s += (a[i] - b[i]) * (a[i] - b[i]);
+        return Math.sqrt(s);
+    }
+
+    /**
+     * Els sons d'en Roger: uns quants exemples de cada (bombo, caixa, hihat), gravats al panell «Els teus sons».
+     * Cada cop d'una gravació va al so que s'assembla més als seus exemples. Funciona amb qualsevol so (picar a la
+     * taula, la boca, un llapis…) mentre siguin diferents entre ells.
+     */
+    public static final class Calibratge {
+        @SuppressWarnings("unchecked")
+        final List<double[]>[] exemples = new List[]{new ArrayList<>(), new ArrayList<>(), new ArrayList<>()};
+        /** Durada mitjana dels exemples de cada so (per saber quan un hihat és obert). */
+        final double[] durada = new double[SONS];
+
+        public int quants(int tipus) {
+            return tipus >= 0 && tipus < SONS ? exemples[tipus].size() : 0;
+        }
+
+        /** N'hi ha prou per gravar: com a mínim dos sons amb dos exemples cadascun. */
+        public boolean llest() {
+            int n = 0;
+            for (int t = 0; t < SONS; t++) if (quants(t) >= 2) n++;
+            return n >= 2;
+        }
+
+        public void oblida(int tipus) {
+            if (tipus < 0 || tipus >= SONS) return;
+            exemples[tipus].clear();
+            durada[tipus] = 0;
+        }
+
+        /**
+         * Aprèn un so a partir d'una gravació curta on en Roger el fa unes quantes vegades. Es queda amb els cops
+         * més forts (fins a 8; els que són molt més fluixos que el més fort no compten). Torna el moment (ms) del cop
+         * més fort, per poder-lo escoltar, o -1 si no ha sentit res.
+         */
+        public long aprenUn(int tipus, short[] mostres, int sr) {
+            if (tipus < 0 || tipus >= SONS) return -1;
+            List<Cop> cops = new ArrayList<>(detectaTot(mostres, sr, 1).cops);
+            cops.removeIf(c -> c.db < -14);
+            cops.sort((a, b) -> Double.compare(b.db, a.db));
+            while (cops.size() > 8) cops.remove(cops.size() - 1);
+            if (cops.isEmpty()) return -1;
+            exemples[tipus].clear();
+            double d = 0;
+            for (Cop c : cops) {
+                exemples[tipus].add(trets(c));
+                d += c.duradaMs;
+            }
+            durada[tipus] = d / cops.size();
+            return cops.get(0).ms;
+        }
+
+        /** Distància d'un cop a un so après: la mitjana de les dues més petites als seus exemples. */
+        double distancia(double[] t, int tipus) {
+            List<double[]> ex = exemples[tipus];
+            if (ex.isEmpty()) return Double.MAX_VALUE;
+            double a = Double.MAX_VALUE, b = Double.MAX_VALUE;
+            for (double[] e : ex) {
+                double d = Beatbox.distancia(t, e);
+                if (d < a) {
+                    b = a;
+                    a = d;
+                } else if (d < b) {
+                    b = d;
+                }
+            }
+            return b == Double.MAX_VALUE ? a : (a + b) / 2;
+        }
+
+        /** Posa a cada cop el so après que s'hi assembla més (i les forces). */
+        public void classifica(List<Cop> cops) {
+            for (Cop c : cops) {
+                double[] t = trets(c);
+                int millor = RES;
+                double dm = Double.MAX_VALUE;
+                for (int s = 0; s < SONS; s++) {
+                    double d = distancia(t, s);
+                    if (d < dm) {
+                        dm = d;
+                        millor = s;
+                    }
+                }
+                // un hihat que dura molt més que els exemples («tsss») és un hihat obert
+                if (millor == HIHAT && c.duradaMs >= 200 && c.duradaMs >= 1.8 * Math.max(40, durada[HIHAT])) millor = OBERT;
+                c.tipus = millor;
+                c.grup = millor < 0 ? 0 : Math.min(millor, HIHAT);
+            }
+            forces(cops);
+        }
+
+        /** «0:d,b1,b2…;0:…|…» per desar-ho a les preferències. */
+        public String text() {
+            StringBuilder sb = new StringBuilder("v1");
+            for (int s = 0; s < SONS; s++) {
+                sb.append('|').append(String.format(java.util.Locale.ROOT, "%.1f", durada[s])).append('/');
+                boolean primer = true;
+                for (double[] e : exemples[s]) {
+                    if (!primer) sb.append(';');
+                    primer = false;
+                    for (int i = 0; i < e.length; i++) {
+                        if (i > 0) sb.append(',');
+                        sb.append(String.format(java.util.Locale.ROOT, "%.3f", e[i]));
+                    }
+                }
+            }
+            return sb.toString();
+        }
+
+        public static Calibratge deText(String text) {
+            Calibratge c = new Calibratge();
+            if (text == null || !text.startsWith("v1")) return c;
+            String[] p = text.split("\\|", -1);
+            int nt = VORES.length;
+            for (int s = 0; s < SONS && s + 1 < p.length; s++) {
+                try {
+                    int barra = p[s + 1].indexOf('/');
+                    if (barra < 0) continue;
+                    c.durada[s] = Double.parseDouble(p[s + 1].substring(0, barra));
+                    String resta = p[s + 1].substring(barra + 1);
+                    if (resta.isEmpty()) continue;
+                    for (String ex : resta.split(";")) {
+                        String[] v = ex.split(",");
+                        if (v.length != nt) continue;
+                        double[] e = new double[nt];
+                        for (int i = 0; i < nt; i++) e[i] = Double.parseDouble(v[i]);
+                        c.exemples[s].add(e);
+                    }
+                } catch (NumberFormatException ignorat) {
+                    c.oblida(s);
+                }
+            }
+            return c;
+        }
+    }
+
+    /** Troba els cops d'una gravació i els classifica amb els sons apresos. */
+    public static List<Cop> detectaAmb(short[] mostres, int sr, int sensibilitat, Calibratge cal) {
+        List<Cop> cops = detectaTot(mostres, sr, sensibilitat).cops;
+        cal.classifica(cops);
+        return cops;
+    }
+
+    /**
+     * Afegeix els cops d'un ritme nou a un ritme que ja hi era (passades una sobre l'altra: primer bombo i caixa,
+     * després el hihat). Si el nou és més llarg, l'existent s'allarga (els compassos nous en blanc). Les files que el
+     * kit no tenia s'afegeixen. Torna quants cops nous hi ha posat.
+     */
+    public static int ajunta(Patro existent, Patro nou) {
+        if (existent.compassos < nou.compassos) existent.posaCompassos(nou.compassos);
+        if (nou.divisio() != existent.divisio()) nou.posaDivisio(existent.divisio());
+        int n = Math.min(existent.passos(), nou.passos());
+        int posats = 0;
+        for (Patro.Fila f : nou.files) {
+            boolean te = false;
+            for (int i = 0; i < f.cops.length; i++) if (f.cops[i] > 0) te = true;
+            if (!te) continue;
+            Patro.Fila e = existent.fila(f.tipus);
+            if (e == null) {
+                e = new Patro.Fila();
+                e.tipus = f.tipus;
+                e.so = f.so;
+                e.volumDb = f.volumDb;
+                e.cops = new int[existent.passos()];
+                existent.files.add(e);
+            }
+            for (int i = 0; i < n && i < f.cops.length && i < e.cops.length; i++) {
+                if (f.cops[i] > 0 && e.cops[i] == 0) posats++;
+                e.cops[i] = Math.max(e.cops[i], f.cops[i]);
+            }
+        }
+        return posats;
     }
 
     // ---------- Cops → ritmes del drumpad ----------

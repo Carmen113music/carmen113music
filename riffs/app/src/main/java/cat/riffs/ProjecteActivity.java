@@ -77,6 +77,13 @@ public class ProjecteActivity extends Activity {
     private SinteViu sinteViu;
     private MidiViu midiViu;                // pista MIDI (polifònic)
     private boolean assaig = false;         // el teclat obert per tocar sense gravar
+    // ritme amb la veu (2.39): es grava el micròfon i, en aturar, els cops van a la pista de bateria
+    private boolean gravantRitme = false;
+    private Beatbox.Calibratge calRitme;
+    private Gravadora gravCal;              // gravació curta per aprendre un so
+    private Runnable compteCal;
+    private android.media.AudioTrack provaCop;
+    private Projecte.Pista sonsDespresDelPermis;
     private View panellTeclat;
     private TextView textTeclat;
     // desfer
@@ -107,7 +114,7 @@ public class ProjecteActivity extends Activity {
                     textInfo.setText("Compte: " + Math.max(1, falten));
                 } else {
                     textInfo.setTextColor(Ui.ACCENT);
-                    textInfo.setText(!gravantSinte ? "● Gravant" : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
+                    textInfo.setText(!gravantSinte ? (gravantRitme ? "● Gravant el ritme" : "● Gravant") : pistaSinte != null && pistaSinte.esTeremin() ? "● Gravant el teremin" : "● Gravant el sinte");
                 }
             } else if (ms > projecte.finalMs() + 800) {
                 atura();
@@ -507,7 +514,7 @@ public class ProjecteActivity extends Activity {
         c.setOnClickListener(v -> {
             if (t.esBateria() && t.clips.isEmpty()) {
                 textInfo.setTextColor(Ui.BATERIA);
-                textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+                textInfo.setText("Mantén premut a la fila per posar-hi un ritme, o fes-lo amb la veu: botó de gravar + mantén premut el play");
                 return;
             }
             if (t.esTeremin() && t.clips.isEmpty()) {
@@ -600,7 +607,6 @@ public class ProjecteActivity extends Activity {
             }
         });
         rec.setTag("rec");
-        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         m.setOnClickListener(v -> {
             synchronized (projecte) {
                 t.mut = !t.mut;
@@ -780,6 +786,9 @@ public class ProjecteActivity extends Activity {
             Projecte.Clip u = vista.unic();
             Projecte.Clip k = u != null && t.clips.contains(u) ? u : t.clips.isEmpty() ? null : t.clips.get(0);
             if (k != null) ops.add(new Full.Accio(Icona.BATERIA, "Obre el drumpad", false, () -> obreDrumpad(k)));
+        }
+        if (t.esBateria()) {
+            ops.add(new Full.Accio(Icona.MIC, "Ritme amb la veu: els teus sons", false, () -> obreSonsRitme(t, false)));
         }
         if (t.esTeremin()) {
             Projecte.Clip u = vista.unic();
@@ -1056,7 +1065,7 @@ public class ProjecteActivity extends Activity {
         pistes.requestLayout();
         pistes.invalidate();
         textInfo.setTextColor(Ui.BATERIA);
-        textInfo.setText("Mantén premut a la fila de la bateria per posar-hi un ritme");
+        textInfo.setText("Mantén premut a la fila per posar-hi un ritme, o fes-lo amb la veu: botó de gravar + mantén premut el play");
     }
 
     /**
@@ -1631,7 +1640,6 @@ public class ProjecteActivity extends Activity {
         rec.addView(Ui.imatge(this, Icona.REC, Ui.SUAU, 14),
                 new FrameLayout.LayoutParams(Ui.dp(this, 16), Ui.dp(this, 16), Gravity.CENTER));
         ms.addView(rec, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 24)));
-        if (t.esBateria()) rec.setVisibility(View.INVISIBLE);
         pintaRec(rec, t.rec);
         rec.setOnClickListener(v -> {
             synchronized (projecte) {
@@ -1976,6 +1984,10 @@ public class ProjecteActivity extends Activity {
             return;
         }
         atura();
+        if (armada != null && armada.esBateria()) {
+            comencaRitme(armada);
+            return;
+        }
         if (armada != null && armada.esGenerat()) armada = null;
         if (armada != null) {
             comencaGravacio(armada, armada.veu);
@@ -1990,7 +2002,17 @@ public class ProjecteActivity extends Activity {
         }
         List<Full.Accio> ops = new ArrayList<>();
         for (Projecte.Pista t : projecte.pistes) {
-            if (t.esBateria()) continue;
+            if (t.esBateria()) {
+                ops.add(new Full.Accio(Icona.BATERIA, t.nomVisible() + " · ritme amb la veu", false, () -> {
+                    synchronized (projecte) {
+                        projecte.armaRec(t);
+                    }
+                    desa();
+                    ompleCapcaleres();
+                    comencaRitme(t);
+                }));
+                continue;
+            }
             if (t.esInstrument()) {
                 ops.add(new Full.Accio(Ui.iconaPista(t), t.nomVisible() + (t.esTeremin() ? " · teremin" : " · teclat"), false, () -> {
                     synchronized (projecte) {
@@ -2017,6 +2039,11 @@ public class ProjecteActivity extends Activity {
     }
 
     private void comencaGravacio(Projecte.Pista pista, boolean veu) {
+        comencaGravacio(pista, veu, false);
+    }
+
+    /** {@code ritme}: la veu (o picar a la taula) per fer un ritme a la pista de bateria {@code pista} (2.39). */
+    private void comencaGravacio(Projecte.Pista pista, boolean veu, boolean ritme) {
         if (gravant || motor == null) return;
         tancaAssaig();
         atura();
@@ -2024,7 +2051,14 @@ public class ProjecteActivity extends Activity {
         long iniciMs = Math.max(0, entradaMs - Math.round(projecte.msPerCompas()));
         Biblioteca b = Ui.biblioteca(this);
         long ara = System.currentTimeMillis();
-        wavGravant = b.nouWav(projecte.carpeta, ara);
+        if (ritme) {
+            // fora de la biblioteca (carpeta amagada): només serveix per trobar-hi els cops, després s'esborra
+            File dir = new File(projecte.carpeta, ".veu");
+            dir.mkdirs();
+            wavGravant = new File(dir, "ritme-" + ara + ".wav");
+        } else {
+            wavGravant = b.nouWav(projecte.carpeta, ara);
+        }
         fitxaGravant = new Fitxa();
         fitxaGravant.mode = veu ? Fitxa.VEU : Fitxa.GUITARRA;
         fitxaGravant.data = ara;
@@ -2032,11 +2066,13 @@ public class ProjecteActivity extends Activity {
         fitxaGravant.bpm = projecte.bpm;
         fitxaGravant.compas = projecte.compas;
         fitxaGravant.claqueta = true;
-        try {
-            fitxaGravant.desa(Biblioteca.fitxaDe(wavGravant));
-        } catch (IOException e) {
-            Ui.avis(this, "No puc desar al mòbil. Potser està ple?");
-            return;
+        if (!ritme) {
+            try {
+                fitxaGravant.desa(Biblioteca.fitxaDe(wavGravant));
+            } catch (IOException e) {
+                Ui.avis(this, "No puc desar al mòbil. Potser està ple?");
+                return;
+            }
         }
         pistaGravant = pista;
         String font = Ui.prefs(this).getString("font", Gravadora.AUTO);
@@ -2064,7 +2100,8 @@ public class ProjecteActivity extends Activity {
             }
         });
         if (error != null) {
-            b.esborra(wavGravant);
+            if (ritme) wavGravant.delete();
+            else b.esborra(wavGravant);
             Ui.avis(this, error);
             return;
         }
@@ -2077,13 +2114,15 @@ public class ProjecteActivity extends Activity {
         motor.posaBucle(-1, -1);   // gravant no hi ha bucle
         if (!motor.comenca(iniciMs)) {
             gravadora.atura();
-            b.esborra(wavGravant);
+            if (ritme) wavGravant.delete();
+            else b.esborra(wavGravant);
             motor.posaClic(false);
             Ui.avis(this, "No s'ha pogut obrir la sortida de so.");
             return;
         }
         vigilaAuriculars();
         gravant = true;
+        gravantRitme = ritme;
         // ona en directe: a la pista triada o en una fila nova a sota (amb la seva capçalera provisional)
         int fila = pista != null ? projecte.pistes.indexOf(pista) : projecte.pistes.size();
         if (pista == null) {
@@ -2153,6 +2192,11 @@ public class ProjecteActivity extends Activity {
         textInfo.setTextColor(Ui.GUITARRA);
         File wav = wavGravant;
         wavGravant = null;
+        if (gravantRitme) {
+            gravantRitme = false;
+            acabaRitme(wav, pistaGravant, primer, durada, motiu);
+            return;
+        }
         Biblioteca b = Ui.biblioteca(this);
         if (durada < primer + 300) {
             b.esborra(wav);
@@ -3433,6 +3477,422 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
+    // ---------- Ritme amb la veu → bateria (2.39) ----------
+
+    private Beatbox.Calibratge calibratge() {
+        if (calRitme == null) calRitme = Beatbox.Calibratge.deText(Ui.prefs(this).getString("ritme_sons", null));
+        return calRitme;
+    }
+
+    /** Pista de bateria armada + mantenir premut el play: si ja coneix els teus sons, grava; si no, primer els aprèn. */
+    private void comencaRitme(Projecte.Pista t) {
+        if (Kits.llista(KitsActivity.arrel(this)).isEmpty()) {
+            Full.avis(this, "Encara no tens kits de bateria",
+                    "Primer cal baixar-los o importar-los: Gravar → botó d'ajustos → Bateria virtual.",
+                    "Obre els kits", () -> startActivity(new android.content.Intent(this, KitsActivity.class)));
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+            return;
+        }
+        if (!calibratge().llest()) {
+            obreSonsRitme(t, true);
+            return;
+        }
+        synchronized (projecte) {
+            projecte.armaRec(t);
+        }
+        comencaGravacio(t, false, true);
+    }
+
+    private static final String[] NOMS_SONS = {"Bombo", "Caixa", "Hihat"};
+
+    private String estatSo(int tipus) {
+        int n = calibratge().quants(tipus);
+        if (n > 0) return n + (n == 1 ? " cop après" : " cops apresos");
+        return tipus == Beatbox.HIHAT ? "Opcional · sense gravar" : "Sense gravar";
+    }
+
+    private File fitxerExemple(int tipus) {
+        return new File(new File(getFilesDir(), "ritme-veu"), "so" + tipus + ".wav");
+    }
+
+    /**
+     * Panell «Els teus sons»: per a cada so (bombo, caixa, hihat), un botó per gravar-lo unes quantes vegades i un
+     * per escoltar com l'ha après. A sota, la graella, què fer si ja hi ha ritme i la sensibilitat.
+     */
+    private void obreSonsRitme(Projecte.Pista t, boolean gravarDespres) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            sonsDespresDelPermis = gravarDespres ? null : t;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+            return;
+        }
+        atura();
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        int[] graella = {Math.max(0, Math.min(2, pr.getInt("ritme_graella", 1)))};
+        int[] capes = {Math.max(0, Math.min(1, pr.getInt("ritme_capes", 0)))};
+        int[] sens = {Math.max(0, Math.min(2, pr.getInt("ritme_sens", 1)))};
+
+        LinearLayout cos = Ui.columna(this);
+        cos.setPadding(Ui.dp(this, 6), 0, 0, 0);
+        cos.addView(Ui.text(this, "Grava cada so 4 o 5 vegades, amb una mica d'espai entre cop i cop. Pot ser qualsevol cosa "
+                + "(picar a la taula, un so amb la boca, un llapis…) mentre sonin diferents entre ells. "
+                + "Cal com a mínim el bombo i la caixa; el hihat també el pots fer en una altra passada.", 11, Ui.SUAU));
+        for (int k = 0; k < Beatbox.SONS; k++) {
+            int tipus = k;
+            LinearLayout fila = Ui.fila(this);
+            fila.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout escolta = Ui.botoIcona(this, Icona.PLAY, Ui.TEXT, Ui.SUPERFICIE2, 34, 14, "Escolta com l'ha après");
+            escolta.setOnClickListener(v -> escoltaExemple(tipus));
+            fila.addView(escolta);
+            fila.addView(Ui.espai(this, 10));
+            LinearLayout tx = Ui.columna(this);
+            tx.addView(Ui.unaLinia(Ui.negreta(this, NOMS_SONS[k], 13, Ui.TEXT)));
+            TextView estat = Ui.unaLinia(Ui.text(this, estatSo(k), 11, Ui.SUAU));
+            tx.addView(estat);
+            fila.addView(tx, Ui.pes(1));
+            LinearLayout grava = Ui.pastilla(this, Icona.REC, calibratge().quants(k) > 0 ? "Torna-hi" : "Grava", Ui.SUPERFICIE2, Ui.TEXT);
+            grava.setOnClickListener(v -> gravaSoRitme(tipus, estat));
+            fila.addView(grava);
+            cos.addView(fila, Ui.ample(this, 12));
+        }
+        if (!Metronom.auriculars(this)) {
+            cos.addView(Ui.text(this, "Per gravar el ritme sobre la base, posa't auriculars: si no, no sonarà res (es gravaria la base).",
+                    11, Ui.GUITARRA), Ui.ample(this, 10));
+        }
+        cos.addView(Ui.etiqueta(this, "Ajusta a la graella"), Ui.ample(this, 14));
+        cos.addView(Ui.segmentat(this, Beatbox.GRAELLES, graella[0], Ui.BATERIA, i -> graella[0] = i), Ui.ample(this, 6));
+        cos.addView(Ui.etiqueta(this, "Si la finestra ja té ritme"), Ui.ample(this, 12));
+        cos.addView(Ui.segmentat(this, new String[]{"Afegeix-hi", "Substitueix"}, capes[0], Ui.BATERIA, i -> capes[0] = i), Ui.ample(this, 6));
+        cos.addView(Ui.text(this, "«Afegeix-hi»: per fer-ho en passades (primer bombo i caixa, després el hihat). "
+                + "Si no t'agrada, el botó de desfer ho treu.", 11, Ui.SUAU), Ui.ample(this, 4));
+        cos.addView(Ui.etiqueta(this, "Sensibilitat (cops fluixos)"), Ui.ample(this, 12));
+        cos.addView(Ui.segmentat(this, Beatbox.SENSIBILITATS, sens[0], Ui.TEXT, i -> sens[0] = i), Ui.ample(this, 6));
+
+        android.app.Dialog d = Full.panell(this, "Els teus sons de bateria",
+                "L'app aprèn com sonen i, quan graves, cada cop va a la fila que toca del drumpad.",
+                cos, gravarDespres ? "Grava el ritme" : "Fet", Ui.BATERIA, () -> {
+                    pr.edit().putInt("ritme_graella", graella[0]).putInt("ritme_capes", capes[0]).putInt("ritme_sens", sens[0]).apply();
+                    if (!gravarDespres) return;
+                    if (calibratge().llest()) comencaRitme(t);
+                    else Ui.avis(this, "Primer grava com a mínim dos sons (bombo i caixa)");
+                });
+        d.setOnDismissListener(x -> {
+            aturaCalibratge();
+            // la graella, les capes i la sensibilitat es desen també si es tanca sense el botó
+            pr.edit().putInt("ritme_graella", graella[0]).putInt("ritme_capes", capes[0]).putInt("ritme_sens", sens[0]).apply();
+        });
+    }
+
+    /** Grava 4,5 s pel micròfon i aprèn el so {@code tipus}. */
+    private void gravaSoRitme(int tipus, TextView estat) {
+        if (gravCal != null || gravant) return;
+        escoltaCop(null, 0, -1);
+        File f = new File(getCacheDir(), "so-ritme.wav");
+        Gravadora g = new Gravadora();
+        String font = Ui.prefs(this).getString("font", Gravadora.AUTO);
+        String error = g.comenca(this, f, font, new Gravadora.Oient() {
+            @Override
+            public void nivell(float pic) {
+            }
+
+            @Override
+            public void error(String missatge) {
+                runOnUiThread(() -> {
+                    aturaCalibratge();
+                    estat.setText(missatge);
+                });
+            }
+        });
+        if (error != null) {
+            Ui.avis(this, error);
+            return;
+        }
+        gravCal = g;
+        estat.setTextColor(Ui.ACCENT);
+        String nom = NOMS_SONS[tipus].toLowerCase(Locale.ROOT);
+        long inici = android.os.SystemClock.uptimeMillis();
+        compteCal = new Runnable() {
+            @Override
+            public void run() {
+                if (gravCal != g) return;
+                long passat = android.os.SystemClock.uptimeMillis() - inici;
+                if (passat < 4500) {
+                    estat.setText("● Fes el " + nom + " 4 o 5 cops… " + (5 - passat / 1000));
+                    pistes.postDelayed(this, 200);
+                    return;
+                }
+                compteCal = null;
+                gravCal = null;
+                g.atura();
+                estat.setText("Escoltant…");
+                new Thread(() -> {
+                    short[] m = Wav.llegeixMostres(f);
+                    Wav.Info info = Wav.llegeixInfo(f);
+                    int sr = info != null && info.mostreig > 0 ? info.mostreig : Gravadora.MOSTREIG;
+                    long ex;
+                    synchronized (ProjecteActivity.this) {
+                        ex = m == null ? -1 : calibratge().aprenUn(tipus, m, sr);
+                    }
+                    if (ex >= 0) desaExemple(tipus, m, sr, ex);
+                    f.delete();
+                    runOnUiThread(() -> {
+                        estat.setTextColor(ex >= 0 ? Ui.BATERIA : Ui.GUITARRA);
+                        if (ex < 0) {
+                            estat.setText("No he sentit cap cop: torna-ho a provar més fort");
+                            return;
+                        }
+                        Ui.prefs(ProjecteActivity.this).edit().putString("ritme_sons", calibratge().text()).apply();
+                        int n = calibratge().quants(tipus);
+                        estat.setText(n + (n == 1 ? " cop après" : " cops apresos") + (n < 3 ? " · millor si en fas més" : ""));
+                        Ui.historial(ProjecteActivity.this, "Ritme amb la veu: après el so «" + NOMS_SONS[tipus] + "» (" + n + " cops)");
+                    });
+                }, "aprenSo").start();
+            }
+        };
+        pistes.post(compteCal);
+    }
+
+    /** Desa el cop més fort (0,4 s) per poder-lo escoltar després. */
+    private void desaExemple(int tipus, short[] m, int sr, long ms) {
+        int a = (int) Math.max(0, (ms - 15) * sr / 1000), n = Math.min(m.length - a, (int) (0.4 * sr));
+        if (n <= 0) return;
+        short[] tros = new short[n];
+        System.arraycopy(m, a, tros, 0, n);
+        for (int i = 0; i < Math.min(n, sr / 50); i++) tros[n - 1 - i] = (short) (tros[n - 1 - i] * i / (sr / 50.0));
+        File f = fitxerExemple(tipus);
+        f.getParentFile().mkdirs();
+        try {
+            Wav.Escriptor w = new Wav.Escriptor(f, sr, 1);
+            w.escriu(tros, n);
+            w.tanca();
+        } catch (IOException ignorat) {
+            f.delete();
+        }
+    }
+
+    private void escoltaExemple(int tipus) {
+        File f = fitxerExemple(tipus);
+        Wav.Info info = Wav.llegeixInfo(f);
+        short[] m = info == null ? null : Wav.llegeixMostres(f);
+        if (m == null) {
+            Ui.avis(this, "Encara no l'has gravat");
+            return;
+        }
+        escoltaCop(m, info.mostreig > 0 ? info.mostreig : Gravadora.MOSTREIG, 15);
+    }
+
+    private void aturaCalibratge() {
+        if (compteCal != null) {
+            pistes.removeCallbacks(compteCal);
+            compteCal = null;
+        }
+        if (gravCal != null) {
+            gravCal.atura();
+            gravCal = null;
+        }
+        escoltaCop(null, 0, -1);
+    }
+
+    /** Fa sonar un tros curt d'un so (0,4 s des de {@code ms}). {@code mostres} null = només atura. */
+    private void escoltaCop(short[] mostres, int sr, long ms) {
+        if (provaCop != null) {
+            try {
+                provaCop.stop();
+            } catch (RuntimeException ignorat) {
+            }
+            provaCop.release();
+            provaCop = null;
+        }
+        if (mostres == null || ms < 0) return;
+        int a = (int) Math.max(0, (ms - 15) * sr / 1000), n = Math.min(mostres.length - a, (int) (0.4 * sr));
+        if (n <= 0) return;
+        short[] tros = new short[n];
+        System.arraycopy(mostres, a, tros, 0, n);
+        try {
+            android.media.AudioTrack t = new android.media.AudioTrack.Builder()
+                    .setAudioAttributes(new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                    .setAudioFormat(new android.media.AudioFormat.Builder().setSampleRate(sr)
+                            .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setBufferSizeInBytes(n * 2)
+                    .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+                    .build();
+            t.write(tros, 0, n);
+            t.play();
+            provaCop = t;
+        } catch (RuntimeException e) {
+            Ui.avis(this, "No s'ha pogut fer sonar");
+        }
+    }
+
+    /** En aturar la gravació del ritme: busca els cops en un fil i els posa a la pista. */
+    private void acabaRitme(File wav, Projecte.Pista t, long primer, long durada, String motiu) {
+        vista.capcalMs = entradaMs;
+        if (durada < primer + 300 || t == null) {
+            wav.delete();
+            textInfo.setText(motiu != null ? motiu : "Aturat abans d'entrar: no s'ha fet res");
+            refresca();
+            return;
+        }
+        textInfo.setTextColor(Ui.BATERIA);
+        textInfo.setText("Escoltant els cops…");
+        int sens = Math.max(0, Math.min(2, Ui.prefs(this).getInt("ritme_sens", 1)));
+        Beatbox.Calibratge cal = calibratge();
+        new Thread(() -> {
+            List<Beatbox.Cop> cops = null;
+            try {
+                Wav.Info info = Wav.llegeixInfo(wav);
+                short[] m = info == null ? null : Wav.llegeixMostres(wav);
+                if (m != null) cops = Beatbox.detectaAmb(m, info.mostreig > 0 ? info.mostreig : Gravadora.MOSTREIG, sens, cal);
+            } catch (OutOfMemoryError e) {
+                cops = null;
+            }
+            wav.delete();
+            List<Beatbox.Cop> trobats = cops;
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (trobats == null) {
+                    Ui.avis(this, "No s'ha pogut escoltar la gravació");
+                    textInfo.setText("");
+                    return;
+                }
+                posaRitme(t, trobats, primer, durada, motiu);
+            });
+        }, "ritmeVeu").start();
+    }
+
+    /** Un ritme amb el kit i les files de la pista (el primer que tingui), o un de nou amb el primer kit. */
+    private Patro plantillaBateria(Projecte.Pista t) {
+        Patro p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, t.wav));
+        if (p == null) {
+            for (Projecte.Clip k : t.clips) {
+                p = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, k.wav));
+                if (p != null) break;
+            }
+        }
+        List<Kits.Kit> kits = Kits.llista(KitsActivity.arrel(this));
+        if (p == null || p.files.isEmpty()) p = Patro.nou(kits.isEmpty() ? null : kits.get(0), projecte.compas);
+        Kits.Kit kit = null;
+        for (Kits.Kit k : kits) if (k.dir.getName().equals(p.kit)) kit = k;
+        if (kit != null) p.canviaKit(kit);
+        p.assegura(projecte.compas);
+        return p;
+    }
+
+    /**
+     * Posa els cops a la pista de bateria en finestres de fins a 4 compassos. Amb «Afegeix-hi», si ja hi ha una
+     * finestra al mateix lloc, els cops s'hi sumen (en un fitxer nou, perquè el Desfés ho pugui treure);
+     * amb «Substitueix», fora les finestres que trepitgen el que s'ha gravat.
+     */
+    private void posaRitme(Projecte.Pista t, List<Beatbox.Cop> cops, long primer, long durada, String motiu) {
+        if (t == null || !projecte.pistes.contains(t) || !t.esBateria()) return;
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        int graella = Math.max(0, Math.min(2, pr.getInt("ritme_graella", 1)));
+        boolean substitueix = pr.getInt("ritme_capes", 0) == 1;
+        Patro plantilla = plantillaBateria(t);
+        double msCompas = projecte.msPerCompas();
+        // un cop a la gravació (ms) cau a la línia de temps a entrada + (ms − primer temps)
+        Beatbox.Resultat r = Beatbox.ritmes(cops, entradaMs - primer, Math.max(0, primer - 100), durada, msCompas,
+                projecte.compas, graella, plantilla);
+        if (r.finestres.isEmpty()) {
+            textInfo.setTextColor(Ui.GUITARRA);
+            textInfo.setText(motiu != null ? motiu : "No he sentit cap cop: prova més fort o amb més sensibilitat");
+            refresca();
+            return;
+        }
+        Beatbox.Finestra ultima = r.finestres.get(r.finestres.size() - 1);
+        long iniR = Math.round(projecte.iniciCompas(r.compasEntrada));
+        long fiR = Math.round(projecte.iniciCompas(r.compasEntrada + ultima.compasDes + ultima.patro.compassos));
+        int trets = 0, ajuntades = 0, noves = 0;
+        Projecte.Clip primerClip = null;
+        if (substitueix) {
+            synchronized (projecte) {
+                int abans = t.clips.size();
+                t.clips.removeIf(c -> c.iniciVisible() < fiR - 5 && c.fiVisible() > iniR + 5);
+                trets = abans - t.clips.size();
+            }
+        }
+        for (Beatbox.Finestra f : r.finestres) {
+            long pos = Math.round(projecte.iniciCompas(r.compasEntrada + f.compasDes));
+            Projecte.Clip ex = null;
+            if (!substitueix) {
+                for (Projecte.Clip k : t.clips) {
+                    if (Math.abs(k.posMs - pos) <= 5 && k.iniciMs == 0 && Projecte.esBateria(k.wav)) ex = k;
+                }
+            }
+            try {
+                String wav = projecte.wavBateriaLliure();
+                if (ex != null) {
+                    Patro pe = Patro.llegeix(Patro.fitxerDe(projecte.carpeta, ex.wav));
+                    if (pe != null) {
+                        pe.assegura(projecte.compas);
+                        Beatbox.ajunta(pe, f.patro);
+                        pe.desa(Patro.fitxerDe(projecte.carpeta, wav));
+                        long d = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+                        if (d < 0) throw new IOException("sense ritme");
+                        synchronized (projecte) {
+                            Projecte.Presa p = projecte.preses.get(wav);
+                            if (p == null) {
+                                p = new Projecte.Presa();
+                                p.wav = wav;
+                                p.nom = Projecte.nomGenerat(wav);
+                                projecte.preses.put(wav, p);
+                            }
+                            p.duradaMs = d;
+                            // la finestra continua igual, però amb el ritme nou (si mostrava el ritme sencer, el segueix mostrant)
+                            boolean sencer = ex.fiMs >= durada(ex.wav) - 3;
+                            ex.wav = wav;
+                            if (sencer || ex.fiMs > d) ex.fiMs = d;
+                        }
+                        carregaSo(wav);
+                        ajuntades++;
+                        if (primerClip == null) primerClip = ex;
+                        continue;
+                    }
+                }
+                if (primerClip == null && !projecte.enUs(t.wav) && new File(projecte.carpeta, t.wav).isFile()) wav = t.wav;
+                f.patro.desa(Patro.fitxerDe(projecte.carpeta, wav));
+                long d = Patro.genera(projecte.carpeta, wav, projecte.bpm, projecte.compas, KitsActivity.arrel(this));
+                if (d < 0) throw new IOException("sense ritme");
+                Projecte.Clip c;
+                synchronized (projecte) {
+                    c = projecte.afegeixFinestraBateria(t, wav, d, r.compasEntrada + f.compasDes);
+                }
+                carregaSo(wav);
+                noves++;
+                if (primerClip == null) primerClip = c;
+            } catch (IOException e) {
+                Ui.avis(this, "No s'ha pogut desar una part del ritme");
+            }
+        }
+        desa();
+        String detall = r.perTipus[0] + " bombo · " + r.perTipus[1] + " caixa · " + (r.perTipus[2] + r.perTipus[3]) + " hihat";
+        Ui.historial(this, "Ritme amb la veu a «" + t.nomVisible() + "»: " + r.cops + " cops (" + detall + "), compàs "
+                + r.compasEntrada + ", graella " + Beatbox.GRAELLES[graella].toLowerCase(Locale.ROOT)
+                + (ajuntades > 0 ? ", afegit a " + ajuntades + (ajuntades == 1 ? " finestra" : " finestres") : "")
+                + (trets > 0 ? ", substituïdes " + trets : ""));
+        ompleCapcaleres();
+        posaEtiquetaPistes();
+        int ip = projecte.pistes.indexOf(t);
+        if (primerClip != null) vista.tria(ip, primerClip);
+        actualitzaAccions();
+        if (taulaVisible) ompleTaula();
+        textInfo.setTextColor(Ui.BATERIA);
+        textInfo.setText(motiu != null ? motiu : r.cops + " cops: " + detall + " · doble toc per veure'ls al drumpad");
+        vista.avisa();
+        refresca();
+    }
+
+    /** Llargada del so d'una presa (0 si no se sap). */
+    private long durada(String wav) {
+        Projecte.Presa p = projecte.preses.get(wav);
+        return p == null ? 0 : p.duradaMs;
+    }
+
     private void posaEtiquetaPistes() {
         int n = projecte.pistes.size();
         etPistes.setText(n == 1 ? "1 pista" : n + " pistes");
@@ -3442,7 +3902,10 @@ public class ProjecteActivity extends Activity {
     public void onRequestPermissionsResult(int codi, String[] permisos, int[] resultats) {
         super.onRequestPermissionsResult(codi, permisos, resultats);
         if (codi == PERMIS_MIC && resultats.length > 0 && resultats[0] == PackageManager.PERMISSION_GRANTED) {
-            triaPistaGravar();
+            Projecte.Pista sons = sonsDespresDelPermis;
+            sonsDespresDelPermis = null;
+            if (sons != null && projecte.pistes.contains(sons)) obreSonsRitme(sons, false);
+            else triaPistaGravar();
         } else if (codi == PERMIS_MIC) {
             Ui.avis(this, "Cal permís de micròfon per gravar.");
         }
@@ -3663,6 +4126,7 @@ public class ProjecteActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (gravant) aturaGravacio("S'ha aturat la gravació (l'app ha passat a segon pla)");
+        aturaCalibratge();
         tancaAssaig();
         if (projecte != null) {
             atura();

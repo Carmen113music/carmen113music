@@ -210,6 +210,34 @@ public final class Full {
         return d;
     }
 
+    /**
+     * Panell amb el mateix cap que els de triar («<» + títol + subtítol), un contingut lliure (que es desplaça si no
+     * hi cap) i, a baix, Cancel·la i el botó principal. Torna el diàleg ja obert (2.39: els teus sons de bateria).
+     */
+    public static Dialog panell(Activity a, String titol, String subtitol, View contingut, String boto, int color, Runnable fet) {
+        Dialog[] d = new Dialog[1];
+        LinearLayout cos = capTria(a, titol, subtitol, () -> d[0].dismiss(), null);
+        ScrollView sc = new ScrollView(a);
+        sc.addView(contingut);
+        android.graphics.Rect vis = new android.graphics.Rect();
+        a.getWindow().getDecorView().getWindowVisibleDisplayFrame(vis);
+        int altVisible = vis.height() > 0 ? vis.height() : a.getResources().getDisplayMetrics().heightPixels;
+        contingut.measure(View.MeasureSpec.makeMeasureSpec(a.getResources().getDisplayMetrics().widthPixels - Ui.dp(a, 40),
+                View.MeasureSpec.AT_MOST), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int maxim = Math.max(Ui.dp(a, 100), altVisible - Ui.dp(a, 190));
+        LinearLayout.LayoutParams ls = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.min(contingut.getMeasuredHeight() + Ui.dp(a, 4), maxim));
+        ls.topMargin = Ui.dp(a, 10);
+        cos.addView(sc, ls);
+        LinearLayout bs = Ui.fila(a);
+        cos.addView(bs, Ui.ample(a, 10));
+        d[0] = panellBaix(a, cos);
+        LinearLayout fila = botons(a, d[0], boto, color, fet);
+        bs.addView(fila, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        d[0].show();
+        return d[0];
+    }
+
     /** Panell amb un títol i una llista d'opcions (una per fila, amb icona). */
     public static void llista(Activity a, String titol, String subtitol, List<Accio> opcions) {
         llista(a, titol, subtitol, opcions, null);
