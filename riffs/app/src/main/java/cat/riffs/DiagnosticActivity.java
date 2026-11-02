@@ -248,6 +248,7 @@ public class DiagnosticActivity extends Activity {
         s.append("Es desa a: ").append(Ui.nomCarpeta(this, Ui.carpetaActual(this))).append('\n');
         s.append("Darrera prova: ").append(resultatProva).append('\n');
         s.append("Instrument en directe (darrer cop): ").append(SortidaViva.info).append('\n');
+        s.append("Veu en directe (darrer cop): ").append(VeuViva.info).append('\n');
         s.append("Correcció de la bandera: ").append(textCorreccio()).append('\n');
         s.append("Mesures de retard (la més recent a dalt):\n").append(historialRetard().isEmpty() ? "(cap)" : historialRetard());
         return s.toString();

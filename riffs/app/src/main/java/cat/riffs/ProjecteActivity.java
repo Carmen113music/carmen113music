@@ -91,7 +91,13 @@ public class ProjecteActivity extends Activity {
     private boolean assaig = false;         // el teclat obert per tocar sense gravar
     // ritme amb la veu (2.39): es grava el micròfon i, en aturar, els cops van a la pista de bateria
     private boolean gravantRitme = false;
-    private boolean gravantCant = false;    // 2.41: cantar a una pista d'instrument (la veu es converteix en notes)
+    private boolean gravantCant = false;
+    // 2.44: veu en directe (cantes i sona el sinte de la pista)
+    private VeuViva veuViva;
+    private volatile int veuSonant = -1;
+    private volatile boolean veuUsada = false;
+    private boolean obreVeuEnObrir = false;
+    private View panellVeu;    // 2.41: cantar a una pista d'instrument (la veu es converteix en notes)
     private Beatbox.Calibratge calRitme;
     private Gravadora gravCal;              // gravació curta per aprendre un so
     private Runnable compteCal;
@@ -2493,6 +2499,7 @@ public class ProjecteActivity extends Activity {
         entradaMs = projecte.entradaGravacio(vista.capcalMs);
         long iniciMs = entradaMs - Math.round(compteCompassos() * projecte.msPerCompas());   // pot ser negatiu
         notesGravades = new GravacioNotes();
+        veuUsada = false;
         gestGravat = new Gest.Gravacio();
         pistaSinte = t;
         if (!ter && base.esMidi()) {
@@ -3037,6 +3044,14 @@ public class ProjecteActivity extends Activity {
             barra.addView(botoSoPanell, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
             barra.addView(Ui.espai(this, 12));
         }
+        // 2.44: Veu (cantes i sona el sinte de la pista, en directe)
+        LinearLayout botoVeu = null;
+        if (!t.esTeremin()) {
+            botoVeu = Ui.pastilla(this, Icona.MIC, "Veu", Ui.SUPERFICIE2, Ui.TEXT);
+            botoVeu.setContentDescription("Canta i sona l'instrument");
+            barra.addView(botoVeu, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
+            barra.addView(Ui.espai(this, 12));
+        }
         FrameLayout menys = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava avall");
         TextView rang = Ui.unaLinia(Ui.negreta(this, "", 13, Ui.SUAU));
         FrameLayout mes = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 36, 18, "Una octava amunt");
@@ -3331,6 +3346,21 @@ public class ProjecteActivity extends Activity {
         panell.addView(zona, lk);
 
         obrePanell(panell);
+        if (botoVeu != null) {
+            LinearLayout bv = botoVeu;
+            bv.setOnClickListener(v -> {
+                if (veuViva != null) aturaVeu();
+                else engegaVeu(t, zona, color);
+                pintaBotoVeu(bv, color);
+            });
+            if (obreVeuEnObrir) {
+                obreVeuEnObrir = false;
+                bv.post(() -> {
+                    engegaVeu(t, zona, color);
+                    pintaBotoVeu(bv, color);
+                });
+            }
+        }
         if (ambEditor) {
             // l'editor de so tapa el teclat (i el panell creix fins gairebé dalt de tot)
             presetPanell = soDeLaPista(t).preset;
@@ -3637,6 +3667,7 @@ public class ProjecteActivity extends Activity {
     }
 
     private void amagaTeclat() {
+        aturaVeu();
         editorPanell = null;
         pintaEscoltaPanell = null;
         escoltaPanell = false;
@@ -3662,6 +3693,7 @@ public class ProjecteActivity extends Activity {
 
     /** Atura la gravació del sinte i posa el que s'ha tocat en finestres noves de la pista (a partir de l'entrada). */
     private void aturaGravacioSinte(String motiu) {
+        aturaVeu();   // 2.44: abans de tancar el que s'ha tocat
         Projecte.Pista t0 = pistaSinte;
         gravant = false;
         gravantSinte = false;
@@ -3687,6 +3719,13 @@ public class ProjecteActivity extends Activity {
             return;
         }
         int ppc = Patro.passosDe(projecte.compas);
+        int netejades = 0;
+        boolean frasesDeVeu = veuUsada;
+        if (veuUsada) {
+            // 2.44: el que s'ha cantat en directe es neteja com a «Cantar → notes» (trossos curts, iguals seguits)
+            netejades = notesGravades.neteja(escalaVeu(), projecte.msPerCompas() / ppc);
+            veuUsada = false;
+        }
         List<GravacioNotes.Frase> frases = notesGravades.frases(entradaMs, projecte.msPerCompas(), ppc, Melodia.MAX_COMPASSOS,
                 t != null && (t.esMidi() || t.esPoli()));
         if (t == null || !projecte.pistes.contains(t) || frases.isEmpty()) {
@@ -3722,7 +3761,7 @@ public class ProjecteActivity extends Activity {
             }
         }
         desa();
-        Ui.historial(this, "Gravat amb el teclat a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes")
+        Ui.historial(this, "Gravat " + (frasesDeVeu ? "cantant en directe" + (netejades > 0 ? " (" + netejades + " trossos netejats)" : "") : "amb el teclat") + " a «" + t.nomVisible() + "»: " + notes + (notes == 1 ? " nota" : " notes")
                 + ", entra al compàs " + Projecte.numCompas(compasEntrada) + (finestres > 1 ? ", " + finestres + " finestres" : ""));
         int ip = projecte.pistes.indexOf(t);
         if (primer != null) vista.tria(ip, primer);
@@ -3733,15 +3772,204 @@ public class ProjecteActivity extends Activity {
         refresca();
     }
 
+    // ---------- Veu en directe (2.44) ----------
+
+    /** L'escala de la cançó per a la veu (null = totes les notes: sense tonalitat o si en Roger ho tria). */
+    private boolean[] escalaVeu() {
+        if (!projecte.teTonalitat() || !Ui.prefs(this).getBoolean("veu_escala", true)) return null;
+        Cantat.Tonalitat to = new Cantat.Tonalitat();
+        to.arrel = projecte.tonArrel;
+        to.menor = projecte.tonMenor;
+        return to.escala();
+    }
+
+    private void pintaBotoVeu(LinearLayout b, int color) {
+        boolean on = veuViva != null;
+        b.setBackground(Ui.tocable(on ? color : Ui.SUPERFICIE2, Ui.dp(this, 24)));
+        TextView tb = (TextView) b.getChildAt(b.getChildCount() - 1);
+        tb.setTextColor(on ? Ui.SOBRE_COLOR : Ui.TEXT);
+        Ui.colorIcona(b, on ? Ui.SOBRE_COLOR : Ui.TEXT);
+    }
+
+    /** Engega el micròfon i posa la roda de notes sobre el teclat. */
+    private void engegaVeu(Projecte.Pista t, FrameLayout zona, int color) {
+        if (veuViva != null || (sinteViu == null && midiViu == null)) return;
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+            Ui.avis(this, "Dona el permís de micròfon i torna a tocar «Veu»");
+            return;
+        }
+        if (!Metronom.auriculars(this)) {
+            Full.avis(this, "Cal auriculars", "Amb l'altaveu, el micròfon sentiria el sinte i es tornaria boig. Connecta auriculars "
+                    + "(millor amb cable: els Bluetooth hi posen més retard) i torna a tocar «Veu».", "D'acord", () -> {});
+            return;
+        }
+        boolean greu = t.esNotes() && soDeLaPista(t).esGreu();
+        String clauOct = greu ? "veu_octava_greu" : "veu_octava";
+        android.content.SharedPreferences pr = Ui.prefs(this);
+        boolean mono = midiViu == null && sinteViu != null && !sinteViu.poli();
+        veuSonant = -1;
+        VeuViva vv = new VeuViva(VeuViva.mostreig(), (e, nanos) -> {
+            // fil del micròfon: el so primer (el més ràpid possible), després la gravació
+            int vell = veuSonant;
+            boolean grava = gravantSinte;
+            if (e.nota >= 0) {
+                if (e.nota != vell) {
+                    if (mono) {
+                        if (sinteViu != null) sinteViu.nota(e.nota, vell >= 0);
+                    } else {
+                        if (vell >= 0) apagaViu(vell);
+                        if (midiViu != null) midiViu.encen(e.nota, MidiSo.velocitat(e.forca));
+                        else if (sinteViu != null) sinteViu.encen(e.nota);
+                    }
+                }
+                veuSonant = e.nota;
+                if (grava && notesGravades != null) {
+                    if (e.correccio && vell >= 0) notesGravades.corregeix(e.nota);
+                    else notesGravades.canvi(e.nota, e.forca, msDeNano(nanos));
+                    veuUsada = true;
+                }
+            } else {
+                if (vell >= 0) {
+                    if (mono) {
+                        if (sinteViu != null) sinteViu.deixa();
+                    } else {
+                        apagaViu(vell);
+                    }
+                }
+                veuSonant = -1;
+                if (grava && notesGravades != null) notesGravades.canvi(-1, 0, msDeNano(nanos));
+            }
+        });
+        boolean[] esc = escalaVeu();
+        vv.notes.posaEscala(esc);
+        vv.notes.posaOctava(pr.getInt(clauOct, greu ? -1 : 0));
+        String error = vv.comenca(this);
+        if (error != null) {
+            Ui.avis(this, error);
+            return;
+        }
+        veuViva = vv;
+
+        // pantalla: la roda (a l'esquerra) i els controls (a la dreta)
+        FrameLayout ov = new FrameLayout(this);
+        ov.setBackgroundColor(Ui.FONS);
+        ov.setClickable(true);
+        LinearLayout fila = Ui.fila(this);
+        fila.setGravity(Gravity.CENTER_VERTICAL);
+        VeuView roda = new VeuView(this);
+        roda.posaColor(color);
+        roda.posaEscala(esc, projecte.teTonalitat() ? projecte.tonArrel : 0);
+        fila.addView(roda, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+        LinearLayout dreta = Ui.columna(this);
+        dreta.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6));
+        TextView ton = Ui.negreta(this, projecte.teTonalitat() ? projecte.tonalitatLlarga() : "Sense tonalitat", 14, Ui.TEXT);
+        dreta.addView(ton);
+        dreta.addView(Ui.text(this, projecte.teTonalitat() ? "La veu va a les notes de l'escala" : "Totes les notes (encara no se sap la tonalitat)",
+                11, Ui.SUAU), Ui.ample(this, 2));
+        if (projecte.teTonalitat()) {
+            dreta.addView(Ui.segmentat(this, new String[]{"Escala", "Totes"}, pr.getBoolean("veu_escala", true) ? 0 : 1, color, i -> {
+                pr.edit().putBoolean("veu_escala", i == 0).apply();
+                boolean[] e2 = escalaVeu();
+                if (veuViva != null) veuViva.notes.posaEscala(e2);
+                roda.posaEscala(e2, projecte.tonArrel);
+            }), Ui.ample(this, 8));
+        }
+        LinearLayout oct = Ui.fila(this);
+        oct.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout om = Ui.botoIcona(this, Icona.MENYS, Ui.TEXT, Ui.SUPERFICIE2, 34, 16, "Una octava avall");
+        FrameLayout op = Ui.botoIcona(this, Icona.MES, Ui.TEXT, Ui.SUPERFICIE2, 34, 16, "Una octava amunt");
+        TextView to = Ui.negreta(this, "", 12, Ui.SUAU);
+        to.setGravity(Gravity.CENTER);
+        Runnable pintaOct = () -> {
+            int o = veuViva == null ? 0 : veuViva.notes.octava();
+            to.setText(o == 0 ? "Octava de la veu" : "Octava " + (o > 0 ? "+" : "−") + Math.abs(o));
+        };
+        om.setOnClickListener(v -> {
+            if (veuViva == null) return;
+            veuViva.notes.posaOctava(veuViva.notes.octava() - 1);
+            pr.edit().putInt(clauOct, veuViva.notes.octava()).apply();
+            pintaOct.run();
+        });
+        op.setOnClickListener(v -> {
+            if (veuViva == null) return;
+            veuViva.notes.posaOctava(veuViva.notes.octava() + 1);
+            pr.edit().putInt(clauOct, veuViva.notes.octava()).apply();
+            pintaOct.run();
+        });
+        oct.addView(om);
+        oct.addView(to, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        oct.addView(op);
+        dreta.addView(oct, Ui.ample(this, 10));
+        pintaOct.run();
+        TextView retard = Ui.text(this, "Retard: mesurant…", 11, Ui.SUAU);
+        dreta.addView(retard, Ui.ample(this, 10));
+        dreta.addView(Ui.text(this, gravantSinte ? "Gravant: el que cantes es desa com a notes en aturar"
+                : "Assaig: no es grava res", 11, Ui.APAGAT), Ui.ample(this, 6));
+        fila.addView(dreta, new LinearLayout.LayoutParams(Ui.dp(this, 200), LinearLayout.LayoutParams.MATCH_PARENT));
+        ov.addView(fila, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        zona.addView(ov, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        panellVeu = ov;
+        long[] darrerText = {0};
+        Runnable tic = new Runnable() {
+            @Override
+            public void run() {
+                VeuViva v = veuViva;
+                if (v == null || panellVeu != ov) return;
+                double db = v.notes.dbAra;
+                roda.posa(veuSonant, v.notes.toAra, Math.max(0, Math.min(1, (db + 60) / 50)));
+                long ara = android.os.SystemClock.uptimeMillis();
+                if (ara - darrerText[0] > 400) {
+                    darrerText[0] = ara;
+                    double tot = v.retardTotalMs();
+                    retard.setText(tot < 0 ? "Retard: mesurant…" : String.format(Locale.ROOT,
+                            "Retard ≈ %.0f ms (micròfon %.0f · càlcul %.0f · sortida %s)", tot, v.retardEntradaMs,
+                            v.notes.retardCalculMs(), SortidaViva.darrerRetardMs < 0 ? "?" : String.format(Locale.ROOT, "%.0f", SortidaViva.darrerRetardMs)));
+                    retard.setTextColor(tot < 0 ? Ui.SUAU : tot < 90 ? Ui.SINTE : tot < 150 ? Ui.GUITARRA : Ui.ACCENT);
+                }
+                roda.postOnAnimation(this);
+            }
+        };
+        roda.postOnAnimation(tic);
+        Ui.historial(this, "Veu en directe a «" + t.nomVisible() + "»" + (esc != null ? " · " + projecte.tonalitatLlarga() : " · totes les notes"));
+    }
+
+    /** Para el micròfon, calla la nota que sonava i treu la roda. */
+    private void aturaVeu() {
+        VeuViva v = veuViva;
+        if (v == null) return;
+        veuViva = null;
+        v.atura();
+        int vell = veuSonant;
+        veuSonant = -1;
+        if (vell >= 0) {
+            if (midiViu == null && sinteViu != null && !sinteViu.poli()) sinteViu.deixa();
+            else apagaViu(vell);
+            if (gravantSinte && notesGravades != null) notesGravades.canvi(-1, 0, msDeNano(System.nanoTime()));
+        }
+        if (panellVeu != null && panellVeu.getParent() instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup) panellVeu.getParent()).removeView(panellVeu);
+        }
+        panellVeu = null;
+    }
+
     // ---------- Cantar → notes (2.41) ----------
 
     /** Pista de sinte, Poli o MIDI armada + mantenir premut el play: tocant el teclat o cantant. */
     private void triaModeInstrument(Projecte.Pista t) {
         List<Full.Accio> ops = new ArrayList<>();
         ops.add(new Full.Accio(Icona.SINTE, "Tocant el teclat", false, () -> comencaGravacioSinte(t)));
-        ops.add(new Full.Accio(Icona.MIC, "Cantant (la veu es converteix en notes)", false, () -> comencaCant(t)));
-        Full.llista(this, "Com hi graves?", "«" + t.nomVisible() + "». Cantant: graves la veu escoltant la base i, en aturar, "
-                + "es converteix en notes a la tonalitat de la cançó. Cal auriculars.", ops);
+        ops.add(new Full.Accio(Icona.MIC, "Cantant, sentint l'instrument (en directe)", false, () -> {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PERMIS_MIC);
+                return;
+            }
+            obreVeuEnObrir = true;
+            comencaGravacioSinte(t);
+        }));
+        ops.add(new Full.Accio(Icona.MIC, "Cantant, es converteix en aturar", false, () -> comencaCant(t)));
+        Full.llista(this, "Com hi graves?", "«" + t.nomVisible() + "». En directe: cantes i sona l'instrument al moment (a la "
+                + "tonalitat de la cançó). En aturar: graves la veu i després es converteix. Cal auriculars.", ops);
     }
 
     private void comencaCant(Projecte.Pista t) {

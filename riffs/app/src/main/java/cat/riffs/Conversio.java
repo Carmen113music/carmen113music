@@ -125,6 +125,11 @@ public final class Conversio {
      * curts entre notes s'omplen (línia lligada).</li>
      * </ol>
      */
+    /** 2.44: la neteja per a les notes cantades en directe (en aturar la gravació). */
+    public static List<Analisi.Nota> corregeixPublic(List<Analisi.Nota> entrada, int nivell, double msCasella, boolean[] escala) {
+        return corregeix(entrada, nivell, msCasella, escala, null);
+    }
+
     static List<Analisi.Nota> corregeix(List<Analisi.Nota> entrada, int nivell, double msCasella, boolean[] escala, int[] corregides) {
         java.util.ArrayList<double[]> v = new java.util.ArrayList<>();   // {inici, fi, to}
         for (Analisi.Nota n : entrada) v.add(new double[]{n.iniciMs, n.fiMs, n.to});

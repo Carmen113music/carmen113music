@@ -15,7 +15,8 @@ public final class GravacioNotes {
     public static final class Tros {
         public final double iniciMs;
         public double fiMs = -1;
-        public final int nota, forca;
+        public int nota;
+        public final int forca;
 
         Tros(double iniciMs, int nota, int forca) {
             this.iniciMs = iniciMs;
@@ -60,6 +61,37 @@ public final class GravacioNotes {
             obert = new Tros(ms, nota, forca);
             trossos.add(obert);
         }
+    }
+
+    /**
+     * 2.44 (veu en directe): la nota que sona no era la bona (la veu hi ha arribat lliscant): és la mateixa nota, des
+     * del mateix moment, amb una altra altura.
+     */
+    public synchronized void corregeix(int nota) {
+        if (obert != null && nota >= 0) obert.nota = nota;
+    }
+
+    /**
+     * 2.44: neteja el que s'ha cantat en directe (com a «Cantar → notes»): els trossos curts van a la nota del costat
+     * i les notes iguals seguides s'ajunten. {@code msCasella}: una casella de la graella.
+     */
+    public synchronized int neteja(boolean[] escala, double msCasella) {
+        List<Analisi.Nota> ln = new ArrayList<>();
+        for (Tros t : trossos) {
+            if (t.fiMs < 0) continue;
+            ln.add(new Analisi.Nota(Math.round(t.iniciMs), Math.round(t.fiMs), t.nota, t.nota));
+        }
+        List<Analisi.Nota> net = Conversio.corregeixPublic(ln, 2, msCasella, escala);
+        int tretes = ln.size() - net.size();
+        trossos.clear();
+        oberts.clear();
+        obert = null;
+        for (Analisi.Nota n : net) {
+            Tros t = new Tros(n.iniciMs, n.midi, 2);
+            t.fiMs = n.fiMs;
+            trossos.add(t);
+        }
+        return tretes;
     }
 
     /** Tanca la nota que encara sona (en aturar). */

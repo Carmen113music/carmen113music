@@ -20,6 +20,8 @@ final class SortidaViva {
 
     /** El que s'ha vist l'últim cop (per al diagnòstic). */
     static volatile String info = "encara no s'ha tocat cap instrument en directe";
+    /** 2.44: el darrer retard de sortida mesurat (ms; −1 = encara no), per a la pantalla de la veu en directe. */
+    static volatile double darrerRetardMs = -1;
 
     private static int natiu = 0, paquet = 0;
 
@@ -141,6 +143,7 @@ final class SortidaViva {
         double sortit = marca.framePosition + (ara - marca.nanoTime) * sr / 1e9;
         double ms = (escrites - sortit) * 1000.0 / sr;
         if (ms > 0 && ms < 2000) retardMs = retardMs < 0 ? ms : retardMs * 0.7 + ms * 0.3;
+        if (retardMs > 0) darrerRetardMs = retardMs;
     }
 
     private void apunta() {
